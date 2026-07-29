@@ -1,0 +1,53 @@
+{
+	"comment": "Pinned upstreams vendored into this monorepo. ref accepts a git tag or a full commit SHA. subpath extracts a monorepo subdirectory; null vendors the repo root. Renaming to @runecraft/* happens per fork feature (F2-F5), never here.",
+	"upstreams": {
+		"subagents": {
+			"repo": "nicobailon/pi-subagents",
+			"ref": "v0.37.2",
+			"npmName": "pi-subagents",
+			"npmVersion": "0.37.2",
+			"subpath": null,
+			"dest": "packages/subagents"
+		},
+		"taskflow-core": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "taskflow-core",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/taskflow-core",
+			"dest": "packages/taskflow/core"
+		},
+		"taskflow-pi": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "pi-taskflow",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/pi-taskflow",
+			"dest": "packages/taskflow/pi"
+		},
+		"taskflow-dsl": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "taskflow-dsl",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/taskflow-dsl",
+			"dest": "packages/taskflow/dsl"
+		},
+		"goal-loop-audit": {
+			"repo": "DraconDev/pi-goal-list-loop-audit",
+			"ref": "21b6bb0abdf5c21c88c976231f312465c3900128",
+			"npmName": "pi-goal-list-loop-audit",
+			"npmVersion": "0.28.34",
+			"subpath": null,
+			"dest": "packages/goal-loop-audit"
+		},
+		"pr-review": {
+			"repo": "10ego/pi-pr-review",
+			"ref": "v1.11.4",
+			"npmName": "pi-pr-review",
+			"npmVersion": "1.11.4",
+			"subpath": null,
+			"dest": "packages/pr-review"
+		}
+	}
+}
