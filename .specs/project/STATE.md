@@ -1,7 +1,8 @@
 # State
 
 **Last Updated:** 2026-07-29
-**Current Work:** F1 COMPLETE (scaffold + vendoring verificados, SCAF-01..06). Próximo: F2 — Fork @runecraft/subagents (source já vendorado em packages/subagents, falta rename + testes verdes + carga no Pi).
+**Current Work:** F1 COMPLETE. Specs de F2–F10 escritas (`.specs/features/f*/spec.md`) com fatos verificados dos upstreams. Próximo: Execute F2 — Fork @runecraft/subagents.
+**Specs criadas:** F2 (SUBA, Medium), F3 (TFLW, Large — 3 pkgs + workspace dep), F4 (GLLA, Medium), F5 (PREV, Medium — dispatch a mapear), F6 (UMBR, Large — **design.md obrigatório**: mecanismo de agregação de extensões Pi, hipóteses H1/H2/H3), F7 (COEX, Medium — two-driver é o risco central), F8 (DOCS), F9 (PUBL), F10 (SYNC — three-way merge sobre vendor.json).
 
 ### Handoff
 
@@ -91,8 +92,10 @@ None.
 ## Todos
 
 - [x] Specify F1 (Monorepo Scaffold) — COMPLETE 2026-07-29
-- [ ] F2: revisar `install.mjs` do pi-subagents (postinstall bloqueado pelo bun)
-- [ ] Fechar decisão de atribuição de licença (AD-002) antes do F9
+- [x] Specs F2–F10 — COMPLETE 2026-07-29
+- [ ] F2: `install.mjs` clona repo upstream hardcoded — spec já manda remover (SUBA-02)
+- [ ] F6: design.md antes do Execute (gray area de agregação)
+- [ ] Fechar decisão de atribuição de licença (AD-002) — deadline: F8 (DOCS-03)
 
 ---
 
