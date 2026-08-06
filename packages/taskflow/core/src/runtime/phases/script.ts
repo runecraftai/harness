@@ -1,0 +1,200 @@
+/**
+ * Script phase — zero-token shell command execution.
+ * Isolated from runtime.ts so S5 strangler can flip kinds without growing the monolith.
+ */
+
+import type { Phase } from "../../schema.ts";
+import type { PhaseState } from "../../store.ts";
+import { emptyUsage } from "../../usage.ts";
+import { StringDecoder } from "node:string_decoder";
+import { killProcessTree, registerProcessTree, unregisterProcessTree } from "../../runner-core.ts";
+import { CWD_BRIDGE_MODE_ENV } from "../../cwd-bridge.ts";
+import { WORKSPACE_RECONCILE_MODE_ENV } from "../../resources/execution.ts";
+
+const MAX_STDOUT = 1_048_576; // 1 MB cap
+const SIGKILL_GRACE_MS = 5_000;
+
+export interface ScriptRunResult {
+	stdout: string;
+	stderr: string;
+	code: number | null;
+	stdoutOversize: boolean;
+	timedOut: boolean;
+}
+
+/**
+ * Spawn the script command and capture stdout/stderr with timeout + size caps.
+ */
+export async function runScriptCommand(opts: {
+	/** Interpolated argv (array form) or single shell string as [cmd]. */
+	interpRunText: string[];
+	/** Original `run` shape: array → no shell; string → shell true. */
+	arrayForm: boolean;
+	cwd: string;
+	signal?: AbortSignal;
+	stdinInput?: string;
+	timeoutMs: number;
+}): Promise<ScriptRunResult> {
+	const { spawn } = await import("node:child_process");
+	const { interpRunText, arrayForm, cwd, signal, stdinInput, timeoutMs } = opts;
+
+	return new Promise((resolve, reject) => {
+		const childEnv = { ...process.env };
+		// Script phases execute flow-authored commands, so they are not a trusted
+		// host principal. Host-only workspace controls must never be delegated even
+		// when the script later launches another Taskflow process.
+		delete childEnv[CWD_BRIDGE_MODE_ENV];
+		delete childEnv[WORKSPACE_RECONCILE_MODE_ENV];
+		const spawnOptions = {
+			cwd,
+			env: childEnv,
+			detached: process.platform !== "win32",
+		};
+		const child = arrayForm
+			? spawn(interpRunText[0], interpRunText.slice(1), {
+					...spawnOptions,
+					shell: false,
+				})
+			: spawn(interpRunText[0], [], {
+					...spawnOptions,
+					shell: true,
+				});
+		if (child.pid) registerProcessTree(child.pid);
+
+		let stdout = "";
+		let stderr = "";
+		let stdoutBytes = 0;
+		let stderrBytes = 0;
+		let stdoutOversize = false;
+		let timedOut = false;
+		let settled = false;
+		const stdoutDecoder = new StringDecoder("utf8");
+		const stderrDecoder = new StringDecoder("utf8");
+		child.stdout?.on("data", (d: Buffer) => {
+			const remaining = MAX_STDOUT - stdoutBytes;
+			const retained = d.subarray(0, Math.max(0, remaining));
+			if (retained.length > 0) {
+				stdout += stdoutDecoder.write(retained);
+				stdoutBytes += retained.length;
+			}
+			if (d.length > retained.length) stdoutOversize = true;
+		});
+		child.stderr?.on("data", (d: Buffer) => {
+			const remaining = 500 - stderrBytes;
+			const retained = d.subarray(0, Math.max(0, remaining));
+			if (retained.length > 0) {
+				stderr += stderrDecoder.write(retained);
+				stderrBytes += retained.length;
+			}
+		});
+
+		let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			if (child.pid) killProcessTree(child.pid, "SIGTERM", child);
+			sigkillTimer = setTimeout(() => {
+				if (child.pid) killProcessTree(child.pid, "SIGKILL", child);
+			}, SIGKILL_GRACE_MS);
+		}, timeoutMs);
+		const onAbort = () => {
+			if (child.pid) killProcessTree(child.pid, "SIGKILL", child);
+		};
+		signal?.addEventListener("abort", onAbort, { once: true });
+		if (signal?.aborted) onAbort();
+
+		child.on("error", (err) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			clearTimeout(sigkillTimer);
+			signal?.removeEventListener("abort", onAbort);
+			if (child.pid) unregisterProcessTree(child.pid);
+			reject(err);
+		});
+		child.once("exit", () => {
+			if (child.pid) killProcessTree(child.pid, "SIGKILL", child);
+		});
+		child.on("close", (code) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			clearTimeout(sigkillTimer);
+			signal?.removeEventListener("abort", onAbort);
+			if (child.pid) killProcessTree(child.pid, "SIGKILL", child);
+			if (child.pid) unregisterProcessTree(child.pid);
+			// If truncation cut through a multi-byte character, discard the decoder's
+			// incomplete suffix instead of manufacturing U+FFFD. Otherwise flush an
+			// actually malformed child stream normally.
+			if (!stdoutOversize) stdout += stdoutDecoder.end();
+			if (stderrBytes < 500) stderr += stderrDecoder.end();
+			resolve({ stdout, stderr, code, stdoutOversize, timedOut });
+		});
+
+		if (child.stdin) {
+			child.stdin.on("error", () => {}); // swallow EPIPE when child closes stdin early
+			if (stdinInput !== undefined) child.stdin.write(stdinInput);
+			// A spawned process always receives a pipe for stdin. Close it even when
+			// the phase omitted `input`, otherwise commands that wait for EOF (for
+			// example `cat`) hang until the script timeout fires.
+			child.stdin.end();
+		}
+	});
+}
+
+/** Map a successful/failed script process result to PhaseState. */
+export function scriptResultToPhaseState(
+	phase: Phase,
+	result: ScriptRunResult,
+	opts: {
+		inputHash: string;
+		timeoutMs: number;
+		reads?: PhaseState["reads"];
+	},
+): PhaseState {
+	if (result.code !== 0 || result.timedOut) {
+		const ps: PhaseState = {
+			id: phase.id,
+			status: "failed",
+			output: result.stdout,
+			error: result.timedOut
+				? `Script timed out after ${opts.timeoutMs}ms`
+				: `Script exited with code ${result.code}${result.stderr ? ": " + result.stderr.slice(0, 500) : ""}${result.stdoutOversize ? " [stdout truncated at 1 MB]" : ""}`,
+			timedOut: result.timedOut || undefined,
+			usage: emptyUsage(),
+			inputHash: opts.inputHash,
+			endedAt: Date.now(),
+		};
+		if (opts.reads) ps.reads = opts.reads;
+		return ps;
+	}
+
+	const ps: PhaseState = {
+		id: phase.id,
+		status: "done",
+		output: result.stdout.trimEnd() + (result.stdoutOversize ? "\n[stdout truncated at 1 MB]" : ""),
+		usage: emptyUsage(),
+		inputHash: opts.inputHash,
+		endedAt: Date.now(),
+	};
+	if (opts.reads) ps.reads = opts.reads;
+	return ps;
+}
+
+/** Spawn error → failed phase (not cacheable — transient). */
+export function scriptSpawnErrorToPhaseState(
+	phaseId: string,
+	err: unknown,
+	opts: { inputHash: string; reads?: PhaseState["reads"] },
+): PhaseState {
+	const msg = err instanceof Error ? err.message : String(err);
+	const ps: PhaseState = {
+		id: phaseId,
+		status: "failed",
+		error: `Script error: ${msg}`,
+		usage: emptyUsage(),
+		inputHash: opts.inputHash,
+		endedAt: Date.now(),
+	};
+	if (opts.reads) ps.reads = opts.reads;
+	return ps;
+}
