@@ -1,0 +1,101 @@
+{
+  "name": "@runecraft/harness",
+  "version": "0.1.0",
+  "description": "Runecraft Harness — umbrella meta-package: one install loads subagents, taskflow, goal-loop-audit and pr-review into a Pi session.",
+  "license": "MIT",
+  "author": "Runecraft",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "harness",
+    "subagents",
+    "taskflow",
+    "goal-loop-audit",
+    "pr-review"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runecraft-ai/harness.git"
+  },
+  "homepage": "https://github.com/runecraft-ai/harness/tree/main/packages/harness#readme",
+  "bugs": {
+    "url": "https://github.com/runecraft-ai/harness/issues"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "scripts": {
+    "prepack": "node ./scripts/prepack.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22"
+  },
+  "bin": {
+    "harness": "./bin/harness.ts"
+  },
+  "dependencies": {
+    "@runecraft/subagents": "0.37.2",
+    "@runecraft/taskflow-core": "0.2.6",
+    "@runecraft/taskflow": "0.2.6",
+    "@runecraft/taskflow-dsl": "0.2.6",
+    "@runecraft/goal-loop-audit": "0.28.34",
+    "@runecraft/pr-review": "1.11.4",
+    "jiti": "2.7.0",
+    "typescript": "^6.0.3",
+    "yaml": "2.8.3"
+  },
+  "bundledDependencies": [
+    "@runecraft/subagents",
+    "@runecraft/taskflow-core",
+    "@runecraft/taskflow",
+    "@runecraft/taskflow-dsl",
+    "@runecraft/goal-loop-audit",
+    "@runecraft/pr-review"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-agent-core": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "node_modules/@runecraft/subagents/index.ts",
+      "node_modules/@runecraft/taskflow/dist/index.js",
+      "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",
+      "node_modules/@runecraft/pr-review/extensions/index.ts"
+    ],
+    "skills": [
+      "node_modules/@runecraft/subagents/skills",
+      "node_modules/@runecraft/taskflow/skills"
+    ],
+    "prompts": [
+      "node_modules/@runecraft/subagents/prompts",
+      "node_modules/@runecraft/pr-review/prompts"
+    ]
+  }
+}
