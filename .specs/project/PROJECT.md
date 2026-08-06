@@ -8,6 +8,9 @@
 
 - Fork funcional dos 4 pacotes base publicável sob `@runecraft/*` — cada um builda, testa e carrega no Pi igual ao upstream
 - Umbrella `@runecraft/harness` que instala e configura os 4 de uma vez (`pi install npm:@runecraft/harness`)
+- Serving layer estilo gentle-ai em TS (sem binário Go): CLI `npx` com install/doctor/sync/uninstall, estado e backup — os 4 forks como components selecionáveis
+- Multi-agente: além do Pi, servir Claude Code, OpenCode e Codex via camada MCP do taskflow (matriz honesta, fail-closed/detect-only)
+- Evals próprios garantindo o harness: suite determinística (fixture) + cenários E2E versionados + ratchet de não-regressão
 - Zero conflito entre os pacotes rodando juntos na mesma sessão Pi (validado, não presumido)
 - Processo de sync com upstream documentado e executável (assumimos o custo de manter)
 
@@ -15,7 +18,7 @@
 
 **Core:**
 
-- Runtime alvo: Pi coding agent (`@earendil-works/pi-coding-agent`) — extensões carregadas como TS/JS
+- Runtime alvo: Pi coding agent (`@earendil-works/pi-coding-agent`) — extensões carregadas como TS/JS; Claude Code, OpenCode e Codex via camada MCP do taskflow (F16)
 - Language: TypeScript (ESM), Node.js ≥ 22.19
 - Monorepo: workspaces + Turborepo, Biome (mesmas convenções do arcanum)
 
@@ -40,16 +43,20 @@
 - Monorepo scaffold (workspaces, turbo, biome, tsconfig)
 - Fork dos 4 pacotes com namespace `@runecraft/*`, build/test verdes
 - Umbrella package com instalação única
+- CLI `npx @runecraft/harness`: install/doctor/sync/uninstall, state + backups (serving layer estilo gentle-ai)
+- Adapters Claude Code, OpenCode, Codex via camada MCP do taskflow (F16)
+- Evals: suite determinística + cenários E2E + ratchet (M5)
 - Validação de coexistência (sem conflito two-driver, auditor funciona com nosso subagents)
 - Docs mínimas por pacote + processo de sync upstream
 
 **Explicitly out of scope:**
 
 - TUI própria para despachar ações (futuro — Pi como server)
-- Installer CLI standalone (o umbrella cobre)
+- Installer CLI standalone que instala o próprio Pi (o umbrella `npx` cobre o v1)
 - Lore RPG / agentes temáticos
 - pi-landstrip (dispatch conflita com subagents), pi-swarm, nervous-system, pi-extensible-workflows (sobreposição)
-- Hosts MCP do taskflow para Codex/Claude Code/OpenCode/Grok (só o adapter Pi)
+- Adaptadores além de Pi/Claude Code/OpenCode/Codex no v1 (Gemini CLI, Cursor, Windsurf, Kiro → Future)
+- Authority store / threat model do RDD completo (receipt leve no v1 — F20)
 
 ## Constraints
 
