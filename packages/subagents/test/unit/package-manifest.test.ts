@@ -60,17 +60,17 @@ test("published extension APIs use supported package entrypoints", async () => {
 		"./delegation": "./src/api/delegation.ts",
 		"./preflight": "./src/api/preflight.ts",
 	});
-	const backgroundWork = await import("pi-subagents/background-work");
+	const backgroundWork = await import("@runecraft/subagents/background-work");
 	assert.equal(backgroundWork.BACKGROUND_WORK_PROTOCOL_VERSION, 1);
 	assert.equal(backgroundWork.BACKGROUND_WORK_REGISTRY_KEY, "pi-subagents.background-work.v1");
-	const capability = await import("pi-subagents/capability-ceiling");
+	const capability = await import("@runecraft/subagents/capability-ceiling");
 	assert.equal(capability.SUBAGENT_CAPABILITY_CEILING_VERSION, 1);
 	assert.equal(capability.SUBAGENT_CAPABILITY_CEILING_REGISTRY_KEY, "pi-subagents.capability-ceiling.v1");
-	const delegation = await import("pi-subagents/delegation");
+	const delegation = await import("@runecraft/subagents/delegation");
 	assert.equal(delegation.SUBAGENT_DELEGATION_PROTOCOL_VERSION, 1);
 	assert.equal(delegation.SUBAGENT_DELEGATION_V2_PROTOCOL_VERSION, 2);
 	assert.equal(delegation.SUBAGENT_DELEGATION_REQUEST_EVENT, "prompt-template:subagent:request");
-	const preflight = await import("pi-subagents/preflight");
+	const preflight = await import("@runecraft/subagents/preflight");
 	assert.equal(preflight.SUBAGENT_LAUNCH_CONTRACT_VERSION, 2);
 	assert.equal(typeof preflight.resolveSubagentLaunchContract, "function");
 });
