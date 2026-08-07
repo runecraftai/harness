@@ -65,6 +65,33 @@ export function statePath(rt: Runtime, scope: Scope): string {
   return path.join(runecraftDir(rt, scope), "state.json");
 }
 
+/**
+ * Non-Pi agent config homes (F15 D9): env override > platform default.
+ * The config dir is informative (binary on PATH = installed); inject creates
+ * dirs when missing. OpenCode honors $XDG_CONFIG_HOME when absolute.
+ *
+ * HOME comes from the RUNTIME env (rt.env) so fixtures can redirect it —
+ * never os.homedir() (process HOME), which would leak into the real ~.
+ */
+export function homeDir(env: NodeJS.ProcessEnv): string {
+  return env.HOME ?? os.homedir();
+}
+
+export function claudeCodeHome(env: NodeJS.ProcessEnv): string {
+  return env.RUNECRAFT_CLAUDE_HOME ?? path.join(homeDir(env), ".claude");
+}
+
+export function opencodeHome(env: NodeJS.ProcessEnv): string {
+  if (env.RUNECRAFT_OPENCODE_HOME) return env.RUNECRAFT_OPENCODE_HOME;
+  const xdg = env.XDG_CONFIG_HOME;
+  if (xdg && path.isAbsolute(xdg)) return path.join(xdg, "opencode");
+  return path.join(homeDir(env), ".config", "opencode");
+}
+
+export function codexHome(env: NodeJS.ProcessEnv): string {
+  return env.RUNECRAFT_CODEX_HOME ?? path.join(homeDir(env), ".codex");
+}
+
 /** Snapshot dir for backups (F13; F11 writes the pre-write snapshot here). */
 export function backupsDir(rt: Runtime, scope: Scope): string {
   return path.join(runecraftDir(rt, scope), "backups");

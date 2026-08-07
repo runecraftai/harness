@@ -45,6 +45,43 @@ export interface SettingsChange {
   value: unknown;
 }
 
+/**
+ * One managed target of a non-Pi agent (F15/F17 D2). Kind `rules` = a marker
+ * section in a text file; kind `mcp` = an MCP server entry in a host config.
+ */
+export type AgentTarget =
+  | {
+      kind: "rules";
+      /** logical component (matrix column), e.g. "rules" */
+      component: string;
+      /** absolute path of the rules file (CLAUDE.md / AGENTS.md) */
+      file: string;
+      /** marker section id, e.g. "runecraft:workflow" */
+      section: string;
+      /** sha256 of the normalized section content (F17 D2; SETM-05 basis) */
+      contentHash: string;
+    }
+  | {
+      kind: "mcp";
+      /** logical component (matrix column), e.g. "taskflow" */
+      component: string;
+      /** absolute path of the host MCP config file */
+      file: string;
+      /** entry key inside the config, e.g. "taskflow" */
+      entry: string;
+      /** resolved fork binary (diagnostic; edit detection uses contentHash) */
+      bin: string;
+      /** sha256 of the canonical entry JSON (command/args) — D7 fingerprint */
+      contentHash: string;
+    };
+
+/** State record for one managed non-Pi agent (F17 D2, implemented in F15). */
+export interface AgentRecord {
+  installedAt: string;
+  harnessVersion: string;
+  targets: AgentTarget[];
+}
+
 export interface HarnessState {
   schemaVersion: 1;
   scope: Scope;
@@ -56,6 +93,8 @@ export interface HarnessState {
   settingsChanges: SettingsChange[];
   /** hashes + backup names for files touched at install time. */
   preInstall: PreInstallRecord[];
+  /** managed non-Pi agents (F15/F17 D2; aditivo, schemaVersion permanece 1). */
+  agents: Record<string, AgentRecord>;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -68,6 +107,7 @@ export function emptyState(scope: Scope): HarnessState {
     createdFiles: [],
     settingsChanges: [],
     preInstall: [],
+    agents: {},
   };
 }
 
@@ -107,6 +147,7 @@ function parseState(file: string, scope: Scope): HarnessState | null {
     createdFiles: Array.isArray(raw.createdFiles) ? (raw.createdFiles as string[]) : [],
     settingsChanges: Array.isArray(raw.settingsChanges) ? (raw.settingsChanges as SettingsChange[]) : [],
     preInstall: Array.isArray(raw.preInstall) ? (raw.preInstall as PreInstallRecord[]) : [],
+    agents: raw.agents && typeof raw.agents === "object" ? (raw.agents as Record<string, AgentRecord>) : {},
   };
 }
 
@@ -179,6 +220,16 @@ export function upsertSettingsChange(state: HarnessState, change: SettingsChange
   );
   if (index === -1) state.settingsChanges.push(change);
   else state.settingsChanges[index] = change;
+}
+
+/** Register (or replace) a managed agent record (F15; F17 D2). */
+export function upsertAgent(state: HarnessState, agentId: string, record: AgentRecord): void {
+  state.agents[agentId] = record;
+}
+
+/** Drop an agent record entirely (uninstall F15; F17 D2 cleanup). */
+export function removeAgent(state: HarnessState, agentId: string): void {
+  delete state.agents[agentId];
 }
 
 /** Atomic write: tmp + rename (STBK-03). Creates parent dirs. */

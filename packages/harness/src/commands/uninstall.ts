@@ -32,6 +32,9 @@ import { npmIdentity, type PiInterop } from "../pi.ts";
 import { loadState, saveState, type InstalledEntry } from "../state.ts";
 import { scanConflicts } from "../conflicts.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
+import { parseAgentArgs, uninstallAgent } from "../adapters/agentOps.ts";
+import type { AgentId } from "../adapters/types.ts";
+import { SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 
 export interface UninstallCommandOptions {
   json: boolean;
@@ -39,6 +42,8 @@ export interface UninstallCommandOptions {
   all: boolean;
   /** --component list (groups); mutually exclusive with --all. */
   components?: string[];
+  /** F15: non-Pi agents to remove (--agent claude-code,…). */
+  agents?: string[];
   yes: boolean;
   out: TextSink;
   err: TextSink;
@@ -63,6 +68,8 @@ export interface UninstallReport {
   backup?: string;
   corruptStatePath?: string;
   notes: string[];
+  /** F15: non-Pi agents removed by this run. */
+  agentsRemoved: string[];
 }
 
 /** Package names (state keys) to remove, given the selection flags (flags validated by the caller). */
@@ -154,19 +161,26 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   if (opts.all && opts.components && opts.components.length > 0) {
     const message = "@runecraft/harness uninstall: use `--all` ou `--component`, não ambos";
     if (opts.json)
-      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message] }));
+      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     else err.write(`${message}\n`);
     return 1;
   }
-  if (!opts.all && (!opts.components || opts.components.length === 0)) {
-    const message = "@runecraft/harness uninstall: especifique o que remover: `--all` ou `--component <a,b>`";
+  if (!opts.all && (!opts.components || opts.components.length === 0) && (!opts.agents || opts.agents.length === 0)) {
+    const message = "@runecraft/harness uninstall: especifique o que remover: `--all`, `--component <a,b>` ou `--agent <a,b>`";
     if (opts.json)
-      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message] }));
+      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     else err.write(`${message}\n`);
     return 1;
   }
 
   const loaded = loadState(stateFile, scope);
+
+  // F15: agentes não-Pi a remover (--agent). Remoção content-based (D6/D7).
+  const agentIds = opts.agents
+    ? parseAgentArgs(opts.agents).supported
+    : opts.all
+      ? Object.keys(loaded.state.agents).filter((id) => (SUPPORTED_AGENT_IDS as readonly string[]).includes(id))
+      : [];
 
   // Modo conservador (edge F12): state corrompido → nada pode ser atribuído ao
   // harness com segurança → nada é removido.
@@ -174,7 +188,7 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
     const message = `warn: state.json corrompido — movido para ${loaded.corruptPath}; uninstall abortado em modo conservador (nada foi removido).`;
     if (opts.json) {
       out.write(
-        renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], corruptStatePath: loaded.corruptPath, notes: [message] }),
+        renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], corruptStatePath: loaded.corruptPath, notes: [message], agentsRemoved: [] }),
       );
     } else {
       err.write(`${message}\n`);
@@ -184,7 +198,7 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   if (loaded.created) {
     const message = "nada gerenciado pelo harness neste scope — nada a remover.";
     if (opts.json) {
-      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message] }));
+      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     } else {
       out.write(`@runecraft/harness uninstall (scope ${scope}): ${message}\n`);
     }
@@ -192,10 +206,10 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   }
 
   const selected = resolveUninstallSelection(loaded.state.components, opts.all, opts.components);
-  if (selected.length === 0) {
+  if (selected.length === 0 && agentIds.length === 0) {
     const message = "nenhum package registrado no state para os componentes selecionados — nada a remover.";
     if (opts.json) {
-      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message] }));
+      out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     } else {
       out.write(`@runecraft/harness uninstall (scope ${scope}): ${message}\n`);
     }
@@ -212,12 +226,15 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   }
 
   // Backup pré-write (LIFE 2.4): falhou → aborta antes de modificar qualquer coisa.
-  // createdFiles (config criado do zero pelo harness) entra no snapshot: o
-  // uninstall os remove inteiros e a remoção precisa ser reversível (design F13).
+  // Alvos dos agentes não-Pi entram no snapshot (F15 D6: remoção reversível).
+  const agentTargetFiles = agentIds.flatMap((id) => {
+    const record = loaded.state.agents[id];
+    return record ? record.targets.map((t) => t.file) : [];
+  });
   let backupFile: string | undefined;
   try {
     const snapshot = createSnapshot({
-      files: [...filesTouchedByInstall(rt, scope), ...loaded.state.createdFiles],
+      files: [...filesTouchedByInstall(rt, scope), ...loaded.state.createdFiles, ...agentTargetFiles],
       destDir: backupsDir(rt, scope),
       reason: "uninstall",
       scope,
@@ -228,6 +245,18 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
       `@runecraft/harness uninstall: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
     );
     return 1;
+  }
+
+  // F15: remoção por agente (só o gerenciado; edições do usuário preservadas).
+  const agentDetails: string[] = [];
+  let agentFailed = false;
+  for (const id of agentIds) {
+    const outcome = await uninstallAgent(id as AgentId, rt, loaded.state);
+    agentDetails.push(...outcome.detail.map((d) => `${outcome.agentId}: ${d}`));
+    if (outcome.status === "failed" && outcome.error) {
+      agentFailed = true;
+      err.write(`  ✗ ${id} — ${outcome.error}\n`);
+    }
   }
 
   const removed: string[] = [];
@@ -339,10 +368,11 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
     preserved,
     failed,
     backup: backupFile,
-    notes,
+    notes: [...notes, ...agentDetails],
+    agentsRemoved: agentIds,
   };
   if (opts.json) out.write(renderUninstallJson(report));
   else out.write(renderUninstall(report, { tty: false }));
 
-  return failed.length > 0 ? 1 : 0;
+  return failed.length > 0 || agentFailed ? 1 : 0;
 }

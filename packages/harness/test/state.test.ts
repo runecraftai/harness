@@ -40,6 +40,7 @@ function validState(scope: "global" | "workspace" = "global"): HarnessState {
     preInstall: [
       { file: "/tmp/fake/.runecraft/backups/runecraft-20260805-120000-000.tar.gz", hash: "abc123", backup: "runecraft-20260805-120000-000.tar.gz" },
     ],
+    agents: {},
   };
 }
 

@@ -23,6 +23,8 @@ import { createPiInterop, npmIdentity, type PiInterop } from "../pi.ts";
 import { loadState, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
+import { execFileSync } from "node:child_process";
+import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 import { COMPONENTS } from "../plan.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão";
@@ -54,6 +56,8 @@ export interface StatusReport {
   piListError?: string;
   /** no state entries in this scope → render the install suggestion */
   nothingManaged: boolean;
+  /** F15/T8: non-Pi agents (detected + managed). */
+  agents: Array<{ agent: string; detected: boolean; managed: boolean }>;
 }
 
 export interface StatusCommandOptions {
@@ -134,8 +138,26 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     piDetected,
     piListSource: list.source,
     piListError: list.error,
-    nothingManaged: Object.keys(state.components).length === 0,
+    nothingManaged: Object.keys(state.components).length === 0 && Object.keys(state.agents).length === 0,
+    agents: SUPPORTED_AGENT_IDS.map((id) => ({
+      agent: id,
+      detected: agentBinOnPath(ADAPTERS[id].bin, rt.env),
+      managed: state.agents[id] !== undefined,
+    })),
   };
+}
+
+/** Síncrono (status é read-only) — `command -v` via sh. */
+function agentBinOnPath(bin: string, env: NodeJS.ProcessEnv): boolean {
+  try {
+    execFileSync("sh", ["-c", `command -v ${bin} 2>/dev/null`], {
+      env: env as Record<string, string>,
+      timeout: 5_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function renderStatus(report: StatusReport, opts: { tty: boolean }): string {
@@ -156,6 +178,15 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   }
   for (const collision of report.collisions) {
     lines.push(`warn: colisão com upstream ${collision.package} — ${collision.suggestion} (tratamento no F18)`);
+  }
+  const agents = report.agents.filter((a) => a.detected || a.managed);
+  if (agents.length > 0) {
+    lines.push("");
+    lines.push("Agentes não-Pi (F15):");
+    for (const agent of agents) {
+      const state = agent.managed ? "gerenciado" : "detectado (não gerenciado)";
+      lines.push(`  ${agent.agent.padEnd(12)}${state}`);
+    }
   }
   if (!report.piDetected) lines.push("warn: binário `pi` não detectado — a coluna Instalado pode estar incompleta");
   if (report.piListError) lines.push(`warn: \`pi list\` falhou (${report.piListError}) — coluna Instalado usa o fallback de settings.json`);
@@ -182,6 +213,7 @@ export function renderStatusJson(report: StatusReport): string {
         state: r.state,
         managed: r.managed,
       })),
+      agents: report.agents.map((a) => ({ agent: a.agent, detected: a.detected, managed: a.managed })),
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

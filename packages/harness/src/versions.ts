@@ -9,6 +9,12 @@ export const HARNESS_VERSIONS: Readonly<Record<string, string>> = {
 	"@runecraft/pr-review": "1.11.4",
 	"@runecraft/subagents": "0.37.2",
 	"@runecraft/taskflow": "0.2.6",
+	"@runecraft/taskflow-claude": "0.2.6",
+	"@runecraft/taskflow-codex": "0.2.6",
 	"@runecraft/taskflow-core": "0.2.6",
 	"@runecraft/taskflow-dsl": "0.2.6",
+	"@runecraft/taskflow-grok": "0.2.6",
+	"@runecraft/taskflow-hosts": "0.2.6",
+	"@runecraft/taskflow-mcp-core": "0.2.6",
+	"@runecraft/taskflow-opencode": "0.2.6",
 };

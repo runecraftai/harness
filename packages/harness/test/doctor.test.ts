@@ -62,8 +62,9 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(6);
-      expect(json.summary.pass).toBe(6);
+      expect(json.checks).toHaveLength(7); // 1–6 (F12) + 7 agentes não-Pi (F15)
+      // O PATH do ambiente pode conter agentes reais → check 7 pode ser warn.
+      expect(json.summary.pass + json.summary.warn).toBe(7);
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
         expect(["pass", "warn", "fail", "skip"]).toContain(check.status);

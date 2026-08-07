@@ -30,6 +30,8 @@ import { npmIdentity, piNotFoundMessage, type PiInterop } from "../pi.ts";
 import { loadState, saveState, upsertInstalled, upsertSettingsChange, type HarnessState } from "../state.ts";
 import { renderDryRun, renderReport, type FailInfo, type InstallReport, type SettingsMergeReport } from "../report.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
+import { parseAgentArgs, installAgent, detectOnlyReport } from "../adapters/agentOps.ts";
+import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 
 export { scanConflicts, type ConflictInfo };
 
@@ -37,6 +39,8 @@ export interface InstallCommandOptions {
   command: "install";
   preset: PresetName;
   components?: string[];
+  /** non-Pi agents (F15); undefined = Pi-only (compat F11). */
+  agents?: string[];
   dryRun: boolean;
   json: boolean;
   scope: Scope;
@@ -98,37 +102,89 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   const nodeWarn = nodeVersionWarn(opts.nodeVersion);
   if (nodeWarn) err.write(`${nodeWarn}\n`);
 
-  // 1. detectPi — fail-closed com o comando exato (CLI-04).
-  const detection = opts.pi.detect();
-  if (!detection.found) {
-    const message = piNotFoundMessage();
-    err.write(message);
-    if (opts.json) {
-      out.write(`${JSON.stringify({ error: message.trim().split(/\r?\n/)[0], command: "npm install -g --ignore-scripts @earendil-works/pi-coding-agent", installed: [], kept: [], conflicts: [], failed: [] }, null, 2)}\n`);
+  // ── Agentes não-Pi (F15): --agent pi,claude-code,… · default = Pi-only ──
+  const agentArg = opts.agents && opts.agents.length > 0 ? opts.agents : ["pi"];
+  const parsedAgents = parseAgentArgs(agentArg);
+  const wantPi = agentArg.some((a) => a.split(",").map((s) => s.trim()).includes("pi"));
+  const nonPiAgents = parsedAgents.supported;
+  const agentOutcomes: Array<{ agentId: string; status: string; detail: string[]; error?: string }> = [];
+  const detectOnly: Array<{ agentId: string; guide: string }> = [
+    ...parsedAgents.detectOnly.map((id) => detectOnlyReport(id)),
+    ...parsedAgents.unknown.map((id) => ({ agentId: id, guide: detectOnlyReport(id).guide })),
+  ];
+
+  // --component fora da coluna não-Pi → recusa com motivo (F17 fail-closed por célula).
+  if (nonPiAgents.length > 0 && opts.components && opts.components.length > 0) {
+    const nonPiColumn = ["rules", "taskflow"];
+    const invalid = opts.components.filter((c) => !nonPiColumn.includes(c));
+    if (invalid.length > 0) {
+      err.write(`@runecraft/harness install: ${invalid.join(", ")} é extensão Pi; use --agent pi (componente não suportado por agentes não-Pi).\n`);
+      return 1;
     }
-    return 1;
   }
 
-  // 2. Plano.
-  let plan: InstallPlan;
-  try {
-    plan = buildPlan(opts.preset, opts.components);
-  } catch (error) {
-    err.write(`@runecraft/harness install: ${(error as Error).message}\n`);
-    return 1;
+  // 1. detectPi — fail-closed com o comando exato (CLI-04). Só quando o plano inclui Pi.
+  if (wantPi) {
+    const detection = opts.pi.detect();
+    if (!detection.found) {
+      const message = piNotFoundMessage();
+      err.write(message);
+      if (opts.json) {
+        out.write(`${JSON.stringify({ error: message.trim().split(/\r?\n/)[0], command: "npm install -g --ignore-scripts @earendil-works/pi-coding-agent", installed: [], kept: [], conflicts: [], failed: [] }, null, 2)}\n`);
+      }
+      return 1;
+    }
+  }
+
+  // 1b. Detecção por agente não-Pi — fail-closed com comando display-only (F15 AC 1.1/1.2).
+  const agentDetection: Array<{ agentId: string; ok: boolean; error?: string }> = [];
+  for (const id of nonPiAgents) {
+    const adapter = ADAPTERS[id as keyof typeof ADAPTERS];
+    const detect = await adapter.detect(rt);
+    if (detect.installed) {
+      agentDetection.push({ agentId: id, ok: true });
+    } else {
+      const message = `agente '${id}' não detectado (binário '${adapter.bin}' fora do PATH). Instale com: ${adapter.installHint} (display-only — o harness nunca instala runtimes).`;      err.write(`  ✗ ${id} — ${message}\n`);
+      agentDetection.push({ agentId: id, ok: false, error: message });
+    }
+  }
+  const agentFailedDetection = agentDetection.filter((d) => !d.ok);
+
+  // 2. Plano (Pi).
+  let plan: InstallPlan | undefined;
+  if (wantPi) {
+    try {
+      plan = buildPlan(opts.preset, opts.components);
+    } catch (error) {
+      err.write(`@runecraft/harness install: ${(error as Error).message}\n`);
+      return 1;
+    }
   }
 
   const filesTouched = filesTouchedByInstall(rt, scope);
+  // Alvos dos agentes não-Pi entram no snapshot pré-write (F15 passo 5).
+  const agentTargetFiles = nonPiAgents.flatMap((id) => {
+    const p = ADAPTERS[id as keyof typeof ADAPTERS].paths(rt);
+    return [p.rulesFile, p.mcpFile];
+  });
 
   // Colisão com upstreams — scan é somente leitura (CLI-09).
-  const installedBefore = opts.pi.list().packages;
+  const installedBefore = wantPi ? opts.pi.list().packages : [];
   const conflicts = scanConflicts(installedBefore);
   const beforeIdentities = new Set(installedBefore.map(npmIdentity));
 
   // 3. dry-run — nenhum efeito colateral (CLI-03).
   if (opts.dryRun) {
-    const mergeTargets = opts.preset === "full" ? targetsForComponents(plan.components, scope) : undefined;
-    out.write(renderDryRun(plan, filesTouched, conflicts, { json: opts.json, tty: opts.isTTY }, mergeTargets));
+    if (plan) {
+      const mergeTargets = opts.preset === "full" ? targetsForComponents(plan.components, scope) : undefined;
+      out.write(renderDryRun(plan, filesTouched, conflicts, { json: opts.json, tty: opts.isTTY }, mergeTargets));
+    }
+    if (nonPiAgents.length > 0) {
+      out.write(
+        `\nAgentes não-Pi (F15): ${nonPiAgents.join(", ")} — alvos: ${agentTargetFiles.join(", ")}\n` +
+        `  (dry-run: nada foi escrito)\n`,
+      );
+    }
     return 0;
   }
 
@@ -141,7 +197,8 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
 
   // Confirmação: TTY + !--yes pergunta; não-TTY auto-aceita (edge F11).
   if (opts.isTTY && !opts.yes) {
-    const confirmed = await confirmInstall(opts, plan.specs.length);
+    const count = (plan?.specs.length ?? 0) + nonPiAgents.length;
+    const confirmed = await confirmInstall(opts, count);
     if (!confirmed) {
       err.write("Abortado pelo usuário — nada foi modificado.\n");
       return 1;
@@ -154,7 +211,7 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   let snapshot: SnapshotResult | undefined;
   try {
     snapshot = createSnapshot({
-      files: filesTouched,
+      files: [...filesTouched, ...agentTargetFiles],
       destDir: backupsDir(rt, scope),
       reason: "install",
       scope,
@@ -168,20 +225,39 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   const installed: string[] = [];
   const kept: string[] = [];
   const failed: FailInfo[] = [];
-  for (const spec of plan.specs) {
-    const result = await runPiInstall(opts, spec);
-    if (result.ok) {
-      if (beforeIdentities.has(npmIdentity(spec))) kept.push(spec);
-      else installed.push(spec);
-    } else {
-      failed.push({ spec, code: result.code, stderr: result.stderr });
+  if (plan) {
+    for (const spec of plan.specs) {
+      const result = await runPiInstall(opts, spec);
+      if (result.ok) {
+        if (beforeIdentities.has(npmIdentity(spec))) kept.push(spec);
+        else installed.push(spec);
+      } else {
+        failed.push({ spec, code: result.code, stderr: result.stderr });
+      }
     }
   }
 
-  // 6. State upsert — só packages instalados com sucesso (CLI-10).
-  const stateFile = statePath(rt, scope);
-  const loaded = loadState(stateFile, scope);
-  const state: HarnessState = loaded.state;
+  // 5b. Agentes não-Pi: inject por agente, falha isolada (D2). O state é
+  // carregado UMA vez aqui e reutilizado no passo 6 (mesmo objeto).
+  const stateFile0 = statePath(rt, scope);
+  const loaded0 = loadState(stateFile0, scope);
+  const state0 = loaded0.state;
+  for (const id of nonPiAgents) {
+    const detection = agentDetection.find((d) => d.agentId === id);
+    if (!detection?.ok) continue; // já reportado no fail-closed
+    const outcome = await installAgent(id, rt, scope, state0);
+    agentOutcomes.push(outcome);
+    if (outcome.status === "failed" && outcome.error) {
+      err.write(`  ✗ ${id} — ${outcome.error}\n`);
+    }
+  }
+  // State dos agentes é gravado junto com o do Pi no passo 6 (mesmo arquivo).
+
+  // 6. State upsert — só packages instalados com sucesso (CLI-10). O state já
+  //    carregado em 5b é o mesmo objeto — não recarregar.
+  const stateFile = stateFile0;
+  const loaded = loaded0;
+  const state: HarnessState = state0;
   if (loaded.corruptPath && loaded.corruptPath !== stateFile) {
     err.write(`warn: state.json corrompido — movido para ${loaded.corruptPath}; state recomeçado.\n`);
   }
@@ -193,10 +269,12 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
       backup: path.basename(snapshot.file),
     });
   }
-  for (const entry of plan.entries) {
-    const spec = `${entry.source}@${entry.version}`;
-    if (installed.includes(spec) || kept.includes(spec)) {
-      upsertInstalled(state, entry);
+  if (plan) {
+    for (const entry of plan.entries) {
+      const spec = `${entry.source}@${entry.version}`;
+      if (installed.includes(spec) || kept.includes(spec)) {
+        upsertInstalled(state, entry);
+      }
     }
   }
 
@@ -207,7 +285,7 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   //    instalados permanecem (backup pré-write permite restore — F13).
   const settings: SettingsMergeReport = { created: [], conflicts: [], removed: [], preserved: [] };
   let mergeError: string | undefined;
-  if (opts.preset === "full") {
+  if (opts.preset === "full" && plan) {
     const okGroups = new Set<string>();
     for (const entry of plan.entries) {
       const spec = `${entry.source}@${entry.version}`;
@@ -244,10 +322,10 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
 
   // 8. Relatório (SETM-06 shape; TTY ou --json).
   const report: InstallReport = {
-    preset: plan.preset,
+    preset: plan?.preset ?? opts.preset,
     scope,
-    components: plan.components,
-    specs: plan.specs,
+    components: plan?.components ?? [],
+    specs: plan?.specs ?? [],
     installed,
     kept,
     conflicts,
@@ -257,8 +335,16 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
     filesTouched,
     notes,
   };
-  if (opts.preset === "full") report.settings = settings;
+  if (opts.preset === "full" && plan) report.settings = settings;
+  if (nonPiAgents.length > 0 || detectOnly.length > 0) {
+    report.agents = [
+      ...agentOutcomes,
+      ...detectOnly.map((d) => ({ agentId: d.agentId, status: "detect-only", detail: [d.guide] })),
+      ...agentFailedDetection.map((d) => ({ agentId: d.agentId, status: "failed", detail: [], error: d.error })),
+    ];
+  }
   out.write(renderReport(report, { json: opts.json, tty: opts.isTTY }));
 
-  return failed.length > 0 || mergeError !== undefined ? 1 : 0;
+  const agentFailed = agentOutcomes.some((o) => o.status === "failed") || agentFailedDetection.length > 0;
+  return failed.length > 0 || mergeError !== undefined || agentFailed ? 1 : 0;
 }

@@ -47,6 +47,8 @@ export type CommandName = (typeof COMMANDS)[number];
 export interface CliOptions {
   command: CommandName;
   component?: string[];
+  /** non-Pi agents to manage (F15): --agent pi,claude-code,… (default ["pi"]). */
+  agent?: string[];
   preset: PresetName;
   dryRun: boolean;
   json: boolean;
@@ -112,6 +114,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
   let values: {
     component?: string[];
     preset?: string;
+    agent?: string[];
     "dry-run"?: boolean;
     json?: boolean;
     scope?: string;
@@ -125,6 +128,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
       options: {
         component: { type: "string", multiple: true },
         preset: { type: "string" },
+        agent: { type: "string", multiple: true },
         "dry-run": { type: "boolean" },
         json: { type: "boolean" },
         scope: { type: "string" },
@@ -184,6 +188,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
       command,
       // validateComponents já splitou vírgulas; componente vazio = preset default
       component: validated.ok.length > 0 ? validated.ok : undefined,
+      agent: values.agent as string[] | undefined,
       preset,
       dryRun: Boolean(values["dry-run"]),
       json: Boolean(values.json),
@@ -247,6 +252,7 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
       command: options.command,
       preset: options.preset,
       components: options.component,
+      agents: options.agent,
       dryRun: options.dryRun,
       json: options.json,
       scope: options.scope,
@@ -288,6 +294,7 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         ...base,
         all: options.all,
         components: options.component,
+        agents: options.agent,
         yes: options.yes,
         scope: effectiveScope,
         isTTY: ctx.isTTY ?? Boolean(process.stdout.isTTY),

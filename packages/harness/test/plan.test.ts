@@ -63,6 +63,12 @@ describe("HARNESS_VERSIONS vs vendor.manifest.json (fonte única)", () => {
       "taskflow-core": "@runecraft/taskflow-core",
       "taskflow-pi": "@runecraft/taskflow",
       "taskflow-dsl": "@runecraft/taskflow-dsl",
+      "taskflow-mcp-core": "@runecraft/taskflow-mcp-core",
+      "taskflow-hosts": "@runecraft/taskflow-hosts",
+      "taskflow-codex": "@runecraft/taskflow-codex",
+      "taskflow-claude": "@runecraft/taskflow-claude",
+      "taskflow-opencode": "@runecraft/taskflow-opencode",
+      "taskflow-grok": "@runecraft/taskflow-grok",
       "goal-loop-audit": "@runecraft/goal-loop-audit",
       "pr-review": "@runecraft/pr-review",
     };
@@ -71,7 +77,7 @@ describe("HARNESS_VERSIONS vs vendor.manifest.json (fonte única)", () => {
         manifest.upstreams[vendorKey]?.npmVersion,
       );
     }
-    expect(Object.keys(HARNESS_VERSIONS)).toHaveLength(6);
+    expect(Object.keys(HARNESS_VERSIONS)).toHaveLength(12);
   });
 });
 

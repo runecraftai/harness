@@ -10,6 +10,10 @@
 // state) are NEVER touched nor adopted into the state. Sync never edits user
 // settings — only restores packages (config is F14's domain). A backup is
 // taken before any write (LIFE 3.4); `--dry-run` prints the plan only.
+// F15 T8: agentes gerenciados com seção/entry ausente são re-injetados
+// (idempotente; reconciliado formalmente no F17).
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   backupsDir,
   filesTouchedByInstall,
@@ -20,8 +24,12 @@ import {
 } from "../config.ts";
 import { createSnapshot } from "../backup.ts";
 import { npmIdentity, type PiInterop } from "../pi.ts";
-import { loadState, saveState, upsertInstalled, type InstalledEntry } from "../state.ts";
+import { loadState, saveState, upsertInstalled, type AgentRecord, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
+import { ADAPTERS } from "../adapters/registry.ts";
+import { resolveMcpBin } from "../adapters/mcpConfig.ts";
+import { renderWorkflowRules } from "../adapters/rulesContent.ts";
+import type { AgentAdapter, AgentContext } from "../adapters/types.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 
 export interface SyncCommandOptions {
@@ -257,10 +265,14 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
   }
 
   // Backup pré-write (LIFE 3.4): falhou → aborta antes de modificar qualquer coisa.
+  // Alvos dos agentes gerenciados entram no snapshot (F15 T8: reconciliação).
+  const agentTargetFiles = Object.values(loaded.state.agents).flatMap((rec) =>
+    rec.targets.map((t) => t.file),
+  );
   let backupFile: string | undefined;
   try {
     const snapshot = createSnapshot({
-      files: filesTouchedByInstall(rt, scope),
+      files: [...filesTouchedByInstall(rt, scope), ...agentTargetFiles],
       destDir: backupsDir(rt, scope),
       reason: "sync",
       scope,
@@ -302,6 +314,29 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
     err.write(`@runecraft/harness sync: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
+  // F15 T8: reconciliação mínima de agentes gerenciados — seção `runecraft:`
+  // ou entry MCP ausente → re-inject idempotente (formalizado no F17).
+  const agentNotes: string[] = [];
+  for (const [agentId, rec] of Object.entries(loaded.state.agents)) {
+    const adapter = ADAPTERS[agentId as keyof typeof ADAPTERS];
+    if (!adapter) {
+      agentNotes.push(`agente '${agentId}' no state sem adapter no CLI — ignorado (matriz mudou?)`);
+      continue;
+    }
+    const missing = rec.targets.filter((t) => !fs.existsSync(t.file));
+    if (missing.length === 0) continue;
+    try {
+      const ctx = syncAgentContext(adapter, rt, rec);
+      const outcome = await adapter.inject(ctx);
+      agentNotes.push(`${agentId}: re-injetado (${missing.map((t) => path.basename(t.file)).join(", ")} ausente)`);
+      if (outcome.conflicts.length > 0) {
+        for (const conflict of outcome.conflicts) agentNotes.push(`  ${agentId} conflito: ${conflict.file} (${conflict.reason})`);
+      }
+    } catch (error) {
+      agentNotes.push(`${agentId}: re-inject falhou (${(error as Error).message})`);
+    }
+  }
+
   const report: SyncReport = {
     scope,
     status: "synced",
@@ -312,10 +347,24 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
     conflicts: plan.conflicts,
     failed,
     backup: backupFile,
-    notes: plan.notes,
+    notes: [...plan.notes, ...agentNotes],
   };
   if (opts.json) out.write(renderSyncJson(report));
   else out.write(renderSync(report, { tty: false }));
 
   return failed.length > 0 ? 1 : 0;
+}
+
+/** Context de re-inject do sync (regras do template + bin do fork). */
+function syncAgentContext(adapter: AgentAdapter, rt: Runtime, rec: AgentRecord): AgentContext {
+  const mcp = resolveMcpBin(adapter.id === "claude-code" ? "claude" : adapter.id, rt);
+  return {
+    rt,
+    mcpBin: mcp.command[mcp.command.length - 1] ?? "",
+    mcpBinCommand: mcp.command,
+    rulesContent: renderWorkflowRules(adapter.id),
+    mcpArgs: [],
+    managedEntries: rec.targets.filter((t) => t.kind === "mcp").map((t) => JSON.stringify({ command: t.bin, args: [] })),
+    targets: rec.targets,
+  };
 }

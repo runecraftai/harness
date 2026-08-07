@@ -31,6 +31,12 @@ const RENAMES = {
   "taskflow-core": "@runecraft/taskflow-core",
   "taskflow-pi": "@runecraft/taskflow",
   "taskflow-dsl": "@runecraft/taskflow-dsl",
+  "taskflow-mcp-core": "@runecraft/taskflow-mcp-core",
+  "taskflow-hosts": "@runecraft/taskflow-hosts",
+  "taskflow-codex": "@runecraft/taskflow-codex",
+  "taskflow-claude": "@runecraft/taskflow-claude",
+  "taskflow-opencode": "@runecraft/taskflow-opencode",
+  "taskflow-grok": "@runecraft/taskflow-grok",
   "goal-loop-audit": "@runecraft/goal-loop-audit",
   "pr-review": "@runecraft/pr-review",
 };
@@ -55,11 +61,15 @@ for (const [key, entry] of Object.entries(manifest.upstreams ?? {})) {
   versions[name] = entry.npmVersion;
 }
 
-// Cross-check: the umbrella's bundled dependency versions must match the
-// vendor pins — otherwise the tarball would install something else than what
-// versions.ts advertises.
+// Cross-check: bundled dependency versions (installed by the umbrella tarball)
+// must match the vendor pins — otherwise the tarball would install something
+// else than what versions.ts advertises. Packages NOT in the umbrella deps
+// (e.g. the taskflow-MCP layer, F16: distributed via host configs, never
+// bundled — design F16 D6) are reference pins only: no cross-check, but they
+// stay in versions.ts so the F15 MCP renderer can pin them on publish.
 for (const [name, version] of Object.entries(versions)) {
   const depVersion = pkg.dependencies?.[name];
+  if (depVersion === undefined) continue; // reference pin, not bundled
   if (depVersion !== version) {
     console.error(
       `gen-versions: package.json dependencies["${name}"] = ${JSON.stringify(depVersion)} ` +

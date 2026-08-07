@@ -59,6 +59,8 @@ export interface InstallReport {
   filesTouched: string[];
   /** F14 merge outcome (populated on preset full). */
   settings?: SettingsMergeReport;
+  /** F15: outcomes of non-Pi agent installs (installed/failed/detect-only). */
+  agents?: Array<{ agentId: string; status: string; detail: string[]; error?: string }>;
   /** note attached when a preset flag is accepted but its full semantics land later */
   notes: string[];
 }
@@ -134,6 +136,20 @@ export function renderReport(report: InstallReport, opts: RenderOptions): string
       lines.push(`${c(`Settings — preservados por edição do usuário (${settings.preserved.length}):`, YELLOW)}`);
       for (const change of settings.preserved) {
         lines.push(`  ${c("=", YELLOW)} ${change.path.join(".")} = ${JSON.stringify(change.value)}`);
+      }
+    }
+  }
+  if (report.agents && report.agents.length > 0) {
+    lines.push(`${c(`Agentes não-Pi (${report.agents.length}):`, GREEN)}`);
+    for (const agent of report.agents) {
+      if (agent.status === "installed") {
+        lines.push(`  ${c("✓", GREEN)} ${agent.agentId}`);
+        for (const d of agent.detail) lines.push(`    ${c(d, DIM)}`);
+      } else if (agent.status === "detect-only") {
+        lines.push(`  ${c("→", YELLOW)} ${agent.agentId} (detect-only)`);
+        for (const d of agent.detail) lines.push(`    ${c(d, DIM)}`);
+      } else {
+        lines.push(`  ${c("✗", RED)} ${agent.agentId}: ${agent.error ?? "falhou"}`);
       }
     }
   }
@@ -220,5 +236,6 @@ export function toJson(report: InstallReport): Record<string, unknown> {
       preserved: report.settings.preserved.map(settingsMergeChangeToJson),
     };
   }
+  if (report.agents) json.agents = report.agents;
   return json;
 }

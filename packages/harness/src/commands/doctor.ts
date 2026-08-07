@@ -16,6 +16,7 @@
 //
 // Read-only guarantee (LIFE-01): no check writes; the independent test
 // verifies zero modifications by diff before/after.
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
@@ -32,6 +33,7 @@ import { BACKUP_MIN_FREE_BYTES, freeBytesOnDisk } from "../backup.ts";
 import { loadStateReadonly } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts } from "../conflicts.ts";
+import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -314,6 +316,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   } else {
     checks.push(checkComponents(rt, pi), checkCollision(pi), checkForkSettings(rt), checkDisk(rt));
   }
+  // F15/T8: agentes não-Pi (checks 7–15 formais no F18; aqui a leitura mínima).
+  checks.push(checkAgents(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -358,4 +362,48 @@ export async function runDoctorCommand(opts: DoctorCommandOptions): Promise<numb
     opts.out.write(renderDoctor(report, { tty: false }));
   }
   return report.exitCode;
+}
+
+/**
+ * Check 7 (F15/T8): agentes não-Pi — detectados, gerenciados, colisão.
+ * Leitura mínima: detecção por binário + registro no state; checks formais
+ * (configs injetadas, upstreams) são do F18 (checks 7–15 consolidados).
+ */
+function checkAgents(rt: Runtime): DoctorCheck {
+  // Detecção síncrona (contrato do doctor é read-only/sync — F12 LIFE-01).
+  const binOnPath = (bin: string): boolean => {
+    try {
+      execFileSync("sh", ["-c", `command -v ${bin} 2>/dev/null`], {
+        env: rt.env as Record<string, string>,
+        timeout: 5_000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const detail: string[] = [];
+  const problems: string[] = [];
+  let anyDetected = false;
+  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
+  const managed = (id: string): boolean => loaded.ok && loaded.state.agents[id] !== undefined;
+  for (const id of SUPPORTED_AGENT_IDS) {
+    const adapter = ADAPTERS[id];
+    if (!binOnPath(adapter.bin)) continue;
+    anyDetected = true;
+    detail.push(`${id}${managed(id) ? " (gerenciado)" : " (não gerenciado)"}`);
+    if (!managed(id)) {
+      problems.push(`${id} detectado mas não gerenciado — rode \`harness install --agent ${id}\``);
+    }
+  }
+  if (!anyDetected) {
+    return { id: 7, name: "Agentes não-Pi", status: "pass", detail: "nenhum agente não-Pi detectado no PATH" };
+  }
+  return {
+    id: 7,
+    name: "Agentes não-Pi",
+    status: problems.length > 0 ? "warn" : "pass",
+    detail: detail.join("; "),
+    remedy: problems.join(" | "),
+  };
 }
