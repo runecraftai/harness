@@ -36,6 +36,14 @@ import { parseAgentArgs, uninstallAgent } from "../adapters/agentOps.ts";
 import type { AgentId } from "../adapters/types.ts";
 import { SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 import { withRunecraftLock } from "../lock.ts";
+import { hooksDirFor, removeGatesHooks, removeGitignoreLinesIfUnchanged, gitignorePath, GITIGNORE_LINES } from "../gates/hook.ts";
+import { repoRoot } from "../gates/git.ts";
+import {
+  repoConfigPath as gatesRepoConfigPath,
+  globalConfigPath as gatesGlobalConfigPath,
+  readGatesConfig,
+  isGatesOnlyConfig,
+} from "../gates/config.ts";
 
 export interface UninstallCommandOptions {
   json: boolean;
@@ -71,6 +79,15 @@ export interface UninstallReport {
   notes: string[];
   /** F15: non-Pi agents removed by this run. */
   agentsRemoved: string[];
+  /** F20: delivery gates cleanup (hooks, config, .gitignore — receipts PRESERVADOS). */
+  gates?: {
+    removedHooks: string[];
+    deletedHooks: string[];
+    removedConfigs: string[];
+    gitignoreRemoved: string[];
+    gitignorePreserved: string[];
+    notes: string[];
+  };
 }
 
 /** Package names (state keys) to remove, given the selection flags (flags validated by the caller). */
@@ -122,6 +139,17 @@ function renderUninstall(report: UninstallReport, opts: { tty: boolean }): strin
     lines.push(`${c(`Preservado (instalado à mão / fora do state — não removido) (${report.preserved.length}):`, "\u001b[2m")}`);
     for (const spec of report.preserved) lines.push(`  ${c("=", "\u001b[2m")} ${spec}`);
   }
+  if (report.gates && (report.gates.removedHooks.length > 0 || report.gates.deletedHooks.length > 0 || report.gates.removedConfigs.length > 0 || report.gates.gitignoreRemoved.length > 0)) {
+    lines.push(`${c("Delivery gates (F20):", "\u001b[32m")}`);
+    for (const hook of report.gates.removedHooks) lines.push(`  ${c("✓", "\u001b[32m")} seção runecraft:gates removida de ${hook}`);
+    for (const hook of report.gates.deletedHooks) lines.push(`  ${c("✓", "\u001b[32m")} hook removido (criado do zero pelo harness): ${hook}`);
+    for (const config of report.gates.removedConfigs) lines.push(`  ${c("✓", "\u001b[32m")} config de gates removido: ${config}`);
+    for (const line of report.gates.gitignoreRemoved) lines.push(`  ${c("✓", "\u001b[32m")} linha removida do .gitignore: ${line}`);
+    lines.push(`  ${c("receipts preservados (contrato de entrega — RCPT-08 AC 4.3; remoção manual documentada).", "\u001b[2m")}`);
+  }
+  for (const note of report.gates?.notes ?? []) {
+    lines.push(`${c("note:", "\u001b[2m")} ${note}`);
+  }
   if (report.failed.length > 0) {
     lines.push(`${c(`Falhou (${report.failed.length}):`, "\u001b[31m")}`);
     for (const fail of report.failed) {
@@ -147,6 +175,7 @@ export function renderUninstallJson(report: UninstallReport): string {
       failed: report.failed,
       backup: report.backup ?? null,
       notes: report.notes,
+      ...(report.gates ? { gates: report.gates } : {}),
     },
     null,
     2,
@@ -226,7 +255,22 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
   }
 
   const selected = resolveUninstallSelection(loaded.state.components, opts.all, opts.components);
-  if (selected.length === 0 && agentIds.length === 0) {
+  const notes: string[] = [];
+  // F20: um repo com SÓ gates gerenciados (enable sem install de packages) também
+  // deve ser limpo pelo uninstall (hooks/config/.gitignore). Sem packages e sem
+  // agentes, o fluxo só segue quando existem artefatos de gates no state.
+  const hasGatesArtifacts = (() => {
+    // config.json (repo .runecraft/ ou global ~/.runecraft/), hooks e .gitignore
+    const gatesLike = (file: string): boolean =>
+      file.endsWith("/pre-commit") ||
+      file.endsWith("/pre-push") ||
+      file.endsWith("/config.json") ||
+      file.endsWith(".gitignore");
+    if (loaded.state.createdFiles.some(gatesLike)) return true;
+    const ignoreFiles = loaded.state.createdFiles.filter((f) => f.endsWith(".gitignore"));
+    return loaded.state.settingsChanges.some((c) => ignoreFiles.includes(c.file));
+  })();
+  if (selected.length === 0 && agentIds.length === 0 && !hasGatesArtifacts) {
     const message = "nenhum package registrado no state para os componentes selecionados — nada a remover.";
     if (opts.json) {
       out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
@@ -234,6 +278,10 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
       out.write(`@runecraft/harness uninstall (scope ${scope}): ${message}\n`);
     }
     return 0;
+  }
+  if (hasGatesArtifacts && selected.length === 0 && agentIds.length === 0) {
+    const message = "nenhum package registrado — limpando delivery gates (hooks/config/.gitignore; receipts preservados).";
+    notes.push(message);
   }
 
   // Confirmação (TTY + !--yes); não-TTY auto-aceita (edge F11).
@@ -247,14 +295,34 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
 
   // Backup pré-write (LIFE 2.4): falhou → aborta antes de modificar qualquer coisa.
   // Alvos dos agentes não-Pi entram no snapshot (F15 D6: remoção reversível).
+  // F20: hooks/config/.gitignore dos gates entram também (reversível — F13).
   const agentTargetFiles = agentIds.flatMap((id) => {
     const record = loaded.state.agents[id];
     return record ? record.targets.map((t) => t.file) : [];
   });
+  const gatesSnapshotFiles = (() => {
+    const files: string[] = [];
+    const root = repoRoot(rt.cwd);
+    if (root !== null) {
+      for (const hook of ["pre-commit", "pre-push"]) {
+        const file = path.join(hooksDirFor(root), hook);
+        if (fs.existsSync(file)) files.push(file);
+      }
+      const repoConfig = gatesRepoConfigPath(root);
+      if (fs.existsSync(repoConfig)) files.push(repoConfig);
+      const ignore = gitignorePath(root);
+      if (fs.existsSync(ignore)) files.push(ignore);
+    }
+    if (scope === "global") {
+      const globalConfig = gatesGlobalConfigPath(rt);
+      if (fs.existsSync(globalConfig)) files.push(globalConfig);
+    }
+    return files;
+  })();
   let backupFile: string | undefined;
   try {
     const snapshot = createSnapshot({
-      files: [...filesTouchedByInstall(rt, scope), ...loaded.state.createdFiles, ...agentTargetFiles],
+      files: [...filesTouchedByInstall(rt, scope), ...loaded.state.createdFiles, ...agentTargetFiles, ...gatesSnapshotFiles],
       destDir: backupsDir(rt, scope),
       reason: "uninstall",
       scope,
@@ -296,6 +364,70 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     }
   }
 
+  // F20: delivery gates cleanup — hooks (família shell F18), config.json do
+  // repo, linhas do .gitignore (SETM-05 — só as exatas que adicionamos) e
+  // kill switch global (~/.runecraft/config.json criado por disable). Receipts
+  // PRESERVADOS sempre (RCPT-08 AC 4.3 — contrato de entrega, nunca apagado
+  // por gate/uninstall; remoção manual documentada).
+  const gatesReport: UninstallReport["gates"] = {
+    removedHooks: [],
+    deletedHooks: [],
+    removedConfigs: [],
+    gitignoreRemoved: [],
+    gitignorePreserved: [],
+    notes: [],
+  };
+  {
+    const root = repoRoot(rt.cwd);
+    if (root !== null) {
+      const hooks = removeGatesHooks(hooksDirFor(root), loaded.state.createdFiles);
+      gatesReport.removedHooks.push(...hooks.removed);
+      gatesReport.deletedHooks.push(...hooks.deleted);
+      for (const untouched of hooks.untouched) {
+        gatesReport.notes.push(`hook preservado (sem seção runecraft:gates): ${untouched}`);
+      }
+      const repoConfig = gatesRepoConfigPath(root);
+      if (fs.existsSync(repoConfig) && (loaded.state.createdFiles.includes(repoConfig) || isGatesOnlyConfig(readGatesConfig(repoConfig)))) {
+        try {
+          fs.rmSync(repoConfig, { force: true });
+          gatesReport.removedConfigs.push(repoConfig);
+        } catch (error) {
+          gatesReport.notes.push(`config de gates do repo não pôde ser removido: ${(error as Error).message}`);
+        }
+      }
+      const ignore = removeGitignoreLinesIfUnchanged(root);
+      gatesReport.gitignoreRemoved.push(...ignore.removed);
+      gatesReport.gitignorePreserved.push(...ignore.preserved);
+      if (gatesReport.gitignorePreserved.length > 0) {
+        gatesReport.notes.push(
+          `linhas de gates do .gitignore preservadas (editadas pelo usuário — SETM-05): ${gatesReport.gitignorePreserved.join(", ")}`,
+        );
+      }
+    }
+    // Kill switch global (~/.runecraft/config.json) — não deixar órfão.
+    if (scope === "global") {
+      const globalConfig = gatesGlobalConfigPath(rt);
+      if (fs.existsSync(globalConfig) && (loaded.state.createdFiles.includes(globalConfig) || isGatesOnlyConfig(readGatesConfig(globalConfig)))) {
+        try {
+          fs.rmSync(globalConfig, { force: true });
+          gatesReport.removedConfigs.push(globalConfig);
+        } catch (error) {
+          gatesReport.notes.push(`kill switch global não pôde ser removido: ${(error as Error).message}`);
+        }
+      }
+    }
+    // settingsChanges das linhas do .gitignore registradas pelo gates enable —
+    // limpas do state quando a linha foi de fato removida.
+    if (gatesReport.gitignoreRemoved.length > 0 && repoRoot(rt.cwd) !== null) {
+      const root = repoRoot(rt.cwd) as string;
+      const ignoreFile = gitignorePath(root);
+      const removedKeys = new Set(GITIGNORE_LINES.map((line) => JSON.stringify([line])));
+      loaded.state.settingsChanges = loaded.state.settingsChanges.filter(
+        (entry) => !(entry.file === ignoreFile && removedKeys.has(JSON.stringify(entry.path))),
+      );
+    }
+  }
+
   // createdFiles (config criado do zero pelo harness) → remoção inteira (design F13).
   const removedFiles: string[] = [];
   const keptCreatedFiles: string[] = [];
@@ -310,7 +442,6 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     }
   }
 
-  const notes: string[] = [];
   for (const kept of keptCreatedFiles) notes.push(`arquivo de config criado pelo harness não pôde ser removido: ${kept}`);
   if (failed.length > 0) {
     notes.push("packages com falha de remoção permanecem no state (conservador) — corrija e rode `harness uninstall` de novo.");
@@ -390,6 +521,7 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     backup: backupFile,
     notes: [...notes, ...agentDetails],
     agentsRemoved: agentIds,
+    gates: gatesReport,
   };
   if (opts.json) out.write(renderUninstallJson(report));
   else out.write(renderUninstall(report, { tty: false }));

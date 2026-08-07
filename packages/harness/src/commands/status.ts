@@ -31,6 +31,8 @@ import { COMPONENTS } from "../plan.ts";
 import { AGENTS, MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, type OwnerEvidence } from "../owners.ts";
 import { detectActiveDriver, type DriverState } from "../sessionDriver.ts";
+import { computeGatesStatus, type GatesStatusReport } from "./gates.ts";
+import { repoRoot } from "../gates/git.ts";
 import type { AgentId } from "../adapters/types.ts";
 import type { AgentRecord, HarnessState } from "../state.ts";
 
@@ -98,6 +100,8 @@ export interface StatusReport {
   warnings: OwnerEvidence[];
   /** F19 D8: active driver of the Pi session (leitura do ledger do glla). */
   session: { driver: DriverState };
+  /** F20: delivery gates status (config repo/global + hooks + receipts + .gitignore). */
+  gates: GatesStatusReport | null;
 }
 
 export interface StatusAgent {
@@ -196,6 +200,7 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
   }
 
   const owners = detectOwners(rt, pi);
+  const root = repoRoot(rt.cwd);
   return {
     scope,
     rows,
@@ -210,6 +215,8 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     // F19 D8: o driver é conceito da coluna Pi — o ledger do glla no cwd da
     // sessão (a linha TTY vira "—" quando pi não é detectado).
     session: { driver: detectActiveDriver(rt.cwd) },
+    // F20: seção gates (null fora de repo git).
+    gates: root !== null ? computeGatesStatus(rt, root) : null,
   };
 }
 
@@ -412,6 +419,22 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
       lines.push(`  ${mark} ${owner.name} (${owner.kind}) — ${owner.detail}`);
     }
   }
+  // F20: seção Gates (config repo/global + effective + hooks + receipts).
+  if (report.gates !== null) {
+    lines.push("");
+    lines.push("Gates (F20):");
+    const g = report.gates;
+    lines.push(`  effective: ${g.effective}`);
+    lines.push(`  repo config: ${g.repo.present ? (g.repo.enabled === true ? "enabled" : g.repo.enabled === false ? "disabled" : "inválido") : "ausente"}`);
+    lines.push(`  global (kill switch): ${g.global.present ? (g.global.enabled === false ? "disabled" : g.global.enabled === true ? "enabled" : "inválido") : "ausente"}`);
+    lines.push(
+      `  hooks: pre-commit ${g.hooks.preCommit.section ? "✓" : "—"} · pre-push ${g.hooks.prePush.section ? "✓" : "—"} (${g.hooks.dir})`,
+    );
+    lines.push(`  receipts: ${g.receipts.count}${g.receipts.latest ? ` (mais recente ${g.receipts.latest})` : ""}`);
+    if (g.gitignore.lines.length === 0) {
+      lines.push(`  .gitignore: linhas de gates ausentes (${g.gitignore.file})`);
+    }
+  }
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -476,6 +499,7 @@ export function renderStatusJson(report: StatusReport): string {
       })),
       owners: report.owners,
       warnings: report.warnings,
+      ...(report.gates !== null ? { gates: report.gates } : {}),
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

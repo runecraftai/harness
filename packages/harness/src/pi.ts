@@ -8,7 +8,22 @@
 // (default: `pi` from PATH). Pointing it at a fake script is the single fake
 // mechanism the suite uses. The exit code of pi is authoritative; stdout and
 // stderr are captured for the report.
-import { spawnSync } from "node:child_process";
+//
+// F20: `runPiReview` invokes the pi binary non-interactively to run
+// `/pr-review` and returns the final assistant text (the review JSON
+// candidate). Forma validada no Execute: `--print --mode json` —
+// resolveAppMode maps `--mode json` to the json print mode (main.js
+// resolveAppMode/toPrintOutputMode), which emits every session event as a
+// JSONL line (modes/print-mode.js); the input source defaults to
+// "interactive" (agent-session.js prompt: options?.source ?? "interactive")
+// and the pr-review ReviewLoopCoordinator accepts both "interactive" and
+// "rpc" (pr-review-loop.ts begin). `--no-comment` = publish mode "disabled"
+// (decideReviewPublication → publish:false) so the capture never posts to
+// GitHub; `--include-closed` maps to allowNonOpen for closed PRs
+// (parsePublishMode in the fork). The pi exit code is authoritative; the
+// review JSON is the LAST assistant message (the fork parses it with
+// parsePublishableReview).
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import { piSettingsPath, type Runtime, type Scope } from "./config.ts";
 
@@ -168,4 +183,114 @@ export function createPiInterop(rt: Runtime): PiInterop {
       };
     },
   };
+}
+
+export interface PiReviewRequest {
+  /** PR number to review. */
+  pr: number;
+  /** pass `--include-closed` (PR fechado — allowNonOpen no fork). */
+  includeClosed?: boolean;
+  /** cwd do repo dono do PR (onde o review roda). */
+  cwd: string;
+}
+
+export interface PiReviewResult {
+  ok: boolean;
+  code: number | null;
+  /** last assistant message text — the review JSON candidate (empty when none). */
+  reviewText: string;
+  stderr: string;
+}
+
+interface JsonlMessageLike {
+  role?: string;
+  content?: unknown;
+}
+
+interface JsonlEvent {
+  type?: string;
+  message?: JsonlMessageLike;
+  messages?: JsonlMessageLike[];
+}
+
+/** Extract text parts of a message (same shape review-table.ts uses). */
+function messageText(message: JsonlMessageLike): string {
+  const content = message.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => !!part && typeof part === "object" && (part as { type?: string }).type === "text" && typeof (part as { text?: unknown }).text === "string")
+      .map((part) => (part as { text: string }).text)
+      .join("");
+  }
+  return "";
+}
+
+/**
+ * Invoke pi non-interactively with `/pr-review <pr>` (`--print --mode json`,
+ * validated no Execute) and stream the JSONL events, keeping ONLY the last
+ * assistant message text — the review JSON the fork parses with
+ * `parsePublishableReview`. Memory stays bounded for huge event streams
+ * (tool args/results are discarded). The pi exit code is authoritative.
+ */
+export function runPiReview(rt: Runtime, req: PiReviewRequest): Promise<PiReviewResult> {
+  return new Promise((resolve) => {
+    const bin = resolvePiBin(rt.env);
+    if (!bin) {
+      resolve({ ok: false, code: 1, reviewText: "", stderr: "pi não encontrado no PATH (RUNECRAFT_PI_BIN / PATH)" });
+      return;
+    }
+    const args = [
+      "--print",
+      "--mode",
+      "json",
+      "/pr-review",
+      String(req.pr),
+      "--no-comment", // mode disabled → review completo sem postar no GitHub (decideReviewPublication)
+    ];
+    if (req.includeClosed) args.push("--include-closed");
+    const child = spawn(bin, args, { cwd: req.cwd, env: rt.env, stdio: ["ignore", "pipe", "pipe"] });
+    let lastAssistantText = "";
+    let stderr = "";
+    let buffer = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString("utf8");
+      let newlineIndex: number;
+      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+        let line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (line.trim() === "") continue;
+        let event: JsonlEvent;
+        try {
+          event = JSON.parse(line) as JsonlEvent;
+        } catch {
+          continue; // linha não-JSON (aviso/header solto) — ignorada
+        }
+        if (event.type === "message_end") {
+          const message = event.message;
+          if (message && message.role === "assistant") {
+            const text = messageText(message);
+            if (text.trim() !== "") lastAssistantText = text;
+          }
+        } else if (event.type === "agent_end" && Array.isArray(event.messages)) {
+          for (const message of event.messages) {
+            if (message.role === "assistant") {
+              const text = messageText(message);
+              if (text.trim() !== "") lastAssistantText = text;
+            }
+          }
+        }
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      resolve({ ok: false, code: null, reviewText: lastAssistantText, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      resolve({ ok: code === 0, code, reviewText: lastAssistantText, stderr });
+    });
+  });
 }

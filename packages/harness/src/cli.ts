@@ -16,6 +16,8 @@ import { runSyncCommand, type SyncCommandOptions } from "./commands/sync.ts";
 import { runUninstallCommand, type UninstallCommandOptions } from "./commands/uninstall.ts";
 import { runRestoreCommand, type RestoreCommandOptions } from "./commands/restore.ts";
 import { runBackupsCommand, type BackupsCommandOptions } from "./commands/backups.ts";
+import { runGatesCommand } from "./commands/gates.ts";
+import { runReceiptCommand } from "./commands/receipt.ts";
 
 export interface DispatchContext {
   cwd?: string;
@@ -40,6 +42,8 @@ export const COMMANDS = [
   "uninstall",
   "restore",
   "backups",
+  "gates",
+  "receipt",
 ] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
@@ -62,6 +66,10 @@ export interface CliOptions {
   args: string[];
   /** backups: pin a snapshot against prune (--keep <name>). */
   keep?: string;
+  /** receipt capture: review JSON already produced (--from <file>, fluxo manual). */
+  from?: string;
+  /** receipt capture: permit a closed PR (--include-closed, allowNonOpen no fork). */
+  includeClosed?: boolean;
   help: boolean;
   version: boolean;
 }
@@ -121,6 +129,8 @@ export function parseCliArgs(argv: string[]): ParseResult {
     yes?: boolean;
     all?: boolean;
     keep?: string;
+    from?: string;
+    "include-closed"?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -135,6 +145,8 @@ export function parseCliArgs(argv: string[]): ParseResult {
         yes: { type: "boolean" },
         all: { type: "boolean" },
         keep: { type: "string" },
+        from: { type: "string" },
+        "include-closed": { type: "boolean" },
       },
       allowPositionals: true,
       strict: true,
@@ -198,6 +210,8 @@ export function parseCliArgs(argv: string[]): ParseResult {
       all: Boolean(values.all),
       args: positionalArgs,
       keep: values.keep,
+      from: values.from,
+      includeClosed: values["include-closed"],
       help: false,
       version: false,
     },
@@ -323,6 +337,36 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         keep: options.keep,
       };
       return runBackupsCommand(opts);
+    }
+    case "gates": {
+      const opts = {
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+        scope: options.scope,
+        scopeSet: options.scopeSet,
+        dryRun: options.dryRun,
+        json: options.json,
+        yes: options.yes,
+        isTTY: ctx.isTTY ?? Boolean(process.stdout.isTTY),
+        stdin: ctx.stdin ?? process.stdin,
+        out,
+        err,
+      };
+      return runGatesCommand(opts);
+    }
+    case "receipt": {
+      const opts = {
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+        from: options.from,
+        includeClosed: options.includeClosed,
+        json: options.json,
+        out,
+        err,
+        rt,
+      };
+      return runReceiptCommand(opts);
     }
     default:
       err.write(`@runecraft/harness: comando desconhecido ${options.command}\n`);

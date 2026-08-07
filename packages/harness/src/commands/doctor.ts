@@ -41,6 +41,10 @@ import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, scanMcpUpstreams } from "../owners.ts";
 import { detectActiveDriver } from "../sessionDriver.ts";
 import type { AgentId } from "../adapters/types.ts";
+import { hooksDirFor, hasGatesSection } from "../gates/hook.ts";
+import { repoRoot } from "../gates/git.ts";
+import { resolveGates } from "../gates/config.ts";
+import { scanReceipts } from "../receipt/store.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -362,6 +366,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   // F19 D8: check 16 (driver ativo) — informativo; dependente do Pi (goal-loop
   // é extensão Pi), então roda apenas no ramo piOk (skip caso contrário, acima).
   if (piOk) checks.push(checkDriverActive(rt));
+  // F20: check 17 (gates) — independente do Pi (só lê .runecraft do repo + git).
+  checks.push(checkGates(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -547,7 +553,89 @@ function checkDriverActive(rt: Runtime): DoctorCheck {
 }
 
 /**
- * F18 check 10 — colisão MCP upstream (consolida o F17 check 10): qualquer
+ * F20 check 17 — Gates (delivery hooks pre-commit/pre-push; AD-014: 16 é do
+ * F19, 17 é do F20). Read-only (LIFE-01). Regras (design fluxo 5):
+ *   - config repo/global ilegível → fail apontando o arquivo
+ *   - effective enabled sem hook/seção → warn com remedy `gates enable`
+ *   - receipt corrompido (JSON inválido) → fail apontando o arquivo
+ *   - kill switch global ativo → pass (info — desligado de propósito)
+ *   - fora de repo git → pass informativo (gates não se aplicam)
+ */
+function checkGates(rt: Runtime): DoctorCheck {
+  const root = repoRoot(rt.cwd);
+  if (root === null) {
+    return { id: 17, name: "Gates", status: "pass", detail: "fora de repositório git — delivery gates não se aplicam" };
+  }
+  const resolution = resolveGates(rt, root);
+  if (resolution.error !== undefined) {
+    return {
+      id: 17,
+      name: "Gates",
+      status: "fail",
+      detail: resolution.error,
+      remedy: "corrija o arquivo apontado (ou restaure de um backup do harness)",
+    };
+  }
+
+  // Receipts do dir parseáveis (corrompido → fail apontando o arquivo).
+  const corrupt = scanReceipts(root).find((s) => s.errorKind === "corrupt");
+  if (corrupt) {
+    return {
+      id: 17,
+      name: "Gates",
+      status: "fail",
+      detail: `receipt corrompido: ${corrupt.file} (JSON inválido)`,
+      remedy: "remova/corrija o arquivo apontado (fail-closed nos gates) — ou restaure de um backup",
+    };
+  }
+
+  if (resolution.effective === "absent") {
+    return {
+      id: 17,
+      name: "Gates",
+      status: "pass",
+      detail: "gates não habilitados (sem config em repo nem global) — opt-in por repo via `harness gates enable`",
+    };
+  }
+  if (resolution.effective === "disabled") {
+    const who =
+      resolution.global.config?.gates.enabled === false
+        ? `kill switch global ativo (${resolution.global.file})`
+        : `repo off (${resolution.repo.file})`;
+    return {
+      id: 17,
+      name: "Gates",
+      status: "pass",
+      detail: `${who} — hooks inertes (disabled/unmanaged, exit 0); nada a validar`,
+    };
+  }
+
+  const hooksDir = hooksDirFor(root);
+  const missing: string[] = [];
+  for (const hook of ["pre-commit", "pre-push"] as const) {
+    const file = `${hooksDir}/${hook}`;
+    if (!hasGatesSection(file)) {
+      missing.push(`${hook} (${file})`);
+    }
+  }
+  if (missing.length > 0) {
+    return {
+      id: 17,
+      name: "Gates",
+      status: "warn",
+      detail: `gates habilitados mas hook sem seção runecraft:gates: ${missing.join("; ")}`,
+      remedy: "harness gates enable (re-instala a seção; hooks pré-existentes preservados)",
+    };
+  }
+  return {
+    id: 17,
+    name: "Gates",
+    status: "pass",
+    detail: `gates habilitados — hooks pre-commit/pre-push com seção runecraft:gates em ${hooksDir}`,
+  };
+}
+
+/** F18 check 10 — colisão MCP upstream (consolida o F17 check 10): qualquer
  * entry em configs MCP dos hosts apontando para bin não-runecraft → warn
  * (conflito de server name no host; F16). O install nunca sobrescreve essas
  * entries (F15 D5).
