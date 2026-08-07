@@ -28,7 +28,7 @@ export interface EvalEvidenceLine {
   status: "pass" | "fail" | "fail-infra";
   message: string;
   durationMs: number;
-  evalId?: string;
+  evalId: string;
   runId: string;
 }
 
@@ -80,7 +80,7 @@ export async function evalTest(
     message: "",
     durationMs: 0,
     runId: RUN_ID,
-    ...(opts.evalId ? { evalId: opts.evalId } : {}),
+    evalId: opts.evalId ?? "",
   };
   for (const cov of opts.coverage ?? []) {
     recordCoverage(cov.command, cov.flags);
