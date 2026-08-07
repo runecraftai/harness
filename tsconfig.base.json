@@ -4,6 +4,8 @@
 		"target": "ESNext",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
+		"customConditions": ["development"],
+		"allowImportingTsExtensions": true,
 		"lib": ["ESNext"],
 		"strict": true,
 		"noUncheckedIndexedAccess": true,

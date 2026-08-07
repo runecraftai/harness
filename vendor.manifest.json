@@ -33,6 +33,54 @@
 			"subpath": "packages/taskflow-dsl",
 			"dest": "packages/taskflow/dsl"
 		},
+		"taskflow-mcp-core": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "taskflow-mcp-core",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/taskflow-mcp-core",
+			"dest": "packages/taskflow/mcp-core"
+		},
+		"taskflow-hosts": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "taskflow-hosts",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/taskflow-hosts",
+			"dest": "packages/taskflow/hosts"
+		},
+		"taskflow-codex": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "codex-taskflow",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/codex-taskflow",
+			"dest": "packages/taskflow/codex"
+		},
+		"taskflow-claude": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "claude-taskflow",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/claude-taskflow",
+			"dest": "packages/taskflow/claude"
+		},
+		"taskflow-opencode": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "opencode-taskflow",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/opencode-taskflow",
+			"dest": "packages/taskflow/opencode"
+		},
+		"taskflow-grok": {
+			"repo": "heggria/taskflow",
+			"ref": "v0.2.6",
+			"npmName": "grok-taskflow",
+			"npmVersion": "0.2.6",
+			"subpath": "packages/grok-taskflow",
+			"dest": "packages/taskflow/grok"
+		},
 		"goal-loop-audit": {
 			"repo": "DraconDev/pi-goal-list-loop-audit",
 			"ref": "21b6bb0abdf5c21c88c976231f312465c3900128",
