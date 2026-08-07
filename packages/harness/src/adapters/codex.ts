@@ -93,10 +93,17 @@ export const codexAdapter: AgentAdapter = {
       const current = readTomlSection(paths.mcpFile, MCP_KEY);
       if (current !== null) {
         if (target.contentHash === sha256Hex(current)) {
+          const original = fs.readFileSync(paths.mcpFile, "utf8");
+          const openIdx = original.indexOf(`[mcp_servers.${MCP_KEY}]`);
           const next = removeTomlSection(paths.mcpFile, MCP_KEY) ?? "";
-          // Colapsa APENAS a região do bloco removido (nada além disso — D6):
-          // até 2 newlines consecutivos no ponto de remoção.
-          const cleaned = next.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+          // Colapsa whitespace APENAS no ponto de remoção (D6 — nada além
+          // disso): prefix/suffix na junção, máx 2 eols consecutivos.
+          const junction = Math.min(openIdx >= 0 ? openIdx : 0, next.length);
+          const prefix = next.slice(0, junction);
+          const suffix = next.slice(junction);
+          const prefixCollapsed = prefix.replace(/\n{3,}$/, "\n\n");
+          const suffixCollapsed = suffix.replace(/^\n{3,}/, "\n\n");
+          const cleaned = (prefixCollapsed + suffixCollapsed).replace(/\n+$/, "\n");
           if (cleaned.trim() === "") {
             fs.unlinkSync(paths.mcpFile);
             deleted.push(paths.mcpFile);

@@ -157,7 +157,8 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   const stateFile = statePath(rt, scope);
 
   // `--agent pi` = fluxo F12 atual (design F15 D6): remove os packages do Pi
-  // como `--all` faria, sem tocar agentes não-Pi.
+  // como `--all` faria. Nota: como --all, também remove agentes não-Pi
+  // registrados (comportamento idêntico a `uninstall --all`).
   const agentsNoPi = (opts.agents ?? []).filter((a) => !a.split(",").map((s) => s.trim()).includes("pi"));
   const piOnly = opts.agents !== undefined && agentsNoPi.length === 0 && !opts.all && !opts.components;
   if (piOnly) {

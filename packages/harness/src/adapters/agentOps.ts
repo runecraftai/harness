@@ -78,22 +78,30 @@ export async function installAgent(
     const ctx = buildContext(adapter, rt, registered);
     const result = await adapter.inject(ctx);
     // State registration (F17 D2): rules target + mcp target. O target mcp é
-    // registrado SOMENTE quando o inject realmente escreveu a entry (sem
-    // conflito D5) — uma entry estrangeira reportada como conflito nunca é
-    // registrada como nossa (senão o uninstall a removeria — fix review F15).
+    // registrado quando (a) o inject escreveu sem conflito, OU (b) rerun:
+    // nada mudou (written vazio) mas o fingerprint atual ainda bate com o
+    // registrado — re-registra para manter o registro vivo. Entry estrangeira
+    // (conflito D5) nunca é registrada como nossa — uninstall não a remove.
     const paths = adapter.paths(rt);
     const targets: AgentTarget[] = [];
     const rulesWritten = result.written.includes(paths.rulesFile);
-    if (rulesWritten && fs.existsSync(paths.rulesFile)) {
-      targets.push({
-        kind: "rules",
-        component: "rules",
-        file: paths.rulesFile,
-        section: RULES_SECTION,
-        contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
-      });
+    const rulesTarget = registered?.targets.find((t) => t.kind === "rules");
+    if (rulesWritten) {
+      if (fs.existsSync(paths.rulesFile)) {
+        targets.push({
+          kind: "rules",
+          component: "rules",
+          file: paths.rulesFile,
+          section: RULES_SECTION,
+          contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
+        });
+      }
+    } else if (rulesTarget && fs.existsSync(rulesTarget.file)) {
+      targets.push(rulesTarget); // rerun: registro prévio preservado
     }
     const mcpWritten = result.written.includes(paths.mcpFile) && result.conflicts.length === 0;
+    const mcpTarget = registered?.targets.find((t) => t.kind === "mcp");
+    const mcpFingerprint = adapter.readMcpFingerprint(rt);
     if (mcpWritten) {
       targets.push({
         kind: "mcp",
@@ -101,8 +109,10 @@ export async function installAgent(
         file: paths.mcpFile,
         entry: paths.mcpKey,
         bin: ctx.mcpBin,
-        contentHash: adapter.readMcpFingerprint(rt) ?? "",
+        contentHash: mcpFingerprint ?? "",
       });
+    } else if (mcpTarget && mcpTarget.contentHash === mcpFingerprint) {
+      targets.push(mcpTarget); // rerun: entry nossa ainda no lugar
     }
     const record: AgentRecord = {
       installedAt: registered?.installedAt ?? new Date().toISOString(),
@@ -110,7 +120,7 @@ export async function installAgent(
       targets,
     };
     if (targets.length > 0) upsertAgent(state, agentId, record);
-    else delete state.agents[agentId]; // nada escrito (conflito total) — não registra
+    else delete state.agents[agentId]; // nada nosso restante (conflito total) — não registra
     return { agentId, status: "installed", detail: [...result.written, ...result.conflicts.map((c) => `conflito: ${c.file} (${c.reason})`)] };
   } catch (error) {
     if (error instanceof UpstreamReferenceError) {

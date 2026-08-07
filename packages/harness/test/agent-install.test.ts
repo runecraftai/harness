@@ -185,6 +185,51 @@ describe("uninstall --agent (F15 ADPT-07)", () => {
       sb.cleanup();
     }
   });
+
+  test("rerun idempotente preserva o registro do state (fix review 2)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      const install = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(install.code).toBe(0);
+      const state1 = readJson(stateFile(sb));
+      expect((state1.agents as Record<string, unknown>)["claude-code"]).toBeDefined();
+      // rerun → zero mudanças, registro PRESERVADO
+      const rerun = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(rerun.code).toBe(0);
+      const state2 = readJson(stateFile(sb));
+      const record = (state2.agents as Record<string, unknown>)["claude-code"] as { targets: Array<{ kind: string }> };
+      expect(record).toBeDefined();
+      expect(record.targets.some((t) => t.kind === "mcp")).toBe(true);
+      // uninstall ainda remove (registro vivo)
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "claude-code", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      expect(fs.existsSync(path.join(sb.claudeHome, ".mcp.json"))).toBe(false);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("codex uninstall preserva whitespace do usuário fora da junção (fix review 2)", async () => {
+    const sb = sandboxWithAgents(["codex"]);
+    try {
+      const codexHome = path.join(sb.dir, "codex-home");
+      sb.env.RUNECRAFT_CODEX_HOME = codexHome;
+      sb.env.RUNECRAFT_TASKFLOW_CODEX_BIN = path.join(sb.binDir, "mcp-fake.js");
+      fs.mkdirSync(codexHome, { recursive: true });
+      // usuário com muitas linhas em branco entre seções
+      fs.writeFileSync(path.join(codexHome, "config.toml"), "# config do usuário\n\n\n\n\n[model]\nmodel = \"gpt\"\n", "utf8");
+      const install = await runHarness(sb, ["install", "--agent", "codex", "--yes"]);
+      expect(install.code).toBe(0);
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "codex", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      const toml = fs.readFileSync(path.join(codexHome, "config.toml"), "utf8");
+      // as 4 linhas em branco do usuário permanecem (só a junção colapsa)
+      expect(toml).toContain("# config do usuário\n\n\n\n\n[model]");
+      expect(toml).not.toContain("mcp_servers.taskflow");
+    } finally {
+      sb.cleanup();
+    }
+  });
 });
 
 describe("uninstall --agent pi (F15 D6: fluxo F12)", () => {
