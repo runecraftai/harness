@@ -34,9 +34,12 @@ import { loadStateReadonly } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts } from "../conflicts.ts";
 import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
-import { hasSection, isValidUtf8 } from "../adapters/rules.ts";
-import { MATRIX, type ComponentId } from "../matrix.ts";
+import { hasSection, isValidUtf8, readSectionContent } from "../adapters/rules.ts";
+import { renderRules, WORKFLOW_RULES_VERSION } from "../adapters/rulesContent.ts";
+import { sectionContentHash } from "../sections.ts";
+import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, scanMcpUpstreams } from "../owners.ts";
+import { detectActiveDriver } from "../sessionDriver.ts";
 import type { AgentId } from "../adapters/types.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
@@ -335,6 +338,7 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
       [5, "Settings dos forks"],
       [6, "Disco"],
       [15, "Upstreams Pi"],
+      [16, "Driver ativo"],
     ];
     for (const [id, name] of skips) {
       checks.push({ id, name, status: "skip", detail: "pulado — depende do Pi (check 1 falhou)" });
@@ -355,6 +359,9 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
     checkGentleAi(rt, pi),
     checkAgentUpstreamsPi(pi),
   );
+  // F19 D8: check 16 (driver ativo) — informativo; dependente do Pi (goal-loop
+  // é extensão Pi), então roda apenas no ramo piOk (skip caso contrário, acima).
+  if (piOk) checks.push(checkDriverActive(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -460,6 +467,25 @@ function checkAgentConfigs(rt: Runtime): DoctorCheck {
       if (target.kind === "rules") {
         if (!hasSection(target.file, target.section)) {
           problems.push(`${agentId}: seção '${target.section}' ausente em ${target.file}`);
+          continue;
+        }
+        // F19 D7 sub-estado "desatualizado (template novo)": o arquivo bate com
+        // o registrado, mas o render atual do template difere (CLI nova) → o
+        // sync aplica o update in-place pelo ID estável (ROUT-06).
+        if (target.contentHash) {
+          const fileContent = readSectionContent(target.file, target.section);
+          const fileHash = sectionContentHash(target.section, fileContent ?? "");
+          if (fileHash === target.contentHash) {
+            const renderHash = sectionContentHash(
+              target.section,
+              renderRules(agentId as MatrixAgentId),
+            );
+            if (renderHash !== target.contentHash) {
+              problems.push(
+                `${agentId}: seção '${target.section}' desatualizado (template novo v${WORKFLOW_RULES_VERSION}) em ${target.file}`,
+              );
+            }
+          }
         }
       } else {
         let fingerprint: string | null;
@@ -483,7 +509,40 @@ function checkAgentConfigs(rt: Runtime): DoctorCheck {
     name: "Agentes (configs)",
     status: "fail",
     detail: problems.join("; "),
-    remedy: "harness sync --agent <id> (re-injeção idempotente)",
+    remedy: "harness sync --agent <id> (re-injeção idempotente ou atualização do template vN→vM)",
+  };
+}
+
+/**
+ * F19 D8 check 16 — Driver ativo (informativo, read-only — LIFE-01; nunca
+ * falha). Skip quando o Pi está ausente (goal-loop é extensão Pi —
+ * dependência do check 1). Ledger do glla lido no cwd da sessão: goal/loop
+ * ativo → pass "goal-loop"; sem goal → pass "sessão (direto)"; ledger
+ * ilegível → warn "não avaliado" (sem crash — padrão F12 edge de `pi list`).
+ */
+function checkDriverActive(rt: Runtime): DoctorCheck {
+  const driver = detectActiveDriver(rt.cwd);
+  if (driver === "goal-loop") {
+    return {
+      id: 16,
+      name: "Driver ativo",
+      status: "pass",
+      detail: "goal-loop dirige a sessão (via agent_end) — subagents/taskflow entram como workers (two-driver rule)",
+    };
+  }
+  if (driver === "direct") {
+    return {
+      id: 16,
+      name: "Driver ativo",
+      status: "pass",
+      detail: "sessão (direto) — subagents/taskflow são workers compatíveis (nenhum goal/loop ativo)",
+    };
+  }
+  return {
+    id: 16,
+    name: "Driver ativo",
+    status: "warn",
+    detail: "estado do goal-loop ilegível (.pi-glla/active.jsonl) — driver não avaliado (sem crash)",
   };
 }
 

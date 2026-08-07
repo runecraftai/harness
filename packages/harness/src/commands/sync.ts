@@ -24,13 +24,14 @@ import {
 } from "../config.ts";
 import { createSnapshot } from "../backup.ts";
 import { npmIdentity, type PiInterop } from "../pi.ts";
-import { loadState, saveState, upsertInstalled, type AgentRecord, type HarnessState, type InstalledEntry } from "../state.ts";
+import { loadState, saveState, upsertInstalled, type AgentRecord, type AgentTarget, type HarnessState, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { ADAPTERS } from "../adapters/registry.ts";
 import { buildAgentTargets } from "../adapters/agentOps.ts";
-import { hasSection } from "../adapters/rules.ts";
+import { hasSection, readSectionContent } from "../adapters/rules.ts";
 import { resolveMcpBin } from "../adapters/mcpConfig.ts";
-import { renderWorkflowRules } from "../adapters/rulesContent.ts";
+import { renderRules, renderWorkflowRules, WORKFLOW_RULES_VERSION } from "../adapters/rulesContent.ts";
+import { sectionContentHash } from "../sections.ts";
 import type { AgentAdapter, AgentContext } from "../adapters/types.ts";
 import { MATRIX, columnComponents, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
@@ -250,7 +251,16 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   const pendingNotes = agentPlan.pending.map(
     (p) => `${p.agentId}: re-injetar (${p.missingCells.join(", ")} ausente)`,
   );
-  const hasChanges = plan.actions.length > 0 || agentPlan.pending.length > 0;
+  // F19 D7: os 4 estados por target rules (reportados nas notas; apenas
+  // pending/stale geram escrita — edited preserva, in-sync não aparece).
+  const templateChangedNotes = agentPlan.templateChanged.map(
+    (t) => `${t.agentId}: atualizar (template ${t.fromVersion}→${WORKFLOW_RULES_VERSION})`,
+  );
+  const editedNotes = agentPlan.edited.map(
+    (e) => `${e.agentId}: rules preservada (editada — usuário editou; sync nunca sobrescreve)`,
+  );
+  const hasChanges =
+    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0;
 
   if (!hasChanges) {
     const report: SyncReport = {
@@ -262,7 +272,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       preserved: plan.preserved,
       conflicts: plan.conflicts,
       failed: [],
-      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes],
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -282,7 +292,14 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       conflicts: plan.conflicts,
       failed: [],
       backupDir: backupsDir(rt, scope),
-      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...pendingNotes.map((n) => `(dry-run) ${n}`)],
+      notes: [
+        ...plan.notes,
+        ...agentPlan.orphanNotes,
+        ...agentPlan.staleNotes,
+        ...pendingNotes.map((n) => `(dry-run) ${n}`),
+        ...templateChangedNotes.map((n) => `(dry-run) ${n}`),
+        ...editedNotes,
+      ],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -341,38 +358,65 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
 
   // F17 D6: re-inject dos agentes pendentes (planejados acima) — idempotente,
   // targets pós-inject registrados no state (mesma regra do install — D2).
-  // Órfãs de matriz já foram reportados no plano; nunca removidos aqui
-  // (remoção é contrato do uninstall).
+  // F19 D7 three-way por target rules: pendente → re-injeta; template mudou
+  // (arquivo == registrado ≠ render) → update in-place pelo ID estável via
+  // inject + contentHash novo; usuário editou (arquivo ≠ registrado) →
+  // preserveRules no inject (nunca sobrescreve) + reporta. Órfãs de matriz já
+  // foram reportados no plano; nunca removidos aqui (remoção é contrato do
+  // uninstall).
   const agentNotes: string[] = [...agentPlan.orphanNotes, ...agentPlan.staleNotes];
   let agentsChanged = false;
-  for (const pending of agentPlan.pending) {
-    const adapter = ADAPTERS[pending.agentId as keyof typeof ADAPTERS];
-    const rec = loaded.state.agents[pending.agentId];
+  const templateVersionById = new Map(agentPlan.templateChanged.map((t) => [t.agentId, t.fromVersion]));
+  const editedIds = new Set(agentPlan.edited.map((e) => e.agentId));
+  const pendingById = new Map(agentPlan.pending.map((p) => [p.agentId, p.missingCells]));
+
+  // Só-editado (nenhuma outra pendência): zero writes — preserva + reporta.
+  for (const edited of agentPlan.edited) {
+    if (!templateVersionById.has(edited.agentId) && !pendingById.has(edited.agentId)) {
+      agentNotes.push(`${edited.agentId}: rules preservada (editada — usuário editou; sync nunca sobrescreve)`);
+    }
+  }
+
+  const toSync = new Set<string>([...pendingById.keys(), ...templateVersionById.keys()]);
+  for (const agentId of toSync) {
+    const adapter = ADAPTERS[agentId as keyof typeof ADAPTERS];
+    const rec = loaded.state.agents[agentId];
     if (!rec) continue; // sumiu do state entre o plano e a execução (corrida)
+    const missingCells = pendingById.get(agentId) ?? [];
+    const templateChanged = templateVersionById.get(agentId);
+    const preserveRules = editedIds.has(agentId);
     try {
-      const ctx = syncAgentContext(adapter, rt, rec);
+      const ctx = syncAgentContext(adapter, rt, rec, { preserveRules });
       const outcome = await adapter.inject(ctx);
       const targets = buildAgentTargets(adapter, rt, ctx, outcome, rec);
       if (targets.length > 0) {
-        loaded.state.agents[pending.agentId] = { ...rec, targets };
+        loaded.state.agents[agentId] = { ...rec, targets };
         agentsChanged = true;
       }
-      agentNotes.push(`${pending.agentId}: re-injetado (${pending.missingCells.join(", ")} ausente)`);
+      if (templateChanged !== undefined) {
+        agentNotes.push(`${agentId}: atualizada (template ${templateChanged}→${WORKFLOW_RULES_VERSION})`);
+      }
+      if (missingCells.length > 0) {
+        agentNotes.push(`${agentId}: re-injetado (${missingCells.join(", ")} ausente)`);
+      }
+      if (preserveRules) {
+        agentNotes.push(`${agentId}: rules preservada (editada — usuário editou; sync nunca sobrescreve)`);
+      }
       if (outcome.conflicts.length > 0) {
         for (const conflict of outcome.conflicts) {
-          agentNotes.push(`  ${pending.agentId} conflito: ${conflict.file} (${conflict.reason})`);
+          agentNotes.push(`  ${agentId} conflito: ${conflict.file} (${conflict.reason})`);
         }
       }
     } catch (error) {
       // O inject pode ter gravado a rules ANTES de falhar na etapa MCP
       // (config ilegível). Reporta o que aconteceu de fato, não só o erro.
       const paths = adapter.paths(rt);
-      const rulesCell = MATRIX[pending.agentId as MatrixAgentId].rules;
+      const rulesCell = MATRIX[agentId as MatrixAgentId].rules;
       const rulesRestored = rulesCell?.kind === "rules" && hasSection(paths.rulesFile, rulesCell.section);
       agentNotes.push(
         rulesRestored
-          ? `${pending.agentId}: rules re-injetada; etapa MCP falhou — ${(error as Error).message} (corrija a config e rode sync de novo)`
-          : `${pending.agentId}: re-inject falhou (${(error as Error).message})`,
+          ? `${agentId}: rules re-injetada; etapa MCP falhou — ${(error as Error).message} (corrija a config e rode sync de novo)`
+          : `${agentId}: re-inject falhou (${(error as Error).message})`,
       );
     }
   }
@@ -405,14 +449,28 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
 /**
  * F17 D6 — planejamento read-only da reconciliação de agentes: células da
  * coluna da matriz (rules/mcp) com config real ausente → pending (re-inject);
- * targets sem célula na matriz atual → órfãos (reportados, nunca removidos);
- * agentes no state sem adapter → stale (matriz mudou entre versões do CLI).
+ * F19 D7 three-way por target rules — arquivo × registrado × render do
+ * template: arquivo == registrado ≠ render → templateChanged (update
+ * in-place); arquivo ≠ registrado → edited (preserva + reporta); arquivo ==
+ * registrado == render → em sincronia (zero writes). targets sem célula na
+ * matriz atual → órfãos (reportados, nunca removidos); agentes no state sem
+ * adapter → stale (matriz mudou entre versões do CLI).
  */
 export function planAgentReconciliation(
   rt: Runtime,
   state: HarnessState,
-): { pending: Array<{ agentId: string; missingCells: string[] }>; orphanNotes: string[]; staleNotes: string[] } {
+): {
+  pending: Array<{ agentId: string; missingCells: string[] }>;
+  /** F19 D7: rules template mudou — arquivo == registrado ≠ render (update in-place). */
+  templateChanged: Array<{ agentId: string; fromVersion: string }>;
+  /** F19 D7: rules editada pelo usuário — arquivo ≠ registrado (preserva + reporta). */
+  edited: Array<{ agentId: string }>;
+  orphanNotes: string[];
+  staleNotes: string[];
+} {
   const pending: Array<{ agentId: string; missingCells: string[] }> = [];
+  const templateChanged: Array<{ agentId: string; fromVersion: string }> = [];
+  const edited: Array<{ agentId: string }> = [];
   const orphanNotes: string[] = [];
   const staleNotes: string[] = [];
   for (const [agentId, rec] of Object.entries(state.agents)) {
@@ -432,10 +490,27 @@ export function planAgentReconciliation(
     const paths = adapter.paths(rt);
     const missingCells: string[] = [];
     let unreadable = false;
+    const rulesTarget = rec.targets.find(
+      (t): t is Extract<AgentTarget, { kind: "rules" }> => t.kind === "rules" && Boolean(t.contentHash),
+    );
     for (const component of columnComponents(matrixId)) {
       const cell = MATRIX[matrixId][component];
       if (cell?.kind === "rules") {
-        if (!hasSection(paths.rulesFile, cell.section)) missingCells.push(component);
+        if (!hasSection(paths.rulesFile, cell.section)) {
+          missingCells.push(component);
+        } else if (rulesTarget) {
+          // F19 D7 three-way (por target rules): arquivo × registrado × render.
+          const fileContent = readSectionContent(paths.rulesFile, cell.section);
+          const fileHash = sectionContentHash(cell.section, fileContent ?? "");
+          if (fileHash === rulesTarget.contentHash) {
+            const renderHash = sectionContentHash(cell.section, renderRules(matrixId));
+            if (renderHash !== rulesTarget.contentHash) {
+              templateChanged.push({ agentId, fromVersion: rulesTarget.rulesVersion ?? "?" });
+            }
+          } else {
+            edited.push({ agentId });
+          }
+        }
       } else if (cell?.kind === "mcp") {
         let fingerprint: string | null;
         try {
@@ -457,11 +532,18 @@ export function planAgentReconciliation(
     }
     if (missingCells.length > 0) pending.push({ agentId, missingCells });
   }
-  return { pending, orphanNotes, staleNotes };
+  return { pending, templateChanged, edited, orphanNotes, staleNotes };
 }
 
-/** Context de re-inject do sync (regras do template + bin do fork). */
-function syncAgentContext(adapter: AgentAdapter, rt: Runtime, rec: AgentRecord): AgentContext {
+/** Context de re-inject do sync (regras do template + bin do fork). F19 D7:
+ *  preserveRules marca o inject para NÃO reescrever a seção editada pelo
+ *  usuário (arquivo ≠ registrado) — a regra é preservada e reportada. */
+function syncAgentContext(
+  adapter: AgentAdapter,
+  rt: Runtime,
+  rec: AgentRecord,
+  opts: { preserveRules?: boolean } = {},
+): AgentContext {
   const mcp = resolveMcpBin(adapter.id === "claude-code" ? "claude" : adapter.id, rt);
   return {
     rt,
@@ -470,5 +552,6 @@ function syncAgentContext(adapter: AgentAdapter, rt: Runtime, rec: AgentRecord):
     rulesContent: renderWorkflowRules(adapter.id),
     mcpArgs: [],
     targets: rec.targets,
+    preserveRules: opts.preserveRules,
   };
 }

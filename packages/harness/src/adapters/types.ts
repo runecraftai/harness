@@ -53,6 +53,9 @@ export interface AgentContext {
   mcpBinCommand?: string[];
   /** rendered rules section content (F15 rules.ts; F17 provides final text). */
   rulesContent: string;
+  /** F19 D7: when true, inject must NOT rewrite the rules section (user-edited
+   *  content is preserved; the sync reports `preserved (edited)` instead). */
+  preserveRules?: boolean;
   /** command args after the bin (per-host; e.g. []). */
   mcpArgs: string[];
   /** extra env for the MCP entry (opencode skills paths etc.). */

@@ -16,6 +16,7 @@ import {
   hasSectionFamily,
   listSectionIds,
   markersFor,
+  readSectionContentFamily,
   removeSectionFamily,
   upsertSectionFamily,
   type SectionFamily,
@@ -46,6 +47,11 @@ export function removeSection(file: string, section: string): string | null {
 /** Read-only presence check (F17 D3 check 9). */
 export function hasSection(file: string, section: string): boolean {
   return hasSectionFamily(file, section, FAMILY);
+}
+
+/** Read the body of the `runecraft:<section>` block (F19 D7 three-way sync). */
+export function readSectionContent(file: string, section: string): string | null {
+  return readSectionContentFamily(file, section, FAMILY);
 }
 
 /** Ids of complete `runecraft:` blocks in the file (F18 uninstall — preserved

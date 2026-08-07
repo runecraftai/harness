@@ -44,9 +44,9 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
       // 1–6 (F12) + 7 (detecção, informativo) + 12 (detect-only, informativo)
-      expect(summaryLine(result.stdout)).toContain("pass 9"); // 1,2,3,5,6 + 7,12,14 (informativos)
+      expect(summaryLine(result.stdout)).toContain("pass 10"); // 1,2,3,5,6 + 7,12,14,16 (informativos)
       expect(summaryLine(result.stdout)).toContain("fail 0");
-      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) expect(result.stdout).toContain(`[${id}]`);
+      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) expect(result.stdout).toContain(`[${id}]`);
 
       // read-only: nenhum arquivo foi tocado
       expect(fileHash(settingsFile(sb))).toBe(settingsBefore);
@@ -65,8 +65,8 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(14); // 1,2,3,5,6 (F12) + 7–15 consolidados (F18)
-      expect(json.summary.pass + json.summary.warn).toBe(9);
+      expect(json.checks).toHaveLength(15); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver)
+      expect(json.summary.pass + json.summary.warn).toBe(10);
       expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
@@ -89,7 +89,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
       expect(result.stdout).toContain("fail");
       expect(result.stdout).toContain("npm install -g --ignore-scripts @earendil-works/pi-coding-agent");
       // dependentes pulados, não falham em cascata
-      expect(summaryLine(result.stdout)).toContain("skip 9"); // 3-6 (Pi) + 8-11,13 (agentes)
+      expect(summaryLine(result.stdout)).toContain("skip 10"); // 3-6,15,16 (Pi) + 8-11,13 (agentes)
       expect(result.stdout).toContain("pulado — depende do Pi");
     } finally {
       sb.cleanup();
@@ -245,7 +245,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       // check 3 vê o state do workspace e o pi list (global + project do fake pi)
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("pass");
-      expect(summaryLine(result.stdout)).toContain("pass 9"); // 1,2,3,5,6 + 7,12,14 (informativos)
+      expect(summaryLine(result.stdout)).toContain("pass 10"); // 1,2,3,5,6 + 7,12,14,16 (informativos)
     } finally {
       sb.cleanup();
     }

@@ -48,7 +48,9 @@ export const codexAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    const rules = upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
+    const rules = ctx.preserveRules
+      ? { changed: false, created: false, replaced: false }
+      : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: [mcp_servers.taskflow] upsert; conflict rule like the JSON hosts.

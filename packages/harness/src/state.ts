@@ -60,6 +60,8 @@ export type AgentTarget =
       section: string;
       /** sha256 of the normalized section content (F17 D2; SETM-05 basis) */
       contentHash: string;
+      /** template version rendered at the last inject (F19 D7: sync reports template vN→vM). */
+      rulesVersion?: string;
     }
   | {
       kind: "mcp";

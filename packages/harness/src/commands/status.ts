@@ -30,6 +30,7 @@ import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
 import { COMPONENTS } from "../plan.ts";
 import { AGENTS, MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, type OwnerEvidence } from "../owners.ts";
+import { detectActiveDriver, type DriverState } from "../sessionDriver.ts";
 import type { AgentId } from "../adapters/types.ts";
 import type { AgentRecord, HarnessState } from "../state.ts";
 
@@ -95,6 +96,8 @@ export interface StatusReport {
   owners: OwnerEvidence[];
   /** owners with severity warn (install gate mirrors this list). */
   warnings: OwnerEvidence[];
+  /** F19 D8: active driver of the Pi session (leitura do ledger do glla). */
+  session: { driver: DriverState };
 }
 
 export interface StatusAgent {
@@ -204,6 +207,9 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     agents: buildStatusAgents(rt, state, piDetected, identities, list.packages),
     owners: owners.owners,
     warnings: owners.owners.filter((o) => o.severity === "warn"),
+    // F19 D8: o driver é conceito da coluna Pi — o ledger do glla no cwd da
+    // sessão (a linha TTY vira "—" quando pi não é detectado).
+    session: { driver: detectActiveDriver(rt.cwd) },
   };
 }
 
@@ -387,6 +393,17 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   for (const collision of report.collisions) {
     lines.push(`warn: colisão com upstream ${collision.package} — ${collision.suggestion} (two-driver — F18)`);
   }
+  // F19 D8: linha do driver ativo (two-driver rule). Sem Pi → "—" (goal-loop
+  // é extensão Pi — F17); ledger ausente/ilegível → "sessão (direto)"/"não avaliado".
+  if (!report.piDetected) {
+    lines.push("driver: — (goal-loop é extensão Pi — coluna sem Pi não tem driver)");
+  } else if (report.session.driver === "goal-loop") {
+    lines.push("driver: goal-loop (dirige a sessão via agent_end — subagents/taskflow entram como workers)");
+  } else if (report.session.driver === "direct") {
+    lines.push("driver: sessão (direto) — subagents/taskflow são workers compatíveis");
+  } else {
+    lines.push("driver: não avaliado (estado do goal-loop ilegível — sem crash)");
+  }
   if (report.owners.length > 0) {
     lines.push("");
     lines.push("Owners (detecção F18):");
@@ -434,6 +451,7 @@ export function renderStatusJson(report: StatusReport): string {
     {
       scope: report.scope,
       piDetected: report.piDetected,
+      session: { driver: report.session.driver },
       source: report.piListSource,
       piListError: report.piListError ?? null,
       collisions: report.collisions,

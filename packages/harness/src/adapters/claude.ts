@@ -47,8 +47,11 @@ export const claudeAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    // Rules: marker section (append/upsert, idempotent).
-    const rules = upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
+    // Rules: marker section (append/upsert, idempotent). F19 D7: preserveRules
+    // (user-edited rules in the sync) → nunca reescreve a seção.
+    const rules = ctx.preserveRules
+      ? { changed: false, created: false, replaced: false }
+      : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: upsert mcpServers.taskflow only when absent or registered as ours

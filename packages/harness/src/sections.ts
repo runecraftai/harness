@@ -11,6 +11,7 @@
 // update = replace only the body between same-id markers; remove = only
 // runecraft: blocks; idempotent rerun; BOM preserved, CRLF detected, non-UTF8
 // files abort (never corrupt). Content without markers is never claimed.
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -163,6 +164,43 @@ export function hasSectionFamily(file: string, id: string, family: SectionFamily
   const openIdx = body.indexOf(markers.open);
   if (openIdx < 0) return false;
   return body.indexOf(markers.close, openIdx + markers.open.length) >= 0;
+}
+
+/**
+ * Read the body of a `runecraft:<id>` block (F19 D7 three-way sync): the
+ * content between the marker lines, exactly as rendered (an outer CRLF is
+ * stripped — the render always uses \n, so the extracted string is byte-identical
+ * to the injected template regardless of the file's EOL). Returns null when the
+ * file is missing, not valid UTF-8 or has a dangling marker (never guessed).
+ * Read-only.
+ */
+export function readSectionContentFamily(file: string, id: string, family: SectionFamily): string | null {
+  if (!fs.existsSync(file)) return null;
+  const original = fs.readFileSync(file);
+  if (!isValidUtf8(original)) return null;
+  const bom = hasUtf8Bom(original);
+  const body = bom ? original.toString("utf8").slice(1) : original.toString("utf8");
+  const markers = markersFor(family, id);
+  const openIdx = body.indexOf(markers.open);
+  if (openIdx < 0) return null;
+  const closeIdx = body.indexOf(markers.close, openIdx + markers.open.length);
+  if (closeIdx < 0) return null;
+  let start = openIdx + markers.open.length;
+  if (body.startsWith("\r\n", start)) start += 2;
+  else if (body.startsWith("\n", start)) start += 1;
+  let end = closeIdx;
+  if (end > 0 && body[end - 1] === "\n") end -= 1;
+  if (end > 0 && body[end - 1] === "\r") end -= 1;
+  return body.slice(start, end);
+}
+
+/**
+ * sha256 of the normalized section content (F17 D2; the registered hash the
+ * sync compares file × state × render against — F19 D7). Same formula in the
+ * inject registration, doctor and sync so every comparison is byte-stable.
+ */
+export function sectionContentHash(section: string, content: string): string {
+  return crypto.createHash("sha256").update(`${section}\n${content}`).digest("hex");
 }
 
 /**

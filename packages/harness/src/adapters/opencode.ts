@@ -47,7 +47,9 @@ export const opencodeAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    const rules = upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
+    const rules = ctx.preserveRules
+      ? { changed: false, created: false, replaced: false }
+      : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: deep merge only at mcp.taskflow; conflict rule like claude (D5).

@@ -27,6 +27,7 @@
     "bin/",
     "src/",
     "extensions/",
+    "docs/",
     "README.md"
   ],
   "engines": {

@@ -8,11 +8,12 @@
 import * as fs from "node:fs";
 import { ADAPTERS, DETECT_ONLY_GUIDES, genericDetectOnlyGuide, resolveAgentId } from "./registry.ts";
 import { RULES_SECTION, upsertSection, removeSection, listRulesSectionIds } from "./rules.ts";
-import { renderWorkflowRules } from "./rulesContent.ts";
+import { renderWorkflowRules, WORKFLOW_RULES_VERSION } from "./rulesContent.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "./mcpConfig.ts";
 import { readJsonConfig } from "./jsonc.ts";
 import { upsertAgent, type AgentRecord, type AgentTarget, type HarnessState } from "../state.ts";
 import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
+import { sectionContentHash } from "../sections.ts";
 import type { AgentAdapter, AgentContext, AgentId, DetectResult, InjectResult } from "./types.ts";
 import type { Runtime, Scope } from "../config.ts";
 
@@ -42,11 +43,6 @@ function buildContext(adapter: AgentAdapter, rt: Runtime, registered: AgentRecor
     mcpArgs: [],
     targets: registered?.targets ?? [],
   };
-}
-
-function sectionContentHash(section: string, content: string): string {
-  const { createHash } = require("node:crypto") as typeof import("node:crypto");
-  return createHash("sha256").update(`${section}\n${content}`).digest("hex");
 }
 
 /** Detect-only report for agents without an adapter (never fails — F17 D4). */
@@ -79,6 +75,7 @@ export function buildAgentTargets(
         file: paths.rulesFile,
         section: RULES_SECTION,
         contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
+        rulesVersion: WORKFLOW_RULES_VERSION,
       });
     }
   } else if (rulesTarget && fs.existsSync(rulesTarget.file)) {
