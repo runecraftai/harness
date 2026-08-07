@@ -35,6 +35,7 @@ import { HARNESS_VERSIONS } from "../versions.ts";
 import { parseAgentArgs, uninstallAgent } from "../adapters/agentOps.ts";
 import type { AgentId } from "../adapters/types.ts";
 import { SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { withRunecraftLock } from "../lock.ts";
 
 export interface UninstallCommandOptions {
   json: boolean;
@@ -152,7 +153,17 @@ export function renderUninstallJson(report: UninstallReport): string {
   )}\n`;
 }
 
+/** Write-lock wrapper (F18 Riscos: corrida com outro installer). */
 export async function runUninstallCommand(opts: UninstallCommandOptions): Promise<number> {
+  try {
+    return await withRunecraftLock(opts.rt, opts.scope, "uninstall", () => runUninstallCommandLocked(opts));
+  } catch (error) {
+    opts.err.write(`@runecraft/harness uninstall: ${(error as Error).message}\n`);
+    return 1;
+  }
+}
+
+async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise<number> {
   const { out, err, rt, scope } = opts;
   const stateFile = statePath(rt, scope);
 

@@ -322,14 +322,15 @@ describe("integração CLI — fail-safe (STBK-07: aborta antes de modificar)", 
   test("backups dir impossível de criar → install aborta sem tocar o settings", async () => {
     const sb = makeSandbox();
     try {
-      // runecraft home é um arquivo: mkdir dos backups falha → snapshot falha → abort
+      // runecraft home é um arquivo: o lock (F18) ou o mkdir dos backups falha
+      // primeiro — em ambos os casos o install aborta antes de qualquer write.
       fs.writeFileSync(sb.runecraftHome, "sou um arquivo, não um dir");
       fs.mkdirSync(sb.piHome, { recursive: true });
       fs.writeFileSync(settingsFile(sb), '{"packages":[]}\n');
 
       const result = await runHarness(sb, ["install"]);
       expect(result.code).toBe(1);
-      expect(result.stderr).toContain("snapshot pré-write");
+      expect(result.stderr.length).toBeGreaterThan(0);
       // nada foi modificado: settings e packages intactos
       expect(fs.readFileSync(settingsFile(sb), "utf8")).toBe('{"packages":[]}\n');
       expect(fs.existsSync(stateFile(sb))).toBe(false);

@@ -29,10 +29,19 @@ import { hasSection } from "../adapters/rules.ts";
 import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
 import { COMPONENTS } from "../plan.ts";
 import { AGENTS, MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
+import { detectOwners, type OwnerEvidence } from "../owners.ts";
 import type { AgentId } from "../adapters/types.ts";
 import type { AgentRecord, HarnessState } from "../state.ts";
 
-export type RowState = "ok" | "ausente" | "colisão" | "órfão";
+export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
+
+/** Upstream package name that collides per component domain (F18 two-driver). */
+const DOMAIN_UPSTREAM: Record<string, string> = {
+  subagents: "pi-subagents",
+  taskflow: "pi-taskflow",
+  "goal-loop-audit": "pi-goal-list-loop-audit",
+  "pr-review": "pi-pr-review",
+};
 
 /** Per-cell agent state (F17 D3): configs reais × state × coluna da matriz. */
 export type AgentCellState =
@@ -82,6 +91,10 @@ export interface StatusReport {
   nothingManaged: boolean;
   /** F17 D3: agents × matrix columns, crossed with real configs + state. */
   agents: StatusAgent[];
+  /** F18: owners detected across managed files (gentle-ai, upstreams, MCP, usuário). */
+  owners: OwnerEvidence[];
+  /** owners with severity warn (install gate mirrors this list). */
+  warnings: OwnerEvidence[];
 }
 
 export interface StatusAgent {
@@ -135,6 +148,16 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
   const piDetected = pi.detect().found;
 
   const rows: StatusRow[] = [];
+  // F18: upstream do mesmo domínio presente → two-driver. "colisão" = nosso
+  // componente instalado junto com o upstream; "upstream" = só o upstream
+  // (nosso ausente).
+  const upstreamByDomain = new Map<string, string>();
+  for (const conflict of scanConflicts(list.packages)) {
+    const name = npmIdentity(conflict.package).replace(/^npm:/, "").split("/").pop() ?? "";
+    for (const [domain, upstream] of Object.entries(DOMAIN_UPSTREAM)) {
+      if (name === upstream) upstreamByDomain.set(domain, upstream);
+    }
+  }
   for (const { name, group, expected } of catalogPackages()) {
     const entry: InstalledEntry | undefined = state.components[name];
     const inPi = identities.has(`npm:${name}`);
@@ -145,7 +168,11 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
       installed = versionFromPiList(list.packages, name);
     }
     let rowState: RowState;
-    if (!inPi) {
+    const upstreamDomain = upstreamByDomain.get(group);
+    if (upstreamDomain) {
+      // two-driver (F7): o domínio tem o upstream instalado
+      rowState = entry || inPi ? "colisão" : "upstream";
+    } else if (!inPi) {
       rowState = "ausente";
     } else if (entry && entry.version === expected) {
       rowState = "ok";
@@ -165,6 +192,7 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     });
   }
 
+  const owners = detectOwners(rt, pi);
   return {
     scope,
     rows,
@@ -174,6 +202,8 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     piListError: list.error,
     nothingManaged: Object.keys(state.components).length === 0 && Object.keys(state.agents).length === 0,
     agents: buildStatusAgents(rt, state, piDetected, identities, list.packages),
+    owners: owners.owners,
+    warnings: owners.owners.filter((o) => o.severity === "warn"),
   };
 }
 
@@ -340,8 +370,12 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
     ausente: "\u001b[31m",
     colisão: "\u001b[33m",
     órfão: "\u001b[2m",
+    upstream: "\u001b[33m",
   };
   const RESET = "\u001b[0m";
+  const DIM = "\u001b[2m";
+  const YELLOW = "\u001b[33m";
+  const colored = (s: string, color: string) => (opts.tty ? `${color}${s}${RESET}` : s);
   const c = (s: string, state: RowState) => (opts.tty ? `${colors[state]}${s}${RESET}` : s);
   const lines = [`@runecraft/harness status (scope ${report.scope})`];
   lines.push(`${"Package".padEnd(36)}${"Grupo".padEnd(18)}${"Instalado".padEnd(11)}${"Esperado".padEnd(11)}Estado`);
@@ -351,7 +385,15 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
     );
   }
   for (const collision of report.collisions) {
-    lines.push(`warn: colisão com upstream ${collision.package} — ${collision.suggestion} (tratamento no F18)`);
+    lines.push(`warn: colisão com upstream ${collision.package} — ${collision.suggestion} (two-driver — F18)`);
+  }
+  if (report.owners.length > 0) {
+    lines.push("");
+    lines.push("Owners (detecção F18):");
+    for (const owner of report.owners) {
+      const mark = owner.severity === "warn" ? colored("!", YELLOW) : colored("=", DIM);
+      lines.push(`  ${mark} ${owner.name} (${owner.kind}) — ${owner.detail}`);
+    }
   }
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
@@ -414,6 +456,8 @@ export function renderStatusJson(report: StatusReport): string {
             : { component: c.component, supported: false, reason: c.reason },
         ),
       })),
+      owners: report.owners,
+      warnings: report.warnings,
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

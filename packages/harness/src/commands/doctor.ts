@@ -35,8 +35,9 @@ import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts } from "../conflicts.ts";
 import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 import { hasSection, isValidUtf8 } from "../adapters/rules.ts";
-import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
 import { MATRIX, type ComponentId } from "../matrix.ts";
+import { detectOwners, scanMcpUpstreams } from "../owners.ts";
+import { createPiInterop } from "../pi.ts";
 import type { AgentId } from "../adapters/types.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
@@ -212,20 +213,41 @@ function checkComponents(rt: Runtime, pi: PiInterop): DoctorCheck {
   };
 }
 
-function checkCollision(pi: PiInterop): DoctorCheck {
+function checkAgentUpstreamsPi(pi: PiInterop): DoctorCheck {
   const conflicts = scanConflicts(pi.list().packages);
   if (conflicts.length === 0) {
-    return { id: 4, name: "Colisão", status: "pass", detail: "nenhum upstream em conflito instalado" };
+    return { id: 15, name: "Upstreams Pi", status: "pass", detail: "nenhum upstream em conflito instalado" };
   }
   const detail = conflicts
     .map((c) => `${c.package} (sugestão: ${c.suggestion})`)
     .join("; ");
   return {
-    id: 4,
-    name: "Colisão",
+    id: 15,
+    name: "Upstreams Pi",
     status: "warn",
     detail,
-    remedy: "upstreams em conflito com os forks runecraft — o harness nunca remove sozinho (tratamento completo no F18); remova com `pi remove <spec>`",
+    remedy: "upstreams em conflito com os forks runecraft (two-driver — F7) — o harness nunca remove sozinho; remova com `pi remove <spec>`",
+  };
+}
+
+/**
+ * F18 check 14 — gentle-ai presente (independente do Pi): state file OU
+ * marcadores `gentle-ai:` em arquivos gerenciados → warn (coexistência
+ * suportada — F18 MXST-05). Read-only.
+ */
+function checkGentleAi(rt: Runtime): DoctorCheck {
+  const gentleAi = detectOwners(rt, createPiInterop(rt)).owners.filter(
+    (o) => o.name === "gentle-ai",
+  );
+  if (gentleAi.length === 0) {
+    return { id: 14, name: "gentle-ai", status: "pass", detail: "não detectado (state file nem marcadores gentle-ai: em arquivos gerenciados)" };
+  }
+  return {
+    id: 14,
+    name: "gentle-ai",
+    status: "warn",
+    detail: gentleAi.map((o) => o.detail).join("; "),
+    remedy: "coexistência suportada — o harness nunca altera seções gentle-ai: (F18 MXST-05)",
   };
 }
 
@@ -310,18 +332,18 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   if (!piOk) {
     const skips: Array<[number, string]> = [
       [3, "Components"],
-      [4, "Colisão"],
       [5, "Settings dos forks"],
       [6, "Disco"],
+      [15, "Upstreams Pi"],
     ];
     for (const [id, name] of skips) {
       checks.push({ id, name, status: "skip", detail: "pulado — depende do Pi (check 1 falhou)" });
     }
   } else {
-    checks.push(checkComponents(rt, pi), checkCollision(pi), checkForkSettings(rt), checkDisk(rt));
+    checks.push(checkComponents(rt, pi), checkForkSettings(rt), checkDisk(rt), checkAgentUpstreamsPi(pi));
   }
-  // F17 D3: checks 7–13 por agente (numeração provisória — a tabela
-  // consolidada 7–15 é formalizada no F18, AD-013 B2).
+  // F18 D3: tabela consolidada 7–15 — checks por agente (F17), gentle-ai (14),
+  // upstreams Pi (15, absorve o check 4 do F12). Todos read-only (LIFE-01).
   checks.push(
     checkAgentDetection(rt),
     checkAgentManaged(rt),
@@ -330,6 +352,7 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
     checkAgentConfigParse(rt),
     checkAgentDetectOnly(rt),
     checkAgentMatrixOrphans(rt),
+    checkGentleAi(rt),
   );
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
@@ -464,36 +487,29 @@ function checkAgentConfigs(rt: Runtime): DoctorCheck {
 }
 
 /**
- * F17 D3 check 10 — colisão MCP upstream: entry `taskflow` presente apontando
- * para bin não-runecraft → warn (detecção de donos formalizada no F18). O
- * install nunca sobrescreve essa entry (F15 D5).
+ * F18 check 10 — colisão MCP upstream (consolida o F17 check 10): qualquer
+ * entry em configs MCP dos hosts apontando para bin não-runecraft → warn
+ * (conflito de server name no host; F16). O install nunca sobrescreve essas
+ * entries (F15 D5).
  */
 function checkAgentMcpCollision(rt: Runtime): DoctorCheck {
   const detected = detectedAgentIds(rt);
   if (detected.length === 0) {
     return { id: 10, name: "Agentes (colisão MCP)", status: "skip", detail: "pulado — nenhum agente não-Pi detectado (check 7)" };
   }
-  const collisions: string[] = [];
-  for (const id of detected) {
-    let entry: unknown;
-    try {
-      entry = ADAPTERS[id].readMcpEntry(rt);
-    } catch {
-      continue; // config ilegível — check 11 reporta o parse
-    }
-    if (entry !== null && isUpstreamMcpEntry(entry)) {
-      collisions.push(`${id}: entry MCP 'taskflow' aponta para bin upstream (instalação manual?)`);
-    }
-  }
-  if (collisions.length === 0) {
+  const upstreams = scanMcpUpstreams(rt);
+  if (upstreams.length === 0) {
     return { id: 10, name: "Agentes (colisão MCP)", status: "pass", detail: "nenhuma entry MCP com referência upstream" };
   }
+  const collisions = upstreams.map(
+    (u) => `${u.agent}: entry MCP '${u.entry}' aponta para bin upstream (instalação manual?) em ${u.file}`,
+  );
   return {
     id: 10,
     name: "Agentes (colisão MCP)",
     status: "warn",
     detail: collisions.join("; "),
-    remedy: "remova a entry manual (o install do harness nunca sobrescreve) — detecção de donos completa no F18",
+    remedy: "remova a entry manual (o install do harness nunca sobrescreve) — detecção de donos no status (seção Owners)",
   };
 }
 

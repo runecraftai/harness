@@ -33,6 +33,8 @@ import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { parseAgentArgs, installAgent, detectOnlyReport } from "../adapters/agentOps.ts";
 import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 import { firstUnsupported, type ComponentId } from "../matrix.ts";
+import { warnOwners, type OwnerEvidence } from "../owners.ts";
+import { withRunecraftLock } from "../lock.ts";
 
 export { scanConflicts, type ConflictInfo };
 
@@ -96,7 +98,19 @@ async function runPiInstall(
   return { ok: true, code: result.code, stderr: result.stderr };
 }
 
+/** Write-lock wrapper (F18 Riscos: corrida com outro installer). Dry-run não
+ *  escreve — roda sem lock. */
 export async function runInstall(opts: InstallCommandOptions): Promise<number> {
+  if (opts.dryRun) return runInstallLocked(opts);
+  try {
+    return await withRunecraftLock(opts.rt, opts.scope, "install", () => runInstallLocked(opts));
+  } catch (error) {
+    opts.err.write(`@runecraft/harness install: ${(error as Error).message}\n`);
+    return 1;
+  }
+}
+
+async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   const { out, err, rt, scope } = opts;
 
   // Edge (F11): Node abaixo do piso → warn, não bloqueia.
@@ -177,11 +191,27 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   const conflicts = scanConflicts(installedBefore);
   const beforeIdentities = new Set(installedBefore.map(npmIdentity));
 
+  // MXST-04: detecção de donos antes de qualquer escrita. Owners warn
+  // (gentle-ai, upstreams Pi, MCP upstream) viram gate de confirmação:
+  // TTY → listados antes do prompt (default N); --yes → prossegue com os
+  // avisos no relatório; sem TTY e sem --yes → aborta (fail-closed).
+  const ownerWarnings = warnOwners(rt, opts.pi);
+  for (const w of ownerWarnings) {
+    err.write(`  ! ${w.name} (${w.kind}) — ${w.detail}\n`);
+  }
+
   // 3. dry-run — nenhum efeito colateral (CLI-03).
   if (opts.dryRun) {
     if (plan) {
       const mergeTargets = opts.preset === "full" ? targetsForComponents(plan.components, scope) : undefined;
       out.write(renderDryRun(plan, filesTouched, conflicts, { json: opts.json, tty: opts.isTTY }, mergeTargets));
+    }
+    if (ownerWarnings.length > 0) {
+      out.write(
+        `Colisões detectadas (${ownerWarnings.length}):\n` +
+          ownerWarnings.map((w) => `  ! ${w.name} (${w.kind}) — ${w.detail}`).join("\n") +
+          "\n",
+      );
     }
     if (nonPiAgents.length > 0) {
       out.write(
@@ -199,7 +229,15 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
     err.write(`warn: diretório de config do Pi não existe (${dir}) — o \`pi install\` vai criá-lo.\n`);
   }
 
-  // Confirmação: TTY + !--yes pergunta; não-TTY auto-aceita (edge F11).
+  // Confirmação: TTY + !--yes pergunta; não-TTY auto-aceita (edge F11). Com
+  // colisões detectadas (MXST-04), não-TTY sem --yes aborta (fail-closed).
+  if (ownerWarnings.length > 0 && !opts.isTTY && !opts.yes) {
+    err.write(
+      `@runecraft/harness install: ${ownerWarnings.length} colisão(ões) detectada(s) — sem TTY e sem --yes, abortando (fail-closed). ` +
+        `Rode com --yes para prosseguir registrando os avisos no relatório.\n`,
+    );
+    return 1;
+  }
   if (opts.isTTY && !opts.yes) {
     const count = (plan?.specs.length ?? 0) + nonPiAgents.length;
     const confirmed = await confirmInstall(opts, count);
@@ -338,6 +376,7 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
     corruptStatePath: loaded.corruptPath && loaded.corruptPath !== stateFile ? loaded.corruptPath : undefined,
     filesTouched,
     notes,
+    warnings: ownerWarnings,
   };
   if (opts.preset === "full" && plan) report.settings = settings;
   if (nonPiAgents.length > 0 || detectOnly.length > 0) {

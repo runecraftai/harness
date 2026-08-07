@@ -7,7 +7,7 @@
 // (D6/D7) → state cleanup. Falha de config isola o agente (D2).
 import * as fs from "node:fs";
 import { ADAPTERS, DETECT_ONLY_GUIDES, genericDetectOnlyGuide, resolveAgentId } from "./registry.ts";
-import { RULES_SECTION, upsertSection, removeSection } from "./rules.ts";
+import { RULES_SECTION, upsertSection, removeSection, listRulesSectionIds } from "./rules.ts";
 import { renderWorkflowRules } from "./rulesContent.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "./mcpConfig.ts";
 import { readJsonConfig } from "./jsonc.ts";
@@ -176,6 +176,14 @@ export async function uninstallAgent(
     const ctx = buildContext(adapter, rt, registered);
     const result = await adapter.remove(ctx);
     delete state.agents[agentId];
+    // F18 MXST-02: marcador runecraft: no arquivo SEM registro no state →
+    // preservado + reportado (modo conservador — sem evidência, não remove).
+    const preservedUnregistered: string[] = [];
+    for (const id of listRulesSectionIds(adapter.paths(rt).rulesFile)) {
+      if (!registered.targets.some((t) => t.kind === "rules" && t.section === id)) {
+        preservedUnregistered.push(`preservado (sem registro): seção ${id} em ${adapter.paths(rt).rulesFile}`);
+      }
+    }
     return {
       agentId,
       status: "removed",
@@ -185,6 +193,7 @@ export async function uninstallAgent(
         ...result.edited.map((e) => `preservado (editado pelo usuário): ${e.file} (${e.entry})`),
         ...result.preserved.map((f) => `preservado: ${f}`),
         ...result.conflicts.map((c) => `conflito: ${c.file} (${c.reason})`),
+        ...preservedUnregistered,
       ],
     };
   } catch (error) {

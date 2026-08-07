@@ -34,6 +34,7 @@ import { renderWorkflowRules } from "../adapters/rulesContent.ts";
 import type { AgentAdapter, AgentContext } from "../adapters/types.ts";
 import { MATRIX, columnComponents, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
+import { withRunecraftLock } from "../lock.ts";
 
 export interface SyncCommandOptions {
   json: boolean;
@@ -192,7 +193,18 @@ export function renderSyncJson(report: SyncReport): string {
   )}\n`;
 }
 
+/** Write-lock wrapper (F18 Riscos). Dry-run não escreve — roda sem lock. */
 export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> {
+  if (opts.dryRun) return runSyncCommandLocked(opts);
+  try {
+    return await withRunecraftLock(opts.rt, opts.scope, "sync", () => runSyncCommandLocked(opts));
+  } catch (error) {
+    opts.err.write(`@runecraft/harness sync: ${(error as Error).message}\n`);
+    return 1;
+  }
+}
+
+async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   const { out, err, rt, scope } = opts;
   const stateFile = statePath(rt, scope);
   const loaded = loadState(stateFile, scope);

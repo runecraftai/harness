@@ -359,16 +359,33 @@ describe("install — idempotência (CLI-08)", () => {
   });
 });
 
-describe("install — colisão com upstream (CLI-09)", () => {
-  test("warn com sugestão de remoção; nunca remove sozinho", async () => {
+describe("install — colisão com upstream (CLI-09 + F18 MXST-04 gate)", () => {
+  test("sem TTY e sem --yes com upstream → aborta fail-closed apontando --yes", async () => {
     const sb = makeSandbox();
     try {
       writeSettings(sb, ["npm:pi-subagents"]);
       const result = await runHarness(sb, ["install"]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("pi-subagents");
+      expect(result.stderr).toContain("--yes");
+      // nada foi instalado
+      const settings = readJson(settingsFile(sb));
+      expect((settings.packages as string[]).sort()).toEqual(["npm:pi-subagents"]);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("--yes prossegue, registra warnings no relatório; nunca remove o upstream", async () => {
+    const sb = makeSandbox();
+    try {
+      writeSettings(sb, ["npm:pi-subagents"]);
+      const result = await runHarness(sb, ["install", "--yes"]);
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("Conflito com upstream");
       expect(result.stdout).toContain("pi-subagents");
       expect(result.stdout).toContain("pi remove npm:pi-subagents");
+      expect(result.stdout).toContain("Colisões detectadas"); // MXST-04 AC 2.4
 
       // upstream continua instalado — o harness não remove
       const settings = readJson(settingsFile(sb));
@@ -380,15 +397,19 @@ describe("install — colisão com upstream (CLI-09)", () => {
     }
   });
 
-  test("--json inclui conflicts", async () => {
+  test("--json --yes inclui conflicts e warnings", async () => {
     const sb = makeSandbox();
     try {
       writeSettings(sb, ["npm:pi-taskflow"]);
-      const result = await runHarness(sb, ["install", "--json"]);
+      const result = await runHarness(sb, ["install", "--json", "--yes"]);
       expect(result.code).toBe(0);
-      const json = JSON.parse(result.stdout) as { conflicts: Array<{ package: string }> };
+      const json = JSON.parse(result.stdout) as {
+        conflicts: Array<{ package: string }>;
+        warnings: Array<{ name: string }>;
+      };
       expect(json.conflicts).toHaveLength(1);
       expect(json.conflicts[0]?.package).toBe("npm:pi-taskflow");
+      expect(json.warnings.some((w) => w.name === "pi-taskflow" || w.name === "npm:pi-taskflow")).toBe(true);
     } finally {
       sb.cleanup();
     }

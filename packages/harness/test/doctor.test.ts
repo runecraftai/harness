@@ -44,9 +44,9 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
       // 1–6 (F12) + 7 (detecção, informativo) + 12 (detect-only, informativo)
-      expect(summaryLine(result.stdout)).toContain("pass 8");
+      expect(summaryLine(result.stdout)).toContain("pass 9"); // 1,2,3,5,6 + 7,12,14 (informativos)
       expect(summaryLine(result.stdout)).toContain("fail 0");
-      for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) expect(result.stdout).toContain(`[${id}]`);
+      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) expect(result.stdout).toContain(`[${id}]`);
 
       // read-only: nenhum arquivo foi tocado
       expect(fileHash(settingsFile(sb))).toBe(settingsBefore);
@@ -65,8 +65,8 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(13); // 1–6 (F12) + 7–13 agentes (F17; consolidado 7–15 no F18)
-      expect(json.summary.pass + json.summary.warn).toBe(8);
+      expect(json.checks).toHaveLength(14); // 1,2,3,5,6 (F12) + 7–15 consolidados (F18)
+      expect(json.summary.pass + json.summary.warn).toBe(9);
       expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
@@ -221,7 +221,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       writeSettings(sb, ["npm:pi-subagents"]);
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("[4] Colisão");
+      expect(result.stdout).toContain("[15] Upstreams Pi");
       expect(result.stdout).toContain("warn");
       expect(result.stdout).toContain("pi remove npm:pi-subagents");
       expect(summaryLine(result.stdout)).toContain("fail 0");
@@ -245,7 +245,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       // check 3 vê o state do workspace e o pi list (global + project do fake pi)
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("pass");
-      expect(summaryLine(result.stdout)).toContain("pass 8"); // 1-6 + 7,12 (informativos)
+      expect(summaryLine(result.stdout)).toContain("pass 9"); // 1,2,3,5,6 + 7,12,14 (informativos)
     } finally {
       sb.cleanup();
     }

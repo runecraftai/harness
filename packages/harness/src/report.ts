@@ -6,6 +6,7 @@
 import type { Scope } from "./config.ts";
 import type { MergeChange, MergeTarget } from "./merge.ts";
 import type { InstallPlan } from "./plan.ts";
+import type { OwnerEvidence } from "./owners.ts";
 
 export interface ConflictInfo {
   package: string;
@@ -61,6 +62,8 @@ export interface InstallReport {
   settings?: SettingsMergeReport;
   /** F15: outcomes of non-Pi agent installs (installed/failed/detect-only). */
   agents?: Array<{ agentId: string; status: string; detail: string[]; error?: string }>;
+  /** F18 MXST-04: owner collisions detected before the write (gate). */
+  warnings?: OwnerEvidence[];
   /** note attached when a preset flag is accepted but its full semantics land later */
   notes: string[];
 }
@@ -153,6 +156,12 @@ export function renderReport(report: InstallReport, opts: RenderOptions): string
       }
     }
   }
+  if (report.warnings && report.warnings.length > 0) {
+    lines.push(`${c(`Colisões detectadas — instalado com avisos registrados (${report.warnings.length}):`, YELLOW)}`);
+    for (const w of report.warnings) {
+      lines.push(`  ${c("!", YELLOW)} ${w.name} (${w.kind}) — ${w.detail}`);
+    }
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -237,5 +246,6 @@ export function toJson(report: InstallReport): Record<string, unknown> {
     };
   }
   if (report.agents) json.agents = report.agents;
+  if (report.warnings) json.warnings = report.warnings;
   return json;
 }

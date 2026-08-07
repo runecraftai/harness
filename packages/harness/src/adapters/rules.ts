@@ -1,151 +1,55 @@
-// adapters/rules.ts — marker-section upsert for rules files (F15 D3, G1).
+// adapters/rules.ts — rules-file sections for non-Pi agents (F15 D3, G1).
 //
-// Renders `<!-- runecraft:<section> --> ... <!-- /runecraft:<section> -->`
-// and upserts it into CLAUDE.md / AGENTS.md: append when absent, replace the
-// section body in place on rerun (idempotent — CLI-08), never touching user
-// content or other owners' sections (gentle-ai:, …). BOM is preserved at
-// position 0; CRLF detection uses the file's own line endings; non-UTF8 files
-// abort the agent (never corrupt).
-import * as fs from "node:fs";
-import * as path from "node:path";
+// Thin HTML-family wrapper over the section engine (F18 sections.ts): rules
+// files (CLAUDE.md / AGENTS.md) are text files, so the marker family is
+// `html` (`<!-- runecraft:<section> -->`). Executable targets (F20 git hooks)
+// use the `shell` family directly via sections.ts. This module keeps the F15
+// public API so adapters/doctor/sync are untouched.
+export {
+  detectEol,
+  hasUtf8Bom,
+  isValidUtf8,
+  NonUtf8FileError,
+  type SectionUpsertResult as UpsertResult,
+} from "../sections.ts";
+import {
+  hasSectionFamily,
+  listSectionIds,
+  markersFor,
+  removeSectionFamily,
+  upsertSectionFamily,
+  type SectionFamily,
+} from "../sections.ts";
 
 export const RULES_SECTION = "runecraft:workflow";
+const FAMILY: SectionFamily = "html";
 
 export function sectionMarkers(section: string): { open: string; close: string } {
-  return { open: `<!-- ${section} -->`, close: `<!-- /${section} -->` };
-}
-
-/** Detect the file's line ending: CRLF when any \r\n present, else \n. */
-export function detectEol(buffer: Buffer): "\r\n" | "\n" {
-  const sample = buffer.subarray(0, Math.min(buffer.length, 64 * 1024));
-  return sample.includes(Buffer.from("\r\n")) ? "\r\n" : "\n";
-}
-
-export function hasUtf8Bom(buffer: Buffer): boolean {
-  return buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf;
-}
-
-/** Result of a section upsert. */
-export interface UpsertResult {
-  /** true when the file was written (created or changed). */
-  changed: boolean;
-  /** true when the file was created from scratch. */
-  created: boolean;
-  /** true when an existing runecraft section was replaced in place. */
-  replaced: boolean;
-}
-
-export class NonUtf8FileError extends Error {
-  readonly file: string;
-  constructor(file: string) {
-    super(`arquivo não é UTF-8 legível: ${file}`);
-    this.file = file;
-  }
+  return markersFor(FAMILY, section);
 }
 
 /**
- * Read-only presence check (F17 D3 check 9): does `file` contain the marker
- * section? Never writes. Missing file / non-UTF8 / dangling marker → false.
+ * Upsert a `runecraft:<section>` block into `file` (HTML markers).
+ * See sections.ts upsertSectionFamily for the full contract.
  */
-export function hasSection(file: string, section: string): boolean {
-  if (!fs.existsSync(file)) return false;
-  let original: Buffer;
-  try {
-    original = fs.readFileSync(file);
-  } catch {
-    return false;
-  }
-  if (!isValidUtf8(original)) return false;
-  const bom = hasUtf8Bom(original);
-  const body = bom ? original.toString("utf8").slice(1) : original.toString("utf8");
-  const markers = sectionMarkers(section);
-  const openIdx = body.indexOf(markers.open);
-  if (openIdx < 0) return false;
-  return body.indexOf(markers.close, openIdx + markers.open.length) >= 0;
+export function upsertSection(file: string, section: string, content: string): import("../sections.ts").SectionUpsertResult {
+  return upsertSectionFamily(file, section, content, FAMILY);
 }
 
 /**
- * Upsert a `runecraft:<section>` block into `file`.
- * - File missing → created with the section (parent dirs created).
- * - File with user content → section appended at the end (content intact).
- * - Section present → body replaced in place (rerun never duplicates).
- * Throws NonUtf8FileError when the file is not valid UTF-8 (agent aborts).
- */
-export function upsertSection(file: string, section: string, content: string): UpsertResult {
-  const markers = sectionMarkers(section);
-  let original: Buffer;
-  let existed = true;
-  try {
-    original = fs.readFileSync(file);
-  } catch {
-    existed = false;
-    original = Buffer.alloc(0);
-  }
-  if (existed && !isValidUtf8(original)) throw new NonUtf8FileError(file);
-  const eol = existed ? detectEol(original) : "\n";
-  const bom = existed && hasUtf8Bom(original);
-  const text = original.toString("utf8");
-  // Strip the BOM for matching; re-added on write.
-  const body = bom ? text.slice(1) : text;
-  const block = `${markers.open}${eol}${content}${eol}${markers.close}`;
-
-  const openIdx = body.indexOf(markers.open);
-  const closeIdx = openIdx >= 0 ? body.indexOf(markers.close, openIdx + markers.open.length) : -1;
-  let next: string;
-  let replaced = false;
-  if (openIdx >= 0 && closeIdx >= 0) {
-    // Replace the section body, preserving the surrounding content byte for byte.
-    next = body.slice(0, openIdx) + block + body.slice(closeIdx + markers.close.length);
-    replaced = true;
-  } else {
-    const hasContent = body.trim().length > 0;
-    next = hasContent ? `${body.replace(/\s+$/, "")}${eol}${eol}${block}${eol}` : block + eol;
-  }
-  const out = (bom ? "\ufeff" : "") + next;
-  if (existed && out === text) return { changed: false, created: false, replaced };
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, out, "utf8");
-  return { changed: true, created: !existed, replaced };
-}
-
-/**
- * Remove the `runecraft:<section>` block. Returns the new file content, or
- * null when the section was not present. Collapses residual whitespace only at
- * the removal point (F15 D6 — nothing beyond the markers).
+ * Remove the `runecraft:<section>` block. See sections.ts removeSectionFamily.
  */
 export function removeSection(file: string, section: string): string | null {
-  if (!fs.existsSync(file)) return null;
-  const original = fs.readFileSync(file);
-  if (!isValidUtf8(original)) throw new NonUtf8FileError(file);
-  const bom = hasUtf8Bom(original);
-  const body = (bom ? original.toString("utf8").slice(1) : original.toString("utf8"));
-  const markers = sectionMarkers(section);
-  const openIdx = body.indexOf(markers.open);
-  if (openIdx < 0) return null;
-  const closeIdx = body.indexOf(markers.close, openIdx + markers.open.length);
-  if (closeIdx < 0) return null; // dangling open marker — not ours to guess
-  const eol = detectEol(original);
-  const eolRe = eol === "\r\n" ? "\\r\\n" : "\\n";
-  // Remove o bloco (open..close inclusive). Colapsa whitespace APENAS no
-  // ponto de remoção: no máximo 2 eols consecutivos (D6 — nada além disso;
-  // conteúdo do usuário em outras regiões fica byte a byte).
-  let next = body.slice(0, openIdx) + body.slice(closeIdx + markers.close.length);
-  const junction = openIdx; // posição da junção no conteúdo novo (prefixo inalterado)
-  const prefix = next.slice(0, junction);
-  const suffix = next.slice(junction);
-  // Sufixo: se começa com 3+ eols (resíduo do separador da seção + conteúdo),
-  // colapsa para 2; prefixo: idem se termina com 3+ eols.
-  const suffixCollapsed = suffix.replace(new RegExp(`^${eolRe}{3,}`), `${eol}${eol}`);
-  const prefixCollapsed = prefix.replace(new RegExp(`${eolRe}{3,}$`), `${eol}${eol}`);
-  next = prefixCollapsed + suffixCollapsed;
-  // Eol único no fim do arquivo (a seção era o último bloco) — sem acumular
-  // eols residuais (paridade com o codex.ts).
-  next = next.replace(new RegExp(`${eolRe}+$`), eol);
-  return (bom ? "\ufeff" : "") + next;
+  return removeSectionFamily(file, section, FAMILY);
 }
 
-/** True when the buffer decodes as UTF-8 without replacement chars. */
-export function isValidUtf8(buffer: Buffer): boolean {
-  const decoded = buffer.toString("utf8");
-  return !decoded.includes("\ufffd");
+/** Read-only presence check (F17 D3 check 9). */
+export function hasSection(file: string, section: string): boolean {
+  return hasSectionFamily(file, section, FAMILY);
+}
+
+/** Ids of complete `runecraft:` blocks in the file (F18 uninstall — preserved
+ *  markers without a state registration are reported, never removed). */
+export function listRulesSectionIds(file: string): string[] {
+  return listSectionIds(file, FAMILY, "runecraft:");
 }
