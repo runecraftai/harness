@@ -1,7 +1,7 @@
 # Roadmap
 
-**Current Milestone:** M4 — Workflow & Receipt
-**Status:** Complete (M1 ✅ · M2 ✅ · M3 ✅ · M4 ✅) — next: M5 Evals
+**Current Milestone:** M5 — Evals & Guarantees
+**Status:** M5 em andamento (F21 ✅) — next: F22 E2E (**exige aprovação explícita do usuário — custo de tokens**)
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7
 
@@ -151,10 +151,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ### Features
 
-**F21 — Suite determinística (fixture de modelo)** — PLANNED — Prereq: F7, F11
+**F21 — Suite determinística (fixture de modelo)** — COMPLETE (2026-08-07; cleric APPROVE + 1 fix; 348 testes) — Prereq: F7, F11
 
 - Valida install/sync/assets e respostas de agentes com fixture (estilo `testing-agents-deterministically.md` do gentle-ai)
 - Roda em CI sem tokens
+- Validado: `test/eval/` 2 camadas (layer1 smoke subprocess + layer2 fluxos SDLC com fixture OpenAI-wire SSE adversarial) + EVAL-MATRIX aditivo (EVAL-001/002/004/005/005b) + evidência JSON p/ F23; 18 testes novos, zero regressão (330→348); offline/$0 por construção; devDep do SDK 0.81.0 (AD-021)
 
 **F22 — Cenários E2E versionados** — PLANNED — Prereq: F7, F19
 
