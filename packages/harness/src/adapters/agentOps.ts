@@ -12,6 +12,7 @@ import { renderWorkflowRules } from "./rulesContent.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "./mcpConfig.ts";
 import { readJsonConfig } from "./jsonc.ts";
 import { upsertAgent, type AgentRecord, type AgentTarget, type HarnessState } from "../state.ts";
+import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import type { AgentAdapter, AgentContext, AgentId, DetectResult, InjectResult } from "./types.ts";
 import type { Runtime, Scope } from "../config.ts";
 
@@ -97,6 +98,16 @@ export function buildAgentTargets(
     });
   } else if (mcpTarget && mcpTarget.contentHash === mcpFingerprint) {
     targets.push(mcpTarget); // rerun: entry nossa ainda no lugar
+  }
+  // Preserva targets registrados sem célula na matriz atual (órfãos — F17 D6:
+  // re-inject nunca remove; remoção é contrato do uninstall). Sem isso o
+  // rerun/sync dropa o órfão do state e check 13/status "órfã" param de
+  // reportar, contradizendo a mensagem "não removido".
+  const orphans = (registered?.targets ?? []).filter(
+    (t) => MATRIX[adapter.id as MatrixAgentId]?.[t.component as ComponentId] === undefined,
+  );
+  for (const orphan of orphans) {
+    if (!targets.includes(orphan)) targets.push(orphan);
   }
   return targets;
 }

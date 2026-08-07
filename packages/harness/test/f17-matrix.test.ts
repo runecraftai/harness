@@ -382,4 +382,53 @@ describe("sync — reconciliação por conteúdo + órfãs (MATR-05/D6)", () => 
       sb.cleanup();
     }
   });
+
+  test("órfã + seção faltante: re-injeta a seção E preserva o órfão no state (fix review)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      const rulesFile = path.join(sb.env.RUNECRAFT_CLAUDE_HOME as string, "CLAUDE.md");
+      fs.writeFileSync(rulesFile, "# só usuário\n", "utf8"); // seção removida
+      const state = readJson(stateFile(sb));
+      const rec = (state.agents as Record<string, { targets: Array<{ kind: string; component: string; file: string; section: string; contentHash: string }> }>)["claude-code"];
+      if (!rec) throw new Error("claude-code sem registro no state");
+      rec.targets.push({ kind: "rules", component: "ghost", file: "/x/ghost.md", section: "runecraft:workflow", contentHash: "h" });
+      fs.writeFileSync(stateFile(sb), JSON.stringify(state, null, 2));
+
+      const result = await runHarness(sb, ["sync"]);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("re-injetado");
+      expect(result.stdout).toContain("órfão");
+      // seção re-injetada + conteúdo do usuário preservado
+      const content = fs.readFileSync(rulesFile, "utf8");
+      expect(content).toContain("runecraft:workflow");
+      expect(content).toContain("# só usuário");
+      // órfão AINDA no state após a reescrita dos targets (fix review)
+      const after = readJson(stateFile(sb));
+      const targets = ((after.agents as Record<string, { targets: Array<{ component: string }> }>)["claude-code"])?.targets ?? [];
+      expect(targets.some((t) => t.component === "ghost")).toBe(true);
+      // uninstall ainda remove as seções NOSSAS (órfão não atrapalha)
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "claude-code", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      expect(fs.readFileSync(rulesFile, "utf8")).not.toContain("runecraft:workflow");
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("config MCP ilegível → sync NÃO crasha, reporta, preserva o arquivo (fix review)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      const mcpFile = path.join(sb.env.RUNECRAFT_CLAUDE_HOME as string, ".mcp.json");
+      fs.writeFileSync(mcpFile, "{ broken", "utf8");
+      const result = await runHarness(sb, ["sync"]);
+      expect(result.code).toBe(0); // sem crash; nada pendente além do ilegível
+      expect(result.stdout).toContain("ilegível");
+      expect(result.stdout).not.toContain("re-injetado"); // não sobrescreve config quebrada
+      expect(fs.readFileSync(mcpFile, "utf8")).toBe("{ broken"); // arquivo intacto
+    } finally {
+      sb.cleanup();
+    }
+  });
 });

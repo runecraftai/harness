@@ -409,12 +409,31 @@ export function planAgentReconciliation(
       }
     }
     const paths = adapter.paths(rt);
-    const missingCells = columnComponents(matrixId).filter((component) => {
+    const missingCells: string[] = [];
+    let unreadable = false;
+    for (const component of columnComponents(matrixId)) {
       const cell = MATRIX[matrixId][component];
-      if (cell?.kind === "rules") return !hasSection(paths.rulesFile, cell.section);
-      if (cell?.kind === "mcp") return adapter.readMcpFingerprint(rt) === null;
-      return false;
-    });
+      if (cell?.kind === "rules") {
+        if (!hasSection(paths.rulesFile, cell.section)) missingCells.push(component);
+      } else if (cell?.kind === "mcp") {
+        let fingerprint: string | null;
+        try {
+          fingerprint = adapter.readMcpFingerprint(rt);
+        } catch {
+          // Config ilegível (JSON/TOML quebrado) NÃO é pendência de re-inject:
+          // o inject também falharia e o arquivo deve ficar para o usuário
+          // corrigir (doctor check 11 aponta; sync é o remedy do check 9/11).
+          unreadable = true;
+          continue;
+        }
+        if (fingerprint === null) missingCells.push(component);
+      }
+    }
+    if (unreadable) {
+      staleNotes.push(
+        `${agentId}: config MCP ilegível em ${paths.mcpFile} — re-inject ignorado (corrija o arquivo; doctor check 11 aponta o erro)`,
+      );
+    }
     if (missingCells.length > 0) pending.push({ agentId, missingCells });
   }
   return { pending, orphanNotes, staleNotes };

@@ -515,11 +515,15 @@ function checkAgentConfigParse(rt: Runtime): DoctorCheck {
       // Sem parser TOML no runtime (zero deps — F11), a validade TOML não é
       // julgada aqui: o codex tem parser próprio. Só o ilegível (não-UTF8) é
       // fail real; seções alheias/duplicadas são domínio do F18 (donos).
-      if (fs.existsSync(paths.mcpFile)) {
-        const raw = fs.readFileSync(paths.mcpFile);
-        if (!isValidUtf8(raw)) {
-          problems.push(`${paths.mcpFile}: não é UTF-8 legível`);
+      try {
+        if (fs.existsSync(paths.mcpFile)) {
+          const raw = fs.readFileSync(paths.mcpFile);
+          if (!isValidUtf8(raw)) {
+            problems.push(`${paths.mcpFile}: não é UTF-8 legível`);
+          }
         }
+      } catch (error) {
+        problems.push(`${paths.mcpFile}: ilegível — ${(error as Error).message}`);
       }
       continue;
     }
