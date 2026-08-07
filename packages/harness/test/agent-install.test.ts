@@ -136,4 +136,69 @@ describe("uninstall --agent (F15 ADPT-07)", () => {
       sb.cleanup();
     }
   });
+
+  test("whitespace do usuário preservado fora do ponto de remoção (fix review)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      const claudeHome = sb.claudeHome;
+      fs.mkdirSync(claudeHome, { recursive: true });
+      // usuário com MUITAS linhas vazias no meio (não na seção)
+      const userContent = "# Minhas regras\n\n\n\nlinha importante\n";
+      fs.writeFileSync(path.join(claudeHome, "CLAUDE.md"), userContent, "utf8");
+      const install = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(install.code).toBe(0);
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "claude-code", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      const rules = fs.readFileSync(path.join(claudeHome, "CLAUDE.md"), "utf8");
+      // as 4 linhas vazias do usuário permanecem intactas (só o ponto de remoção colapsa)
+      expect(rules).toContain("# Minhas regras\n\n\n\nlinha importante");
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("entry estrangeira → conflito no install, uninstall NÃO a remove (fix review)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      const claudeHome = sb.claudeHome;
+      fs.mkdirSync(claudeHome, { recursive: true });
+      // entry manual estrangeira (upstream) já presente
+      fs.writeFileSync(
+        path.join(claudeHome, ".mcp.json"),
+        JSON.stringify({ mcpServers: { taskflow: { command: "npx", args: ["-y", "-p", "claude-taskflow@0.2.6", "claude-taskflow-mcp"] } } }, null, 2) + "\n",
+        "utf8",
+      );
+      const install = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(install.code).toBe(0);
+      expect(install.stdout).toContain("conflito");
+      // entry estrangeira NÃO foi registrada como nossa (state sem target mcp nosso)
+      const state = readJson(stateFile(sb));
+      const targets = ((state.agents as Record<string, unknown>)["claude-code"] as { targets: Array<{ kind: string }> }).targets;
+      expect(targets.some((t) => t.kind === "mcp")).toBe(false);
+      // uninstall → a entry estrangeira permanece
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "claude-code", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      const mcp = readJson(path.join(claudeHome, ".mcp.json"));
+      expect((mcp.mcpServers as Record<string, unknown>).taskflow).toBeDefined();
+      expect(JSON.stringify(mcp)).toContain("claude-taskflow@0.2.6");
+    } finally {
+      sb.cleanup();
+    }
+  });
+});
+
+describe("uninstall --agent pi (F15 D6: fluxo F12)", () => {
+  test("--agent pi remove packages Pi como --all", async () => {
+    const sb = makeSandbox();
+    try {
+      const install = await runHarness(sb, ["install", "--yes"]);
+      expect(install.code).toBe(0);
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "pi", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      const state = readJson(stateFile(sb));
+      expect(Object.keys((state.components as Record<string, unknown>) ?? {})).toHaveLength(0);
+    } finally {
+      sb.cleanup();
+    }
+  });
 });

@@ -14,7 +14,7 @@ import { opencodeAdapter } from "../src/adapters/opencode.ts";
 import { codexAdapter } from "../src/adapters/codex.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "../src/adapters/mcpConfig.ts";
 import { upsertSection, removeSection, RULES_SECTION } from "../src/adapters/rules.ts";
-import { upsertTomlSection, readTomlSection, renderMcpServerBlock } from "../src/toml.ts";
+import { upsertTomlSection, readTomlSection, renderMcpServerBlock, removeTomlSection } from "../src/toml.ts";
 import type { AgentContext } from "../src/adapters/types.ts";
 
 let root: string;
@@ -207,6 +207,20 @@ describe("toml.ts: upsert [mcp_servers.taskflow]", () => {
     expect(second).toContain("/y/bin.js");
     expect(second.split("[mcp_servers.taskflow]").length - 1).toBe(1);
     expect(first).not.toEqual(second);
+  });
+
+  test("removal com args array não trunca no '[' (fix review cleric)", () => {
+    const file = path.join(root, "config.toml");
+    writeFileSync(file, "# user\n[model]\nmodel = \"gpt\"\n", "utf8");
+    const block = renderMcpServerBlock("taskflow", ["node", "/abs/path/bin.js"], { tool_timeout_sec: 1800 });
+    upsertTomlSection(file, "taskflow", block, true);
+    // remoção via removeTomlSection (mesmo padrão do upsert)
+    const after = removeTomlSection(file, "taskflow") ?? "";
+    expect(after).not.toContain("mcp_servers.taskflow");
+    expect(after).not.toContain("tool_timeout_sec");
+    // seções do usuário intactas
+    expect(after).toContain("# user");
+    expect(after).toContain("[model]");
   });
 });
 

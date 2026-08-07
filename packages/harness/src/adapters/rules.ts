@@ -104,9 +104,19 @@ export function removeSection(file: string, section: string): string | null {
   const closeIdx = body.indexOf(markers.close, openIdx + markers.open.length);
   if (closeIdx < 0) return null; // dangling open marker — not ours to guess
   const eol = detectEol(original);
+  const eolRe = eol === "\r\n" ? "\\r\\n" : "\\n";
+  // Remove o bloco (open..close inclusive). Colapsa whitespace APENAS no
+  // ponto de remoção: no máximo 2 eols consecutivos (D6 — nada além disso;
+  // conteúdo do usuário em outras regiões fica byte a byte).
   let next = body.slice(0, openIdx) + body.slice(closeIdx + markers.close.length);
-  // Collapse the whitespace left behind (section was its own block).
-  next = next.replace(new RegExp(`(^|${eol === "\r\n" ? "\\r\\n" : "\\n"})${eol === "\r\n" ? "\\r\\n" : "\\n"}+`), eol);
+  const junction = openIdx; // posição da junção no conteúdo novo (prefixo inalterado)
+  const prefix = next.slice(0, junction);
+  const suffix = next.slice(junction);
+  // Sufixo: se começa com 3+ eols (resíduo do separador da seção + conteúdo),
+  // colapsa para 2; prefixo: idem se termina com 3+ eols.
+  const suffixCollapsed = suffix.replace(new RegExp(`^${eolRe}{3,}`), `${eol}${eol}`);
+  const prefixCollapsed = prefix.replace(new RegExp(`${eolRe}{3,}$`), `${eol}${eol}`);
+  next = prefixCollapsed + suffixCollapsed;
   return (bom ? "\ufeff" : "") + next;
 }
 

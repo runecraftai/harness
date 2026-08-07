@@ -52,12 +52,15 @@ export const claudeAdapter: AgentAdapter = {
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: upsert mcpServers.taskflow only when absent or registered as ours
-    // (F15 D5 — a foreign entry is reported, never overwritten).
+    // (F15 D5 — a foreign entry is reported, never overwritten). "Ours" = the
+    // current entry fingerprints equal the registered target (same formula as
+    // remove D7 — not shape-dependent managedEntries).
     const entry = mcpEntry(ctx);
     const cfg: JsonFile = fs.existsSync(paths.mcpFile) ? readJsonConfig(paths.mcpFile, false) : { file: paths.mcpFile, existed: false, indent: "  ", content: {} };
     const servers = cfg.content.mcpServers;
     const existing = (servers as Record<string, unknown> | undefined)?.[MCP_KEY];
-    if (existing !== undefined && ctx.managedEntries?.includes(entryJson(existing))) {
+    const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
+    if (existing !== undefined && registeredMcp && registeredMcp.contentHash === sha256Hex(JSON.stringify(existing))) {
       // ours — replace in place (rerun idempotent).
       const up = upsertJsonKey(paths.mcpFile, ["mcpServers", MCP_KEY], entry);
       if (up.changed) written.push(paths.mcpFile);
@@ -130,10 +133,6 @@ export function mcpEntry(ctx: AgentContext): Record<string, unknown> {
     command,
     ...(args.length > 0 ? { args } : {}),
   };
-}
-
-function entryJson(entry: unknown): string {
-  return JSON.stringify(entry);
 }
 
 /** Read the current mcpServers.taskflow entry value; undefined when absent. */

@@ -59,7 +59,8 @@ export const opencodeAdapter: AgentAdapter = {
     const cfg = fs.existsSync(paths.mcpFile) ? readJsonConfig(paths.mcpFile, false) : { file: paths.mcpFile, existed: false, indent: "  ", content: {} };
     const mcp = cfg.content.mcp as Record<string, unknown> | undefined;
     const existing = mcp?.[MCP_KEY];
-    if (existing !== undefined && ctx.managedEntries?.includes(JSON.stringify(existing))) {
+    const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
+    if (existing !== undefined && registeredMcp && registeredMcp.contentHash === sha256Hex(JSON.stringify(existing))) {
       const up = upsertJsonKey(paths.mcpFile, ["mcp", MCP_KEY], entry);
       if (up.changed) written.push(paths.mcpFile);
     } else if (existing !== undefined) {

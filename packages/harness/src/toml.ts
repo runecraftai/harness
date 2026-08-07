@@ -90,6 +90,18 @@ export function readTomlSection(file: string, entry: string): string | null {
   return match ? match[0] : null;
 }
 
+/** Remove the section block (header + body lines); returns the new content
+ *  (unchanged when absent). Uses the same line-anchored pattern as the upsert
+ *  so blocks containing `[` inside arrays are NOT truncated (fix F15 review). */
+export function removeTomlSection(file: string, entry: string): string | null {
+  if (!fs.existsSync(file)) return null;
+  const original = fs.readFileSync(file, "utf8");
+  const header = `[mcp_servers.${entry}]`;
+  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n(?:[^\\[].*)?)*`, "m");
+  if (!blockPattern.test(original)) return null;
+  return original.replace(blockPattern, "");
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

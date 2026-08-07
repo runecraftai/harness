@@ -9,7 +9,7 @@ import * as path from "node:path";
 import { codexHome, type Runtime } from "../config.ts";
 import { resolveBinaryOnPath } from "./shell.ts";
 import { removeSection, upsertSection, RULES_SECTION } from "./rules.ts";
-import { upsertTomlSection, renderMcpServerBlock, readTomlSection } from "../toml.ts";
+import { upsertTomlSection, renderMcpServerBlock, readTomlSection, removeTomlSection } from "../toml.ts";
 import { sha256Hex } from "./mcpConfig.ts";
 import type { AgentAdapter, AgentContext, DetectResult, HostPaths, InjectResult, RemoveResult } from "./types.ts";
 
@@ -56,7 +56,8 @@ export const codexAdapter: AgentAdapter = {
     const cmd = commandParts[0] ?? "node";
     const block = renderMcpServerBlock(MCP_KEY, [cmd, ...commandParts.slice(1)], { tool_timeout_sec: TOOL_TIMEOUT_SEC });
     const existing = readTomlSection(paths.mcpFile, MCP_KEY);
-    if (existing !== null && ctx.managedEntries?.includes(existing)) {
+    const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
+    if (existing !== null && registeredMcp && registeredMcp.contentHash === sha256Hex(existing)) {
       const up = upsertTomlSection(paths.mcpFile, MCP_KEY, block, true);
       if (up?.changed) written.push(paths.mcpFile);
     } else if (existing !== null) {
@@ -92,10 +93,9 @@ export const codexAdapter: AgentAdapter = {
       const current = readTomlSection(paths.mcpFile, MCP_KEY);
       if (current !== null) {
         if (target.contentHash === sha256Hex(current)) {
-          const next = fs.readFileSync(paths.mcpFile, "utf8").replace(
-            new RegExp(`^\\[mcp_servers\\.${MCP_KEY}\\][^\\[]*`, "m"),
-            "",
-          );
+          const next = removeTomlSection(paths.mcpFile, MCP_KEY) ?? "";
+          // Colapsa APENAS a região do bloco removido (nada além disso — D6):
+          // até 2 newlines consecutivos no ponto de remoção.
           const cleaned = next.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
           if (cleaned.trim() === "") {
             fs.unlinkSync(paths.mcpFile);

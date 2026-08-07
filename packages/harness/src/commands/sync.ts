@@ -364,7 +364,6 @@ function syncAgentContext(adapter: AgentAdapter, rt: Runtime, rec: AgentRecord):
     mcpBinCommand: mcp.command,
     rulesContent: renderWorkflowRules(adapter.id),
     mcpArgs: [],
-    managedEntries: rec.targets.filter((t) => t.kind === "mcp").map((t) => JSON.stringify({ command: t.bin, args: [] })),
     targets: rec.targets,
   };
 }

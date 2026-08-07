@@ -57,8 +57,6 @@ export interface AgentContext {
   mcpArgs: string[];
   /** extra env for the MCP entry (opencode skills paths etc.). */
   mcpEnvironment?: Record<string, string>;
-  /** entries already registered in the state for this agent (D5: ours). */
-  managedEntries?: string[];
   /** registered targets of the agent (D7: fingerprint for removal). */
   targets?: Array<{ kind: "rules" | "mcp"; file: string; entry?: string; section?: string; contentHash: string }>;
 }

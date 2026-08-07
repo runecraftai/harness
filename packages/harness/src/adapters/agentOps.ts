@@ -39,9 +39,6 @@ function buildContext(adapter: AgentAdapter, rt: Runtime, registered: AgentRecor
     mcpBinCommand: mcp.command,
     rulesContent: renderWorkflowRules(adapter.id),
     mcpArgs: [],
-    managedEntries: registered?.targets
-      .filter((t) => t.kind === "mcp")
-      .map((t) => JSON.stringify({ command: t.bin, args: [] })),
     targets: registered?.targets ?? [],
   };
 }
@@ -80,10 +77,14 @@ export async function installAgent(
     const registered = state.agents[agentId];
     const ctx = buildContext(adapter, rt, registered);
     const result = await adapter.inject(ctx);
-    // State registration (F17 D2): rules target + mcp target.
+    // State registration (F17 D2): rules target + mcp target. O target mcp é
+    // registrado SOMENTE quando o inject realmente escreveu a entry (sem
+    // conflito D5) — uma entry estrangeira reportada como conflito nunca é
+    // registrada como nossa (senão o uninstall a removeria — fix review F15).
     const paths = adapter.paths(rt);
     const targets: AgentTarget[] = [];
-    if (fs.existsSync(paths.rulesFile)) {
+    const rulesWritten = result.written.includes(paths.rulesFile);
+    if (rulesWritten && fs.existsSync(paths.rulesFile)) {
       targets.push({
         kind: "rules",
         component: "rules",
@@ -92,20 +93,24 @@ export async function installAgent(
         contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
       });
     }
-    targets.push({
-      kind: "mcp",
-      component: "taskflow",
-      file: paths.mcpFile,
-      entry: paths.mcpKey,
-      bin: ctx.mcpBin,
-      contentHash: adapter.readMcpFingerprint(rt) ?? "",
-    });
+    const mcpWritten = result.written.includes(paths.mcpFile) && result.conflicts.length === 0;
+    if (mcpWritten) {
+      targets.push({
+        kind: "mcp",
+        component: "taskflow",
+        file: paths.mcpFile,
+        entry: paths.mcpKey,
+        bin: ctx.mcpBin,
+        contentHash: adapter.readMcpFingerprint(rt) ?? "",
+      });
+    }
     const record: AgentRecord = {
       installedAt: registered?.installedAt ?? new Date().toISOString(),
       harnessVersion: registered?.harnessVersion ?? "0.1.0",
       targets,
     };
-    upsertAgent(state, agentId, record);
+    if (targets.length > 0) upsertAgent(state, agentId, record);
+    else delete state.agents[agentId]; // nada escrito (conflito total) — não registra
     return { agentId, status: "installed", detail: [...result.written, ...result.conflicts.map((c) => `conflito: ${c.file} (${c.reason})`)] };
   } catch (error) {
     if (error instanceof UpstreamReferenceError) {

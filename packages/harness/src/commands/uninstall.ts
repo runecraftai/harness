@@ -156,6 +156,14 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   const { out, err, rt, scope } = opts;
   const stateFile = statePath(rt, scope);
 
+  // `--agent pi` = fluxo F12 atual (design F15 D6): remove os packages do Pi
+  // como `--all` faria, sem tocar agentes não-Pi.
+  const agentsNoPi = (opts.agents ?? []).filter((a) => !a.split(",").map((s) => s.trim()).includes("pi"));
+  const piOnly = opts.agents !== undefined && agentsNoPi.length === 0 && !opts.all && !opts.components;
+  if (piOnly) {
+    opts = { ...opts, agents: undefined, all: true };
+  }
+
   // Validação de seleção primeiro (uso explícito obrigatório): nada de
   // uninstall acidental. `--all` e `--component` são mutuamente exclusivos.
   if (opts.all && opts.components && opts.components.length > 0) {
@@ -176,8 +184,8 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   const loaded = loadState(stateFile, scope);
 
   // F15: agentes não-Pi a remover (--agent). Remoção content-based (D6/D7).
-  const agentIds = opts.agents
-    ? parseAgentArgs(opts.agents).supported
+  const agentIds = agentsNoPi.length > 0
+    ? parseAgentArgs(agentsNoPi).supported
     : opts.all
       ? Object.keys(loaded.state.agents).filter((id) => (SUPPORTED_AGENT_IDS as readonly string[]).includes(id))
       : [];
