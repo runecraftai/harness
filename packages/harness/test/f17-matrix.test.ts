@@ -416,6 +416,31 @@ describe("sync — reconciliação por conteúdo + órfãs (MATR-05/D6)", () => 
     }
   });
 
+  test("rules ausente + mcp ilegível: rules re-injetada, MCP preservado, reporte honesto (fix review 2)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      const claudeHome = sb.env.RUNECRAFT_CLAUDE_HOME as string;
+      const rulesFile = path.join(claudeHome, "CLAUDE.md");
+      const mcpFile = path.join(claudeHome, ".mcp.json");
+      fs.writeFileSync(rulesFile, "# só usuário\n", "utf8"); // seção removida
+      fs.writeFileSync(mcpFile, "{ broken", "utf8"); // config ilegível
+      const result = await runHarness(sb, ["sync"]);
+      expect(result.code).toBe(0);
+      // reporte honesto: rules foi restaurada, MCP não (etapa falhou)
+      expect(result.stdout).toContain("rules re-injetada");
+      expect(result.stdout).toContain("etapa MCP falhou");
+      expect(fs.readFileSync(rulesFile, "utf8")).toContain("runecraft:workflow");
+      expect(fs.readFileSync(mcpFile, "utf8")).toBe("{ broken"); // MCP intacto
+      // sync seguinte converge (rules ok → só a nota de ilegível permanece)
+      const rerun = await runHarness(sb, ["sync"]);
+      expect(rerun.stdout).not.toContain("re-injetada");
+      expect(rerun.stdout).toContain("ilegível");
+    } finally {
+      sb.cleanup();
+    }
+  });
+
   test("config MCP ilegível → sync NÃO crasha, reporta, preserva o arquivo (fix review)", async () => {
     const sb = sandboxWithAgents(["claude"]);
     try {

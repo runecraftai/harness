@@ -352,7 +352,16 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
         }
       }
     } catch (error) {
-      agentNotes.push(`${pending.agentId}: re-inject falhou (${(error as Error).message})`);
+      // O inject pode ter gravado a rules ANTES de falhar na etapa MCP
+      // (config ilegível). Reporta o que aconteceu de fato, não só o erro.
+      const paths = adapter.paths(rt);
+      const rulesCell = MATRIX[pending.agentId as MatrixAgentId].rules;
+      const rulesRestored = rulesCell?.kind === "rules" && hasSection(paths.rulesFile, rulesCell.section);
+      agentNotes.push(
+        rulesRestored
+          ? `${pending.agentId}: rules re-injetada; etapa MCP falhou — ${(error as Error).message} (corrija a config e rode sync de novo)`
+          : `${pending.agentId}: re-inject falhou (${(error as Error).message})`,
+      );
     }
   }
   if (agentsChanged) {
