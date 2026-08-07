@@ -509,7 +509,7 @@ function checkAgentConfigs(rt: Runtime): DoctorCheck {
     name: "Agentes (configs)",
     status: "fail",
     detail: problems.join("; "),
-    remedy: "harness sync --agent <id> (re-injeção idempotente ou atualização do template vN→vM)",
+    remedy: "harness sync (re-injeção idempotente ou atualização do template vN→vM)",
   };
 }
 

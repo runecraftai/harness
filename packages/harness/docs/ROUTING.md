@@ -93,9 +93,10 @@ auditor and closed end to end with one command.
 ### Hello world SDLC — v2026-08-06
 
 - **Flow (F7)**: a trivial goal with a "Done when" contract → implementation
-  via dispatch (subagents or taskflow) → the isolated auditor verifies with
-  evidence (regression_shield) → review → the cycle closes (complete_goal
-  survives the auditor).
+  (directly by the model in the goal loop — COEX-05; dispatch via subagents
+  or taskflow also works) → the isolated auditor verifies with evidence
+  (regression_shield) → review → the cycle closes (complete_goal survives
+  the auditor).
 - **Result F7 (COEX-05)**: **PASS** — 2026-08-06.
   - One prompt: `/goal "Create a file greeting.txt whose content is the exact
     text 'hello harness'. Done when: greeting.txt exists in the repo root and
