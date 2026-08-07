@@ -25,12 +25,21 @@
   },
   "files": [
     "bin/",
+    "src/",
+    "extensions/",
     "README.md"
   ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
-    "prepack": "node ./scripts/prepack.mjs"
+    "prepack": "node ./scripts/prepack.mjs",
+    "generate:versions": "node ./scripts/gen-versions.mjs",
+    "test": "bun test",
+    "typecheck": "tsc"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.14",
     "@types/node": "22"
   },
   "bin": {
@@ -84,6 +93,7 @@
   },
   "pi": {
     "extensions": [
+      "./extensions/harness-status.ts",
       "node_modules/@runecraft/subagents/index.ts",
       "node_modules/@runecraft/taskflow/dist/index.js",
       "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",

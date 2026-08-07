@@ -1,16 +1,13 @@
 #!/usr/bin/env node
 /**
- * @runecraft/harness CLI entry point.
+ * @runecraft/harness CLI entry (F11).
  *
- * F6 (umbrella meta-package) ships this minimal entry so the package exposes
- * the `harness` bin declared in package.json. The actual CLI (install/doctor/
- * status/sync/uninstall) lands in F11 — see .specs/features/f11-cli-harness.
+ * Thin wrapper over dispatch(argv, ctx) — F21 D1 contract: shebang + exit
+ * code; all parsing lives in src/cli.ts. Runs under Node ≥ 22.19 (type
+ * stripping enabled by default).
  */
 import process from "node:process";
+import { dispatch } from "../src/cli.ts";
 
-process.stdout.write(
-  "@runecraft/harness 0.1.0 — umbrella meta-package (F6).\n" +
-    "The harness CLI (install/doctor/status/sync/uninstall) ships in F11.\n" +
-    "Install the harness into Pi with: pi install npm:@runecraft/harness\n",
-);
-process.exit(0);
+const code = await dispatch(process.argv.slice(2));
+process.exit(code);

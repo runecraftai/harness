@@ -104,16 +104,16 @@ F6 entrega um meta-package passivo: instalar e configurar os 4 forks ainda exige
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| CLI-01 | P1: Instalação com seleção (AC 1.1) | Design | Pending |
-| CLI-02 | P1: Instalação com seleção (AC 1.2) | Design | Pending |
-| CLI-03 | P1: Instalação com seleção (AC 1.3 dry-run) | Design | Pending |
-| CLI-04 | P1: Instalação com seleção (AC 1.4 fail-closed) | Design | Pending |
-| CLI-05 | P1: Presets (AC 2.1/2.2) | Design | Pending |
-| CLI-06 | P1: Presets (AC 2.3 help) | Design | Pending |
-| CLI-07 | P2: `/harness status` | Design | Pending |
-| CLI-08 | P2: Idempotência (AC 4.1) | Design | Pending |
-| CLI-09 | P2: Idempotência (AC 4.2 colisão) | Design | Pending |
-| CLI-10 | P2: Idempotência (AC 4.3 rollback) | Design | Pending |
+| CLI-01 | P1: Instalação com seleção (AC 1.1) | Execute | Implemented |
+| CLI-02 | P1: Instalação com seleção (AC 1.2) | Execute | Implemented |
+| CLI-03 | P1: Instalação com seleção (AC 1.3 dry-run) | Execute | Implemented |
+| CLI-04 | P1: Instalação com seleção (AC 1.4 fail-closed) | Execute | Implemented |
+| CLI-05 | P1: Presets (AC 2.1/2.2) | Execute | Implemented (AC2 deferred → F14 (SETM-01..06)) |
+| CLI-06 | P1: Presets (AC 2.3 help) | Execute | Implemented |
+| CLI-07 | P2: `/harness status` | Execute | Implemented |
+| CLI-08 | P2: Idempotência (AC 4.1) | Execute | Implemented |
+| CLI-09 | P2: Idempotência (AC 4.2 colisão) | Execute | Implemented |
+| CLI-10 | P2: Idempotência (AC 4.3 rollback) | Execute | Implemented |
 
 **Coverage:** 10 total, 0 mapeados, 10 unmapped
 

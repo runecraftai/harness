@@ -1,13 +1,14 @@
 # State
 
-**Last Updated:** 2026-08-04
-**Current Work:** F2 COMPLETE. F3 COMPLETE. Próximo: validar F4 e F5 (já renomeados), depois F6 — Umbrella. Roadmap reestruturado (M2–M6: serving layer, multi-agente, evals) — ver AD-008..011.
+**Last Updated:** 2026-08-07
+**Current Work:** **M1 COMPLETE (F1–F5). M2 COMPLETE (F6, F7, F11–F14).** Próximo: M3 — F15 (adapters) → F16 (re-vendor camada MCP do taskflow) → F17 (matriz + schema agents no state) → F18 (coexistência multi-agente). Roadmap reestruturado (M2–M6) — ver AD-008..011; decisões de execução do M2 em AD-016.
 **Specs criadas:** F2 (SUBA, Medium), F3 (TFLW, Large — 3 pkgs + workspace dep), F4 (GLLA, Medium), F5 (PREV, Medium — dispatch a mapear), F6 (UMBR, Large — **design.md obrigatório**: mecanismo de agregação de extensões Pi, hipóteses H1/H2/H3), F7 (COEX, Medium — two-driver é o risco central), F8 (DOCS), F9 (PUBL), F10 (SYNC — three-way merge sobre vendor.json).
 
 ### Handoff
 
-- **Done:** F1 — toolchain. F2 — @runecraft/subagents (1463/1464 unit+integration; SUBA-04 best-effort). F3 — @runecraft/taskflow (core+pi+dsl): vendor ✓, rename ✓, build dist/ ✓, testes core 1540/1585 (97%), pi 179/186 (96%), dsl 65/65 (100%). Falhas remanescentes são ambiente/integração (discoverAgents contamina com CWD real, race conditions, dados upstream ausentes). F4 — @runecraft/goal-loop-audit: COMPLETE (604/607 — validado 2026-08-05; falhas: 1 pré-existente upstream, 1 git-untracked). F5 — @runecraft/pr-review: bun test 243/245 (2 falhas pré-existentes upstream); 1 falha REAL do fork em test:tooling (verify-package-contents hardcoda pi-pr-review/10ego).
-- **Next:** Validar testes de F4 e F5, depois F6 — Umbrella @runecraft/harness (design.md obrigatório antes do Execute). Roadmap expandido para M2–M6 em 2026-08-04 — AD-008..011.
+- **Done (M1):** F1 — toolchain. F2 — @runecraft/subagents (1463/1464; SUBA-02: install.mjs removido; rename completo). F3 — @runecraft/taskflow (core+pi+dsl). F4 — @runecraft/goal-loop-audit (604/607). F5 — @runecraft/pr-review: **fix REAL do fork aplicado 2026-08-06** (verify-package-contents.mjs + package-contents.node.mjs — hardcodes pi-pr-review/10ego eliminados; test:tooling 20/20; suite 243/245 = baseline, 2 falhas pré-existentes do upstream em pi-tui/matchesKey).
+- **Done (M2):** F6 — Umbrella: meta-package H1 (bundledDeps + manifest pi via node_modules/), prepack hermético, validado por install local + tarball real + sessão Pi headless; cleric APPROVE + 3 fixes. F7 — Coexistência: **COEX-01..06 PASSA** (2026-08-06, scenarios.md versionado; bugs reais do taskflow registrados: BUG-1 import dinâmico não renomeado, BUG-2 dist/agents/ não empacotado). F11 — CLI: install/presets/--component/--dry-run/--json/--scope, dispatch(argv,ctx) com RUNECRAFT_PI_BIN (contrato F21 D1); cleric APPROVE + 2 fixes. F12 — Lifecycle: doctor (6 checks read-only — fix bloqueante loadStateReadonly), status (tabela cruzada + /harness real), sync (idempotente), uninstall (só gerenciado); cleric APPROVE. F13 — Estado+backups: schema v1 aditivo (agents do F17 preservados), dedupe, prune 5+pins, statvfs fail-safe, restore fail-closed; cleric APPROVE. F14 — Settings merge: two-pass SETM-04, blockingSegment (nunca clobber), prefixo por componente; experimento de defaults validado contra source (subagents/taskflow com defaults v1; pr-review/glla sem defaults); cleric REQUEST_CHANGES → 3 fixes → **168 testes verdes**.
+- **Next:** M3 — F15 (adapters Claude Code/OpenCode/Codex) → F16 (re-vendor camada MCP do taskflow) → F17 (matriz + schema agents) → F18 (coexistência multi-agente). Specs/designs prontos (2026-08-05). BUG-1/BUG-2 do taskflow ficam como issues próprias (spec F7 manda não corrigir no F7).
 - **Decisões F3:** TypeScript 6.0.3 + @types/node@22 adicionados como devDeps (upstream usava TypeScript do root pnpm). `noEmitOnError: false` nos tsconfig.build.json para emitir dist mesmo com erros de tipo TS6 vs TS5 (37 type errors conhecidos em taskflow-core, pós-v1). Build scripts simplificados (removidos copy-readme.mjs, stamp-build-info.mjs — não existem no harness). turbo.json: `dependsOn: ["^build"]` adicionado para ordem correta core→pi/dsl.
 - **Origem:** pivotado do warband (arcanum) — ver AD-001.
 
@@ -110,6 +111,13 @@
 **Trade-off:** Família de marcadores adiciona um caso no motor de seções (custo pequeno, teste dedicado).
 **Impact:** F19/F20 designs aprovados; F18 atualizado (família shell); F13 nota config.json; docs do F8 documentam os dois sentidos de "gate".
 
+### AD-016: Decisões de execução do M2 (2026-08-06/07)
+
+**Decision:** (1) F12 gray areas arbitradas em revisão: exit code do doctor = fail→1, warn/pass→0 (convenção fail-closed do F11); sync REINSTALA conforme state (spec LIFE-06 AC 3.1 vence a instrução do parent — órfãos nunca tocados/adotados); default de scope workspace estendido a status/sync (coerência entre comandos que leem state); `status --json` = objeto superset `{scope, packages[], collisions}` (congelar forma no design antes do F21). (2) F13 decisões ratificadas: backup pré-restore obrigatório (ciclo reversível); `--keep` vive em `backups`; `preInstall` mantém shape por operação da API F11 (F17/SETM-05 podem revisitar); state.json fora de filesTouchedByInstall; sync sem preInstall. (3) F14 experimento de defaults: subagents e taskflow recebem defaults v1 (chaves realmente lidas pelos forks, ex.: `subagents.modelScope.enforce`, `taskflow.piChild.resourceProfile`=**isolated** — correção do cleric, não allowlist; TASKFLOW_MODEL_ROLES idêntico ao INIT_ROLES do core); pr-review e goal-loop-audit SEM defaults (fork não hardcoda modelos; DEFAULT_SETTINGS do glla valem com arquivo ausente). (4) Fixes pós-revisão que viraram invariantes: merge é two-pass (SETM-04: alvo inválido → zero writes); segmento intermediário scalar → conflito, nunca clobber; uninstall `--component` atribui settingsChanges por prefixo gerenciado (modelRoles.* → taskflow).
+**Reason:** Revisões cleric independentes após cada feature (padrão da sessão); experimento empírico no source dos 4 forks para defaults honestos (AD-012).
+**Trade-off:** `preInstall` por operação fica para revisão no F17; check 6 (disco) só testado no caminho pass (sem knob de falha).
+**Impact:** M2 fecha com 168 testes; contrato de evidência F21 pode ancorar dispatch/RUNECRAFT_PI_BIN e o shape de `status --json`; BUG-1/BUG-2 do taskflow (F7) entram nos Todos como issues próprias.
+
 ### AD-015: Revisão final do EVAL — planejamento completo fechado (2026-08-05)
 
 **Decision:** (1) Contrato de evidência F21→F23 alinhado: F21 grava **mensagem crua** + `status pass|fail|fail-infra` (classificação no setup.ts) + `harnessVersion` + `coverage[]` via `recordCoverage` em `test/eval/evidence/last-run.json`; F23 normaliza na leitura (`normalize.ts` — única implementação). (2) Camada 2 do F21 = 4 fluxos + sanity (EVAL-001/002/004/005/005b); **EVAL-003 (goal+taskflow standalone) cortado** — decisão aprovada era só hello world; o cenário fica no F22 S3. (3) Goldens consolidados: rules vive no F21 (`routing-golden.test.ts` — renderRules == golden == apêndice); F23 tem 5 goldens (section-workflow-pi/nonpi + mcp-claude/opencode/codex). (4) Menores: parseArgs migra para `dispatch()` (F11), scenarioId = campo name do F22, paths alinhados (layer1/, evidence/, golden/), F22 sem "fork do Pi" (SDK @earendil-works), COEX-05 preenchido pelo F7 (prereq).
@@ -155,22 +163,31 @@ None.
 
 - [x] Specify F1 (Monorepo Scaffold) — COMPLETE 2026-07-29
 - [x] Specs F2–F10 — COMPLETE 2026-07-29
-- [ ] F5 fix: `packages/pr-review/scripts/verify-package-contents.mjs:119,135-137` e `tests/tooling/package-contents.node.mjs:22,69` — hardcoda `pi-pr-review`/URLs 10ego (falha real do fork, validada 2026-08-05)
-- [ ] F2: `install.mjs` clona repo upstream hardcoded — spec já manda remover (SUBA-02)
-- [ ] F6: design.md antes do Execute (gray area de agregação)
-- [ ] Fechar decisão de atribuição de licença (AD-002) — deadline: F8 (DOCS-03); obrigatório antes de copiar trechos do gentle-ai (F11/F13)
-- [x] Specs SERV (F11–F14) — criadas 2026-08-05 (gray areas aprovadas: G3 híbrido, detecção bin, estado cruzado, merge G3, presets minimal/full)
-- [x] Designs SERV (F6 agregação H1 + F11–F14) — criados 2026-08-05; revisados 2026-08-05 (entry points reais dos forks verificados; estado por package com group; versions.ts gerado; createdFiles; scope no uninstall)
-- [x] Specs MULA (F15–F18) — criadas 2026-08-05 (base: pesquisas de subagentes no heggria/taskflow v0.2.6 e no gentle-ai — ver AD-013)
-- [x] Designs MULA (F15–F18) — criados por subagentes e revisados por revisor independente 2026-08-05 (correções B1/B2/I1–I3 aplicadas; schema consolidado em F17 — AD-013)
-- [x] Specs WORK (F19–F20) — criadas 2026-08-05 (base: pesquisas de subagentes em pr-review fork, capabilities dos forks e RDD docs do gentle-ai)
-- [x] Specs EVAL (F21–F23) — criadas 2026-08-05 (base: pesquisa de subagente em testing-agents-deterministically do gentle-ai + docs do Pi: models.json/provider registerProvider/SDK inMemory, ratchets)
-- [x] Designs WORK (F19–F20) — criados por subagentes e revisados 2026-08-05 (correções I1/I2/I3 + menores aplicadas; família de marcadores shell no F18; check 17 gates — AD-014)
-- [x] Designs EVAL (F21–F23) — criados por subagentes e revisados 2026-08-05 (correções B1/B2/I1–I4/M1–M5 aplicadas — AD-015)
-- [x] **Planejamento completo**: F1–F23 com spec + design + revisão (SERV/MULA/WORK/EVAL fechados)
-- [ ] F5 fix pendente: `packages/pr-review/scripts/verify-package-contents.mjs:119,135-137` e `tests/tooling/package-contents.node.mjs:22,69` — hardcoda `pi-pr-review`/URLs 10ego
-- [ ] F14 Execute: validar defaults reais por fork (experimento) — valores propostos no design podem mudar
-- [ ] F16: re-vendorar camada MCP do taskflow (reativa deferral do AD-007)
+- [x] F5 fix: `packages/pr-review/scripts/verify-package-contents.mjs:119,135-137` e `tests/tooling/package-contents.node.mjs:22,69` — hardcoda `pi-pr-review`/URLs 10ego (falha real do fork) — **APLICADO 2026-08-06** (ranger; test:tooling 20/20)
+- [x] F2: `install.mjs` clona repo upstream hardcoded — removido (SUBA-02, commit efdd9da)
+- [x] F6: design.md antes do Execute — feito; Execute COMPLETE + cleric APPROVE (commit 4c66c39/359a37f)
+- [ ] Fechar decisão de atribuição de licença (AD-002) — deadline: F8 (DOCS-03); obrigatório antes de copiar trechos do gentle-ai (F11/F13) e de publicar (F9)
+- [x] Specs SERV (F11–F14) — criadas 2026-08-05
+- [x] Designs SERV (F6 + F11–F14) — criados e revisados 2026-08-05
+- [x] Specs MULA (F15–F18) — criadas 2026-08-05
+- [x] Designs MULA (F15–F18) — criados e revisados 2026-08-05 (AD-013)
+- [x] Specs WORK (F19–F20) — criadas 2026-08-05
+- [x] Designs WORK (F19–F20) — criados e revisados 2026-08-05 (AD-014)
+- [x] Specs EVAL (F21–F23) — criadas 2026-08-05
+- [x] Designs EVAL (F21–F23) — criados e revisados 2026-08-05 (AD-015)
+- [x] **Planejamento completo**: F1–F23 com spec + design + revisão
+- [x] **M1 COMPLETE** (F1–F5) — commits 2026-08-06 (efdd9da..b1ba279)
+- [x] **M2 COMPLETE** (F6, F7, F11–F14) — Execute 2026-08-06/07; 168 testes no harness
+- [ ] F14 Execute: validar defaults reais por fork (experimento) — **FEITO** (merge.ts header, AD-016; correção: resourceProfile=isolated)
+- [ ] F16: re-vendorar camada MCP do taskflow (reativa deferral do AD-007) — pronto para Execute (M3)
+- [ ] BUG-1: `@runecraft/taskflow` import dinâmico não renomeado quebra verify/compile/compile-ir (F7 scenarios.md §Achados)
+- [ ] BUG-2: `@runecraft/taskflow-core` dist/agents/ não empacotado → run falha `Unknown agent: default` (F7 scenarios.md §Achados)
+- [ ] Limpeza: repo GitHub de teste do COEX-04 pendente de exclusão (token sem escopo delete_repo)
+- [ ] Referências pi-pr-review/10ego remanescentes em docs/CI do pr-review (README/RELEASING/CHANGELOG/release-please/workflows — varredura no F8)
+- [ ] M3 Execute: F15 → F16 → F17 → F18 (specs/designs prontos)
+- [ ] M4 Execute: F19 → F20
+- [ ] M5 Execute: F21 → F22 → F23
+- [ ] M6 Execute: F8 (docs) → F9 (publish) → F10 (sync workflow)
 
 ---
 

@@ -88,12 +88,12 @@ F6 entrega "bloco de settings recomendado" que o usuário cola à mão. A pegada
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| SETM-01 | P1: merge (AC 1.1 preserva usuário) | Design | Pending |
-| SETM-02 | P1: merge (AC 1.2 conflito reportado) | Design | Pending |
-| SETM-03 | P1: merge (AC 1.3 settingsChanges) | Design | Pending |
-| SETM-04 | P1: merge (AC 1.4 JSON inválido) | Design | Pending |
-| SETM-05 | P2: uninstall limpo (AC 2.1/2.2/2.3) | Design | Pending |
-| SETM-06 | P2: relatório (AC 3.1/3.2) | Design | Pending |
+| SETM-01 | P1: merge (AC 1.1 preserva usuário) | Execute | Implemented |
+| SETM-02 | P1: merge (AC 1.2 conflito reportado) | Execute | Implemented |
+| SETM-03 | P1: merge (AC 1.3 settingsChanges) | Execute | Implemented |
+| SETM-04 | P1: merge (AC 1.4 JSON inválido) | Execute | Implemented |
+| SETM-05 | P2: uninstall limpo (AC 2.1/2.2/2.3) | Execute | Implemented |
+| SETM-06 | P2: relatório (AC 3.1/3.2) | Execute | Implemented |
 
 **Coverage:** 6 total, 0 mapeados, 6 unmapped
 
