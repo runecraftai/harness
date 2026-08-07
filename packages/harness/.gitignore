@@ -1,0 +1,3 @@
+# F21 — evidência de eval para o F23 (D10): parcial por test file + merge.
+# A evidência é artefato de run; o CI a regenera a cada execução.
+test/eval/evidence/
