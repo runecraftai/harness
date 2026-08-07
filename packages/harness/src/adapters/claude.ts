@@ -60,8 +60,10 @@ export const claudeAdapter: AgentAdapter = {
     const servers = cfg.content.mcpServers;
     const existing = (servers as Record<string, unknown> | undefined)?.[MCP_KEY];
     const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
-    if (existing !== undefined && registeredMcp && registeredMcp.contentHash === sha256Hex(JSON.stringify(existing))) {
-      // ours — replace in place (rerun idempotent).
+    if (existing !== undefined && registeredMcp) {
+      // registrada como nossa (D5-b) → reescreve no lugar (rerun idempotente;
+      // mesmo que o usuário tenha editado — o fingerprint é gate do REMOVE/D7,
+      // não do inject; sync/rerun re-aplicam a config do harness).
       const up = upsertJsonKey(paths.mcpFile, ["mcpServers", MCP_KEY], entry);
       if (up.changed) written.push(paths.mcpFile);
     } else if (existing !== undefined) {

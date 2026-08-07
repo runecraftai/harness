@@ -64,9 +64,11 @@ export function upsertTomlSection(
     if (!createMissing) return null;
   }
   const header = `[mcp_servers.${entry}]`;
-  // Match the header line, then every following line that does not start a new
-  // top-level `[section]` (block body = key/value lines, possibly indented).
-  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n(?:[^\\[].*)?)*`, "m");
+  // Match the header line, then every following key=value line. The block
+  // ENDS at the first line that is not key=value (blank, comment, `[section]`)
+  // — so the fingerprint never absorbs user content after our block (F15
+  // review: TOML fingerprint must cover ONLY our rendered lines).
+  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n\\s*[A-Za-z0-9_.-]+\\s*=[^\\n]*)*`, "m");
   const replacement = `${header}\n${blockBody}`;
   const existedBlock = blockPattern.test(original);
   const next = existedBlock
@@ -85,7 +87,7 @@ export function readTomlSection(file: string, entry: string): string | null {
   if (!fs.existsSync(file)) return null;
   const original = fs.readFileSync(file, "utf8");
   const header = `[mcp_servers.${entry}]`;
-  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n(?:[^\\[].*)?)*`, "m");
+  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n\\s*[A-Za-z0-9_.-]+\\s*=[^\\n]*)*`, "m");
   const match = original.match(blockPattern);
   return match ? match[0] : null;
 }
@@ -97,7 +99,7 @@ export function removeTomlSection(file: string, entry: string): string | null {
   if (!fs.existsSync(file)) return null;
   const original = fs.readFileSync(file, "utf8");
   const header = `[mcp_servers.${entry}]`;
-  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n(?:[^\\[].*)?)*`, "m");
+  const blockPattern = new RegExp(`^${escapeRegExp(header)}[^\\n]*(?:\\n\\s*[A-Za-z0-9_.-]+\\s*=[^\\n]*)*`, "m");
   if (!blockPattern.test(original)) return null;
   return original.replace(blockPattern, "");
 }

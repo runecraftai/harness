@@ -57,7 +57,8 @@ export const codexAdapter: AgentAdapter = {
     const block = renderMcpServerBlock(MCP_KEY, [cmd, ...commandParts.slice(1)], { tool_timeout_sec: TOOL_TIMEOUT_SEC });
     const existing = readTomlSection(paths.mcpFile, MCP_KEY);
     const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
-    if (existing !== null && registeredMcp && registeredMcp.contentHash === sha256Hex(existing)) {
+    if (existing !== null && registeredMcp) {
+      // registrada como nossa (D5-b) → reescreve no lugar (ver claude.ts).
       const up = upsertTomlSection(paths.mcpFile, MCP_KEY, block, true);
       if (up?.changed) written.push(paths.mcpFile);
     } else if (existing !== null) {

@@ -230,6 +230,56 @@ describe("uninstall --agent (F15 ADPT-07)", () => {
       sb.cleanup();
     }
   });
+
+  test("rerun com entry editada: reescreve (registrada é nossa) e uninstall remove (fix review 3)", async () => {
+    const sb = sandboxWithAgents(["claude"]);
+    try {
+      const install = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(install.code).toBe(0);
+      // usuário edita a entry registrada (mudou o args)
+      const mcpFile = path.join(sb.claudeHome, ".mcp.json");
+      const mcp = readJson(mcpFile);
+      const servers = mcp.mcpServers as Record<string, { args?: string[] }>;
+      if (!servers.taskflow) throw new Error("taskflow entry ausente");
+      servers.taskflow.args = ["/user/edited"];
+      fs.writeFileSync(mcpFile, JSON.stringify(mcp, null, 2) + "\n", "utf8");
+      // rerun → registrada é NOSSA (D5-b) → reescreve sem conflito
+      const rerun = await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      expect(rerun.code).toBe(0);
+      expect(rerun.stdout).not.toContain("conflito");
+      const after = readJson(mcpFile);
+      const args = (after.mcpServers as Record<string, { args?: string[] }>).taskflow?.args;
+      expect(args).not.toEqual(["/user/edited"]); // reescrita com o bin do harness
+      // state mantém o target mcp → uninstall remove
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "claude-code", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      expect(fs.existsSync(mcpFile)).toBe(false);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("codex: conteúdo do usuário após o bloco não entra no fingerprint (fix review 3)", async () => {
+    const sb = sandboxWithAgents(["codex"]);
+    try {
+      const codexHome = path.join(sb.dir, "codex-home");
+      sb.env.RUNECRAFT_CODEX_HOME = codexHome;
+      sb.env.RUNECRAFT_TASKFLOW_CODEX_BIN = path.join(sb.binDir, "mcp-fake.js");
+      fs.mkdirSync(codexHome, { recursive: true });
+      const install = await runHarness(sb, ["install", "--agent", "codex", "--yes"]);
+      expect(install.code).toBe(0);
+      // usuário adiciona seção própria DEPOIS do bloco do harness
+      fs.appendFileSync(path.join(codexHome, "config.toml"), "\n[user_section]\nkey = \"mine\"\n", "utf8");
+      // uninstall → bloco nosso removido (fingerprint não absorveu a seção do usuário)
+      const uninstall = await runHarness(sb, ["uninstall", "--agent", "codex", "--yes"]);
+      expect(uninstall.code).toBe(0);
+      const toml = fs.readFileSync(path.join(codexHome, "config.toml"), "utf8");
+      expect(toml).not.toContain("mcp_servers.taskflow");
+      expect(toml).toContain("[user_section]");
+    } finally {
+      sb.cleanup();
+    }
+  });
 });
 
 describe("uninstall --agent pi (F15 D6: fluxo F12)", () => {

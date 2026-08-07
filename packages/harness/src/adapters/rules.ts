@@ -117,6 +117,9 @@ export function removeSection(file: string, section: string): string | null {
   const suffixCollapsed = suffix.replace(new RegExp(`^${eolRe}{3,}`), `${eol}${eol}`);
   const prefixCollapsed = prefix.replace(new RegExp(`${eolRe}{3,}$`), `${eol}${eol}`);
   next = prefixCollapsed + suffixCollapsed;
+  // Eol único no fim do arquivo (a seção era o último bloco) — sem acumular
+  // eols residuais (paridade com o codex.ts).
+  next = next.replace(new RegExp(`${eolRe}+$`), eol);
   return (bom ? "\ufeff" : "") + next;
 }
 

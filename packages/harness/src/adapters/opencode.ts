@@ -60,7 +60,8 @@ export const opencodeAdapter: AgentAdapter = {
     const mcp = cfg.content.mcp as Record<string, unknown> | undefined;
     const existing = mcp?.[MCP_KEY];
     const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
-    if (existing !== undefined && registeredMcp && registeredMcp.contentHash === sha256Hex(JSON.stringify(existing))) {
+    if (existing !== undefined && registeredMcp) {
+      // registrada como nossa (D5-b) → reescreve no lugar (ver claude.ts).
       const up = upsertJsonKey(paths.mcpFile, ["mcp", MCP_KEY], entry);
       if (up.changed) written.push(paths.mcpFile);
     } else if (existing !== undefined) {
