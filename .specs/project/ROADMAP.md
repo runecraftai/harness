@@ -103,7 +103,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ### Features
 
-**F15 — Adapters v1 (Claude Code, OpenCode, Codex)** — IN PROGRESS (prereq F16 ✓) — Prereq: F11
+**F15 — Adapters v1 (Claude Code, OpenCode, Codex)** — COMPLETE (2026-08-07; cleric APPROVE; 203 testes) — Prereq: F11
 
 - Detecção, dirs de config, injecção e remoção por agente; fail-closed quando ausente
 - Pi é nativo (F2–F5); agentes sem adapter = detect-only com guia (padrão gentle-ai/Hermes)
