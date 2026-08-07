@@ -206,7 +206,7 @@ None.
 - [ ] Referências pi-pr-review/10ego remanescentes em docs/CI do pr-review (README/RELEASING/CHANGELOG/release-please/workflows — varredura no F8)
 - [x] M3 Execute: F16 → F15 (ordem corrigida: spec F15 declara prereq F16) — COMPLETE
 - [x] **F17 COMPLETE** (matriz + checks 7–13 + status 3 fontes + sync por conteúdo) — Execute 2026-08-07; 226 testes; cleric APPROVE após 2 rodadas (commits 91c682f, a91399e, 8b7b4dc)
-- [x] **F18 COMPLETE** (coexistência multi-agente: sections 2 famílias + owners + checks 7–15 + two-driver + gate MXST-04 + lock) — Execute 2026-08-07; 244 testes
+- [x] **F18 COMPLETE** (coexistência multi-agente: sections 2 famílias + owners + checks 7–15 + two-driver + gate MXST-04 + lock) — Execute 2026-08-07; 246 testes; cleric APPROVE + 1 fix (TOML duplicada/heartbeat; commits b7b06bd, 5368f21)
 - [ ] M4 Execute: F19 (routing) → F20 (receipt gates)
 - [ ] M4 Execute: F19 → F20
 - [ ] M5 Execute: F21 → F22 → F23
