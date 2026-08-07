@@ -103,12 +103,12 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ### Features
 
-**F15 — Adapters v1 (Claude Code, OpenCode, Codex)** — PLANNED — Prereq: F11
+**F15 — Adapters v1 (Claude Code, OpenCode, Codex)** — IN PROGRESS (prereq F16 ✓) — Prereq: F11
 
 - Detecção, dirs de config, injecção e remoção por agente; fail-closed quando ausente
 - Pi é nativo (F2–F5); agentes sem adapter = detect-only com guia (padrão gentle-ai/Hermes)
 
-**F16 — Camada MCP do taskflow (re-vendor)** — PLANNED — Prereq: F1
+**F16 — Camada MCP do taskflow (re-vendor)** — COMPLETE (2026-08-07; cleric APPROVE; 184 testes) — Prereq: F1
 
 - Re-vendorar taskflow-mcp-core + taskflow-hosts + adapters codex/claude/opencode/grok (deferral do AD-007 reativado — AD-009)
 - Componente cross-agent que dá DAG/FlowIR aos não-Pi
