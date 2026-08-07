@@ -1,7 +1,7 @@
 # Roadmap
 
-**Current Milestone:** M3 — Multi-Agent Layer
-**Status:** In Progress (M1 ✅ · M2 ✅)
+**Current Milestone:** M4 — Workflow & Receipt
+**Status:** Complete (M1 ✅ · M2 ✅ · M3 ✅ · M4 ✅) — next: M5 Evals
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7
 
@@ -97,7 +97,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ---
 
-## M3 — Multi-Agent Layer
+## M3 — Multi-Agent Layer — ✅ COMPLETE (2026-08-07)
 
 **Goal:** Pegada gentle-ai: servir agentes não-Pi com matriz de componentes honesta — fail-closed, detect-only para o que não suportamos, sem duplicar mecanismos nativos.
 
@@ -113,33 +113,35 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Re-vendorar taskflow-mcp-core + taskflow-hosts + adapters codex/claude/opencode/grok (deferral do AD-007 reativado — AD-009)
 - Componente cross-agent que dá DAG/FlowIR aos não-Pi
 
-**F17 — Matriz de componentes por agente** — PLANNED — Prereq: F15, F16
+**F17 — Matriz de componentes por agente** — COMPLETE (2026-08-07; cleric APPROVE após 2 rodadas; 226 testes) — Prereq: F15, F16
 
 - Pi: 4 forks (full) · Claude Code/OpenCode/Codex: taskflow-MCP + regras de workflow (routing/review) + pr-review via gh
 - subagents e goal-loop-audit permanecem Pi-only (extensões Pi)
 
-**F18 — Coexistência multi-agente** — PLANNED — Prereq: F17
+**F18 — Coexistência multi-agente** — COMPLETE (2026-08-07; cleric APPROVE + 1 fix; 246 testes) — Prereq: F17
 
 - Detectar upstreams (pi-subagents, gentle-pi…) e reportar colisão sem sobrescrever
 - Overlay own vs. config do usuário (herança da filosofia gentle-ai)
 
 ---
 
-## M4 — Workflow & Receipt
+## M4 — Workflow & Receipt — ✅ COMPLETE (2026-08-07)
 
 **Goal:** O harness vira mental model: roteamento explícito entre as capacidades e entrega validada por receipt leve (conceito RDD simplificado).
 
 ### Features
 
-**F19 — Routing & mental model** — PLANNED — Prereq: F7
+**F19 — Routing & mental model** — COMPLETE (2026-08-07; cleric APPROVE + 2 fixes; 272 testes) — Prereq: F7
 
 - Trigger rules do harness: goal loop vs taskflow vs subagent direto vs review; two-driver como limite conhecido
 - Hello world SDLC (F7) como intended-usage do produto
+- Validado: ROUTING.md canônico (10 seções, inglês) + template injetável renderRules por coluna da matriz (golden test render == apêndice; ausência no não-Pi) + driver ativo no status/doctor (ledger do glla) + sync three-way
 
-**F20 — Receipt leve (delivery gates)** — PLANNED — Prereq: F19
+**F20 — Receipt leve (delivery gates)** — COMPLETE (2026-08-07; cleric APPROVE + 3 fixes; 330 testes) — Prereq: F19
 
 - pr-review como engine de review; gates pre-commit/pre-push validam o mesmo resultado
 - Sem authority store/threat model (versão completa fica em Future)
+- Validado: receipt estrito append-only (capture RPC/--from com diff_hash canônico) + hooks shell fail-closed (sem receipt/drift nega; off exit 0) + kill switch global + check 17 + uninstall preservando pré-existentes
 
 ---
 
