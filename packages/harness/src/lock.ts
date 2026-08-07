@@ -63,7 +63,21 @@ export async function withRunecraftLock<T>(
     }
   }
   try {
-    return await fn();
+    // Heartbeat: atualiza o mtime do lock a cada 30s — um prompt TTY aberto
+    // por > 5 min não pode fazer o lock parecer stale para outra instância
+    // (fix review F18). O pid fica no dir para diagnóstico manual.
+    const heartbeat = setInterval(() => {
+      try {
+        fs.utimesSync(dir, new Date(), new Date());
+      } catch {
+        // dir sumiu (remoção manual) — o finally abaixo trata
+      }
+    }, 30_000);
+    try {
+      return await fn();
+    } finally {
+      clearInterval(heartbeat);
+    }
   } finally {
     try {
       fs.rmSync(dir, { recursive: true, force: true });

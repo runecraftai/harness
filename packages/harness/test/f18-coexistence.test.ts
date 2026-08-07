@@ -169,6 +169,50 @@ describe("owners — detecção de donos (MXST-03)", () => {
       sb.cleanup();
     }
   });
+
+  test("codex: seção [mcp_servers.X] DUPLICADA — upstream no segundo bloco é detectado (fix review)", () => {
+    const sb = sandboxOwners();
+    try {
+      const codexHome = path.join(sb.dir, "codex-home");
+      sb.env.RUNECRAFT_CODEX_HOME = codexHome;
+      fs.mkdirSync(codexHome, { recursive: true });
+      // réplica do achado F17 (config.toml real): seção taskflow 2x — a
+      // primeira vazia, a segunda com comando upstream. readTomlSection só
+      // vê a primeira → scan por blocos cobre.
+      fs.writeFileSync(
+        path.join(codexHome, "config.toml"),
+        "[mcp_servers.taskflow]\n[mcp_servers.taskflow]\ncommand = \"npx\"\nargs = [\"-y\", \"-p\", \"codex-taskflow@0.2.6\", \"codex-taskflow-mcp\"]\n",
+        "utf8",
+      );
+      const rt = resolveRuntime(sb.dir, sb.env);
+      const found = scanMcpUpstreams(rt);
+      expect(found).toHaveLength(1);
+      expect(found[0]?.agent).toBe("codex");
+      expect(found[0]?.entry).toBe("taskflow");
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("codex: args multiline não trunca a detecção de upstream (fix review)", () => {
+    const sb = sandboxOwners();
+    try {
+      const codexHome = path.join(sb.dir, "codex-home");
+      sb.env.RUNECRAFT_CODEX_HOME = codexHome;
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(
+        path.join(codexHome, "config.toml"),
+        "[mcp_servers.taskflow]\ncommand = \"npx\"\nargs = [\n  \"-y\",\n  \"-p\",\n  \"codex-taskflow@0.2.6\",\n  \"codex-taskflow-mcp\",\n]\n",
+        "utf8",
+      );
+      const rt = resolveRuntime(sb.dir, sb.env);
+      const found = scanMcpUpstreams(rt);
+      expect(found).toHaveLength(1);
+      expect(found[0]?.agent).toBe("codex");
+    } finally {
+      sb.cleanup();
+    }
+  });
 });
 
 describe("doctor — checks 14/15 + check 10 estendido (MXST-03)", () => {

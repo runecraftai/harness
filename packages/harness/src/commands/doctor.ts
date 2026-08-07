@@ -37,7 +37,6 @@ import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/r
 import { hasSection, isValidUtf8 } from "../adapters/rules.ts";
 import { MATRIX, type ComponentId } from "../matrix.ts";
 import { detectOwners, scanMcpUpstreams } from "../owners.ts";
-import { createPiInterop } from "../pi.ts";
 import type { AgentId } from "../adapters/types.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
@@ -233,10 +232,11 @@ function checkAgentUpstreamsPi(pi: PiInterop): DoctorCheck {
 /**
  * F18 check 14 — gentle-ai presente (independente do Pi): state file OU
  * marcadores `gentle-ai:` em arquivos gerenciados → warn (coexistência
- * suportada — F18 MXST-05). Read-only.
+ * suportada — F18 MXST-05). Read-only. Reusa o interop do doctor (não
+ * re-executa `pi list` — o detectOwners escaneia os configs).
  */
-function checkGentleAi(rt: Runtime): DoctorCheck {
-  const gentleAi = detectOwners(rt, createPiInterop(rt)).owners.filter(
+function checkGentleAi(rt: Runtime, pi: PiInterop): DoctorCheck {
+  const gentleAi = detectOwners(rt, pi).owners.filter(
     (o) => o.name === "gentle-ai",
   );
   if (gentleAi.length === 0) {
@@ -340,7 +340,7 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
       checks.push({ id, name, status: "skip", detail: "pulado — depende do Pi (check 1 falhou)" });
     }
   } else {
-    checks.push(checkComponents(rt, pi), checkForkSettings(rt), checkDisk(rt), checkAgentUpstreamsPi(pi));
+    checks.push(checkComponents(rt, pi), checkForkSettings(rt), checkDisk(rt));
   }
   // F18 D3: tabela consolidada 7–15 — checks por agente (F17), gentle-ai (14),
   // upstreams Pi (15, absorve o check 4 do F12). Todos read-only (LIFE-01).
@@ -352,7 +352,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
     checkAgentConfigParse(rt),
     checkAgentDetectOnly(rt),
     checkAgentMatrixOrphans(rt),
-    checkGentleAi(rt),
+    checkGentleAi(rt, pi),
+    checkAgentUpstreamsPi(pi),
   );
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };

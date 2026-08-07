@@ -21,7 +21,6 @@ import { scanConflicts } from "./conflicts.ts";
 import { ADAPTERS, SUPPORTED_AGENT_IDS } from "./adapters/registry.ts";
 import { listSectionIds } from "./sections.ts";
 import { readJsonConfig } from "./adapters/jsonc.ts";
-import { readTomlSection } from "./toml.ts";
 import { isUpstreamMcpEntry } from "./adapters/mcpConfig.ts";
 import type { AgentId } from "./adapters/types.ts";
 
@@ -54,7 +53,10 @@ export function scanMcpUpstreams(rt: Runtime): Array<{ agent: AgentId; file: str
     const paths = ADAPTERS[id].paths(rt);
     if (!fs.existsSync(paths.mcpFile)) continue;
     if (id === "codex") {
-      // config.toml: scan [mcp_servers.<name>] sections by line, read each block.
+      // config.toml: scan de TODOS os blocos [mcp_servers.<name>] — inclusive
+      // seções DUPLICADAS (achado F17: o config real do usuário tem a seção
+      // taskflow 2x; readTomlSection só vê a primeira). O bloco vai do header
+      // até a próxima seção — args multiline não trunca a detecção.
       let text: string;
       try {
         text = fs.readFileSync(paths.mcpFile, "utf8");
@@ -62,16 +64,15 @@ export function scanMcpUpstreams(rt: Runtime): Array<{ agent: AgentId; file: str
         continue; // ilegível — check 11 reporta
       }
       const sectionRe = /^\[mcp_servers\.([^\]]+)\]$/gm;
+      const nextSectionRe = /^\[/gm;
       for (const match of text.matchAll(sectionRe)) {
         const name = match[1] ?? "";
         if (!name) continue;
-        let block: string | null = null;
-        try {
-          block = readTomlSection(paths.mcpFile, name);
-        } catch {
-          continue;
-        }
-        if (block !== null && isUpstreamMcpEntry(block)) {
+        const blockStart = (match.index ?? 0) + (match[0]?.length ?? 0);
+        nextSectionRe.lastIndex = blockStart;
+        const nextHeader = nextSectionRe.exec(text);
+        const block = text.slice(blockStart, nextHeader ? nextHeader.index : text.length);
+        if (isUpstreamMcpEntry(block)) {
           found.push({ agent: id, file: paths.mcpFile, entry: name });
         }
       }
