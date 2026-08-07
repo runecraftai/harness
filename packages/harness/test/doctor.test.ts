@@ -6,6 +6,7 @@ import * as path from "node:path";
 import {
   appendPackages,
   makeSandbox,
+  makeSandboxCleanPath,
   readJson,
   runHarness,
   settingsFile,
@@ -29,8 +30,9 @@ function summaryLine(stdout: string): string {
 }
 
 describe("doctor — pass e read-only (LIFE-01)", () => {
-  test("harness saudável: 6 checks pass e zero modificações (diff antes/depois)", async () => {
-    const sb = makeSandbox();
+  test("harness saudável: 8 checks pass e zero modificações (diff antes/depois)", async () => {
+    // PATH mínimo: os checks 7–13 não podem depender dos bins reais do ambiente.
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       const settingsBefore = fileHash(settingsFile(sb));
@@ -41,9 +43,10 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
 
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
-      expect(summaryLine(result.stdout)).toContain("pass 6");
+      // 1–6 (F12) + 7 (detecção, informativo) + 12 (detect-only, informativo)
+      expect(summaryLine(result.stdout)).toContain("pass 8");
       expect(summaryLine(result.stdout)).toContain("fail 0");
-      for (const id of [1, 2, 3, 4, 5, 6]) expect(result.stdout).toContain(`[${id}]`);
+      for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) expect(result.stdout).toContain(`[${id}]`);
 
       // read-only: nenhum arquivo foi tocado
       expect(fileHash(settingsFile(sb))).toBe(settingsBefore);
@@ -56,15 +59,15 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
   });
 
   test("--json reporta checks e summary parseáveis", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(7); // 1–6 (F12) + 7 agentes não-Pi (F15)
-      // O PATH do ambiente pode conter agentes reais → check 7 pode ser warn.
-      expect(json.summary.pass + json.summary.warn).toBe(7);
+      expect(json.checks).toHaveLength(13); // 1–6 (F12) + 7–13 agentes (F17; consolidado 7–15 no F18)
+      expect(json.summary.pass + json.summary.warn).toBe(8);
+      expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
         expect(["pass", "warn", "fail", "skip"]).toContain(check.status);
@@ -78,7 +81,7 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
 
 describe("doctor — checks de falha (LIFE-02)", () => {
   test("pi ausente → check 1 fail com o comando exato; checks 3-6 skip (sem cascade)", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       const result = await runHarness(sb, ["doctor"], { piBin: path.join(sb.dir, "no-such-pi") });
       expect(result.code).toBe(1);
@@ -86,7 +89,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
       expect(result.stdout).toContain("fail");
       expect(result.stdout).toContain("npm install -g --ignore-scripts @earendil-works/pi-coding-agent");
       // dependentes pulados, não falham em cascata
-      expect(summaryLine(result.stdout)).toContain("skip 4");
+      expect(summaryLine(result.stdout)).toContain("skip 9"); // 3-6 (Pi) + 8-11,13 (agentes)
       expect(result.stdout).toContain("pulado — depende do Pi");
     } finally {
       sb.cleanup();
@@ -94,7 +97,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("component ausente do pi list → check 3 fail apontando o componente e o fix", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       // simula `pi remove npm:@runecraft/subagents` (o fake pi só edita settings)
@@ -118,7 +121,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("versão divergente no state → check 3 fail com remedy sync", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       const state = readJson(stateFile(sb));
@@ -137,7 +140,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("state.json corrompido → check 3 fail com remedy, arquivo preservado (read-only)", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       fs.writeFileSync(stateFile(sb), "{ corrupt", "utf8");
@@ -163,7 +166,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("settings.json com JSON inválido → check 2 fail apontando arquivo e erro de parse", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       fs.mkdirSync(path.dirname(settingsFile(sb)), { recursive: true });
       fs.writeFileSync(settingsFile(sb), "{ invalid json", "utf8");
@@ -180,7 +183,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("bloco subagents com tipo errado → check 5 fail", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       fs.mkdirSync(path.dirname(settingsFile(sb)), { recursive: true });
       fs.writeFileSync(settingsFile(sb), JSON.stringify({ packages: [], subagents: "nao-e-objeto" }));
@@ -196,7 +199,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
   });
 
   test("pr-review.json inválido → check 5 fail apontando o arquivo", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       await runHarness(sb, ["install"]);
       fs.writeFileSync(path.join(sb.piHome, "pr-review.json"), "{ broken", "utf8");
@@ -213,7 +216,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
 
 describe("doctor — warns (colisão) e scopes", () => {
   test("upstream instalado → check 4 warn com sugestão de remoção, exit 0", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       writeSettings(sb, ["npm:pi-subagents"]);
       const result = await runHarness(sb, ["doctor"]);
@@ -228,7 +231,7 @@ describe("doctor — warns (colisão) e scopes", () => {
   });
 
   test("scope workspace: state e settings do projeto considerados (edge -l)", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       // o check 2 exige settings.json global presente e válido (design F12);
       // o install de workspace não cria o global — pré-cria aqui.
@@ -242,14 +245,14 @@ describe("doctor — warns (colisão) e scopes", () => {
       // check 3 vê o state do workspace e o pi list (global + project do fake pi)
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("pass");
-      expect(summaryLine(result.stdout)).toContain("pass 6");
+      expect(summaryLine(result.stdout)).toContain("pass 8"); // 1-6 + 7,12 (informativos)
     } finally {
       sb.cleanup();
     }
   });
 
   test("nada instalado → check 3 warn com sugestão de install", async () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       fs.mkdirSync(sb.piHome, { recursive: true });
       fs.writeFileSync(settingsFile(sb), JSON.stringify({ packages: [] }));
@@ -285,13 +288,13 @@ describe("doctor — unit", () => {
   });
 
   test("runDoctorChecks com fake pi presente e settings válidos não falha", () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       writeSettings(sb, []);
       const rt = resolveRuntime(sb.dir, sb.env);
       const report = runDoctorChecks(rt, createPiInterop(rt));
       expect(report.exitCode).toBe(0);
-      expect(report.summary.skip).toBe(0);
+      expect(report.summary.skip).toBe(5); // 8-11,13: sem agentes para avaliar
       expect(report.checks.some((c) => c.id === 3 && c.status === "warn")).toBe(true); // nada instalado
     } finally {
       sb.cleanup();
@@ -299,7 +302,7 @@ describe("doctor — unit", () => {
   });
 
   test("loadStateReadonly não move arquivo corrompido e expõe o erro (LIFE-01)", () => {
-    const sb = makeSandbox();
+    const sb = makeSandboxCleanPath();
     try {
       fs.mkdirSync(sb.runecraftHome, { recursive: true });
       const file = stateFile(sb);

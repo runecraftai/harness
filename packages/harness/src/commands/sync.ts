@@ -24,12 +24,15 @@ import {
 } from "../config.ts";
 import { createSnapshot } from "../backup.ts";
 import { npmIdentity, type PiInterop } from "../pi.ts";
-import { loadState, saveState, upsertInstalled, type AgentRecord, type InstalledEntry } from "../state.ts";
+import { loadState, saveState, upsertInstalled, type AgentRecord, type HarnessState, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { ADAPTERS } from "../adapters/registry.ts";
+import { buildAgentTargets } from "../adapters/agentOps.ts";
+import { hasSection } from "../adapters/rules.ts";
 import { resolveMcpBin } from "../adapters/mcpConfig.ts";
 import { renderWorkflowRules } from "../adapters/rulesContent.ts";
 import type { AgentAdapter, AgentContext } from "../adapters/types.ts";
+import { MATRIX, columnComponents, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 
 export interface SyncCommandOptions {
@@ -125,6 +128,7 @@ function renderSync(report: SyncReport, opts: { tty: boolean }): string {
   const c = (s: string, color: string) => (opts.tty ? `${color}${s}\u001b[0m` : s);
   if (report.status === "in-sync") {
     const lines = [`@runecraft/harness sync (scope ${report.scope}): already in sync — zero mudanças`];
+    for (const note of report.notes) lines.push(`${c("note:", "\u001b[2m")} ${note}`);
     if (report.preserved.length > 0) {
       lines.push(`Preservado (instalado à mão, fora do state): ${report.preserved.join(", ")}`);
     }
@@ -225,7 +229,16 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
     opts.err.write(`warn: \`pi list\` falhou (${list.error}) — usando fallback de settings.json.\n`);
   }
   const plan = buildSyncPlan(loaded.state.components, list.packages);
-  const hasChanges = plan.actions.length > 0;
+
+  // F17 D6: pendência por CONTEÚDO (seção/entry ausente, não só arquivo
+  // sumido) + coluna nova (célula sem target registrado e config ausente) +
+  // órfãs de matriz (reportados, nunca removidos). Computada aqui para o
+  // early-return de in-sync também considerar agentes pendentes.
+  const agentPlan = planAgentReconciliation(rt, loaded.state);
+  const pendingNotes = agentPlan.pending.map(
+    (p) => `${p.agentId}: re-injetar (${p.missingCells.join(", ")} ausente)`,
+  );
+  const hasChanges = plan.actions.length > 0 || agentPlan.pending.length > 0;
 
   if (!hasChanges) {
     const report: SyncReport = {
@@ -237,7 +250,7 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
       preserved: plan.preserved,
       conflicts: plan.conflicts,
       failed: [],
-      notes: plan.notes,
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -257,7 +270,7 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
       conflicts: plan.conflicts,
       failed: [],
       backupDir: backupsDir(rt, scope),
-      notes: plan.notes,
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...pendingNotes.map((n) => `(dry-run) ${n}`)],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -314,26 +327,39 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
     err.write(`@runecraft/harness sync: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
-  // F15 T8: reconciliação mínima de agentes gerenciados — seção `runecraft:`
-  // ou entry MCP ausente → re-inject idempotente (formalizado no F17).
-  const agentNotes: string[] = [];
-  for (const [agentId, rec] of Object.entries(loaded.state.agents)) {
-    const adapter = ADAPTERS[agentId as keyof typeof ADAPTERS];
-    if (!adapter) {
-      agentNotes.push(`agente '${agentId}' no state sem adapter no CLI — ignorado (matriz mudou?)`);
-      continue;
-    }
-    const missing = rec.targets.filter((t) => !fs.existsSync(t.file));
-    if (missing.length === 0) continue;
+  // F17 D6: re-inject dos agentes pendentes (planejados acima) — idempotente,
+  // targets pós-inject registrados no state (mesma regra do install — D2).
+  // Órfãs de matriz já foram reportados no plano; nunca removidos aqui
+  // (remoção é contrato do uninstall).
+  const agentNotes: string[] = [...agentPlan.orphanNotes, ...agentPlan.staleNotes];
+  let agentsChanged = false;
+  for (const pending of agentPlan.pending) {
+    const adapter = ADAPTERS[pending.agentId as keyof typeof ADAPTERS];
+    const rec = loaded.state.agents[pending.agentId];
+    if (!rec) continue; // sumiu do state entre o plano e a execução (corrida)
     try {
       const ctx = syncAgentContext(adapter, rt, rec);
       const outcome = await adapter.inject(ctx);
-      agentNotes.push(`${agentId}: re-injetado (${missing.map((t) => path.basename(t.file)).join(", ")} ausente)`);
+      const targets = buildAgentTargets(adapter, rt, ctx, outcome, rec);
+      if (targets.length > 0) {
+        loaded.state.agents[pending.agentId] = { ...rec, targets };
+        agentsChanged = true;
+      }
+      agentNotes.push(`${pending.agentId}: re-injetado (${pending.missingCells.join(", ")} ausente)`);
       if (outcome.conflicts.length > 0) {
-        for (const conflict of outcome.conflicts) agentNotes.push(`  ${agentId} conflito: ${conflict.file} (${conflict.reason})`);
+        for (const conflict of outcome.conflicts) {
+          agentNotes.push(`  ${pending.agentId} conflito: ${conflict.file} (${conflict.reason})`);
+        }
       }
     } catch (error) {
-      agentNotes.push(`${agentId}: re-inject falhou (${(error as Error).message})`);
+      agentNotes.push(`${pending.agentId}: re-inject falhou (${(error as Error).message})`);
+    }
+  }
+  if (agentsChanged) {
+    try {
+      saveState(stateFile, loaded.state);
+    } catch (error) {
+      err.write(`@runecraft/harness sync: falha ao gravar o state dos agentes (${(error as Error).message}).\n`);
     }
   }
 
@@ -353,6 +379,45 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
   else out.write(renderSync(report, { tty: false }));
 
   return failed.length > 0 ? 1 : 0;
+}
+
+/**
+ * F17 D6 — planejamento read-only da reconciliação de agentes: células da
+ * coluna da matriz (rules/mcp) com config real ausente → pending (re-inject);
+ * targets sem célula na matriz atual → órfãos (reportados, nunca removidos);
+ * agentes no state sem adapter → stale (matriz mudou entre versões do CLI).
+ */
+export function planAgentReconciliation(
+  rt: Runtime,
+  state: HarnessState,
+): { pending: Array<{ agentId: string; missingCells: string[] }>; orphanNotes: string[]; staleNotes: string[] } {
+  const pending: Array<{ agentId: string; missingCells: string[] }> = [];
+  const orphanNotes: string[] = [];
+  const staleNotes: string[] = [];
+  for (const [agentId, rec] of Object.entries(state.agents)) {
+    const matrixId = agentId as MatrixAgentId;
+    const adapter = ADAPTERS[agentId as keyof typeof ADAPTERS];
+    if (!adapter) {
+      staleNotes.push(`agente '${agentId}' no state sem adapter no CLI — ignorado (matriz mudou?)`);
+      continue;
+    }
+    for (const target of rec.targets) {
+      if (MATRIX[matrixId]?.[target.component as ComponentId] === undefined) {
+        orphanNotes.push(
+          `${agentId}: target órfão (matriz mudou) — '${target.component}' em ${target.file} (não removido; use \`harness uninstall --agent ${agentId}\`)`,
+        );
+      }
+    }
+    const paths = adapter.paths(rt);
+    const missingCells = columnComponents(matrixId).filter((component) => {
+      const cell = MATRIX[matrixId][component];
+      if (cell?.kind === "rules") return !hasSection(paths.rulesFile, cell.section);
+      if (cell?.kind === "mcp") return adapter.readMcpFingerprint(rt) === null;
+      return false;
+    });
+    if (missingCells.length > 0) pending.push({ agentId, missingCells });
+  }
+  return { pending, orphanNotes, staleNotes };
 }
 
 /** Context de re-inject do sync (regras do template + bin do fork). */

@@ -32,6 +32,7 @@ import { renderDryRun, renderReport, type FailInfo, type InstallReport, type Set
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { parseAgentArgs, installAgent, detectOnlyReport } from "../adapters/agentOps.ts";
 import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { firstUnsupported, type ComponentId } from "../matrix.ts";
 
 export { scanConflicts, type ConflictInfo };
 
@@ -113,12 +114,15 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
     ...parsedAgents.unknown.map((id) => ({ agentId: id, guide: detectOnlyReport(id).guide })),
   ];
 
-  // --component fora da coluna não-Pi → recusa com motivo (F17 fail-closed por célula).
+  // --component fora da coluna não-Pi → recusa com o motivo da CÉLULA (F17
+  // MATR-03: fail-closed por par agente×componente, fonte = matriz D1). A
+  // matriz também é o contrato do dry-run: o v1 aplica sempre a coluna
+  // completa dos agentes não-Pi (2 células fixas — decisão D5), `--component`
+  // valida com fail-closed em vez de filtrar a coluna.
   if (nonPiAgents.length > 0 && opts.components && opts.components.length > 0) {
-    const nonPiColumn = ["rules", "taskflow"];
-    const invalid = opts.components.filter((c) => !nonPiColumn.includes(c));
-    if (invalid.length > 0) {
-      err.write(`@runecraft/harness install: ${invalid.join(", ")} é extensão Pi; use --agent pi (componente não suportado por agentes não-Pi).\n`);
+    const blocked = firstUnsupported(nonPiAgents, opts.components as ComponentId[]);
+    if (blocked) {
+      err.write(`@runecraft/harness install: ${blocked.reason} (componente não suportado por ${blocked.agent}).\n`);
       return 1;
     }
   }

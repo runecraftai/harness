@@ -122,6 +122,32 @@ export function stateFile(sb: Sandbox): string {
   return path.join(sb.runecraftHome, "state.json");
 }
 
+/**
+ * Sandbox com PATH mínimo (symlinks para sh e node apenas): testes que
+ * checam resumos/counts do doctor não podem depender dos bins reais do
+ * ambiente (claude/opencode/codex podem estar instalados na máquina).
+ */
+export function makeSandboxCleanPath(): Sandbox {
+  const sb = makeSandbox();
+  const clean = path.join(sb.dir, "cleanbin");
+  fs.mkdirSync(clean, { recursive: true });
+  const resolveBin = (bin: string): string => {
+    const out = require("node:child_process").execFileSync("sh", ["-c", `command -v ${bin}`], {
+      encoding: "utf8",
+    }) as string;
+    return out.trim().split(/\r?\n/)[0] ?? "";
+  };
+  for (const bin of ["sh", "node"]) {
+    try {
+      fs.symlinkSync(resolveBin(bin), path.join(clean, bin));
+    } catch {
+      // sh/node ausentes no ambiente: PATH vazio ainda isola os bins de agentes
+    }
+  }
+  sb.env.PATH = clean;
+  return sb;
+}
+
 export function backupsDir(sb: Sandbox): string {
   return path.join(sb.runecraftHome, "backups");
 }

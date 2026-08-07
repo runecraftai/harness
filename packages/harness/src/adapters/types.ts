@@ -97,4 +97,7 @@ export interface AgentAdapter {
    *  null when absent. Same function on inject-registration and remove — the
    *  registered fingerprint must equal what remove compares against. */
   readMcpFingerprint(rt: Runtime): string | null;
+  /** raw current MCP entry value (F17 D3 check 10): entry object for JSON
+   *  hosts, raw TOML block string for codex; null when absent. */
+  readMcpEntry(rt: Runtime): unknown;
 }

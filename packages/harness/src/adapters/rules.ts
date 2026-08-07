@@ -44,6 +44,27 @@ export class NonUtf8FileError extends Error {
 }
 
 /**
+ * Read-only presence check (F17 D3 check 9): does `file` contain the marker
+ * section? Never writes. Missing file / non-UTF8 / dangling marker → false.
+ */
+export function hasSection(file: string, section: string): boolean {
+  if (!fs.existsSync(file)) return false;
+  let original: Buffer;
+  try {
+    original = fs.readFileSync(file);
+  } catch {
+    return false;
+  }
+  if (!isValidUtf8(original)) return false;
+  const bom = hasUtf8Bom(original);
+  const body = bom ? original.toString("utf8").slice(1) : original.toString("utf8");
+  const markers = sectionMarkers(section);
+  const openIdx = body.indexOf(markers.open);
+  if (openIdx < 0) return false;
+  return body.indexOf(markers.close, openIdx + markers.open.length) >= 0;
+}
+
+/**
  * Upsert a `runecraft:<section>` block into `file`.
  * - File missing → created with the section (parent dirs created).
  * - File with user content → section appended at the end (content intact).

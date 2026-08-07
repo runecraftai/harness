@@ -128,4 +128,8 @@ export const codexAdapter: AgentAdapter = {
     const current = readTomlSection(mcpFile, MCP_KEY);
     return current === null ? null : sha256Hex(current);
   },
+
+  readMcpEntry(rt: Runtime): unknown {
+    return readTomlSection(path.join(codexHome(rt.env), MCP_FILE), MCP_KEY);
+  },
 };

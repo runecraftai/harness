@@ -33,7 +33,11 @@ import { BACKUP_MIN_FREE_BYTES, freeBytesOnDisk } from "../backup.ts";
 import { loadStateReadonly } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts } from "../conflicts.ts";
-import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { hasSection, isValidUtf8 } from "../adapters/rules.ts";
+import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
+import { MATRIX, type ComponentId } from "../matrix.ts";
+import type { AgentId } from "../adapters/types.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -316,8 +320,17 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   } else {
     checks.push(checkComponents(rt, pi), checkCollision(pi), checkForkSettings(rt), checkDisk(rt));
   }
-  // F15/T8: agentes não-Pi (checks 7–15 formais no F18; aqui a leitura mínima).
-  checks.push(checkAgents(rt));
+  // F17 D3: checks 7–13 por agente (numeração provisória — a tabela
+  // consolidada 7–15 é formalizada no F18, AD-013 B2).
+  checks.push(
+    checkAgentDetection(rt),
+    checkAgentManaged(rt),
+    checkAgentConfigs(rt),
+    checkAgentMcpCollision(rt),
+    checkAgentConfigParse(rt),
+    checkAgentDetectOnly(rt),
+    checkAgentMatrixOrphans(rt),
+  );
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -365,45 +378,235 @@ export async function runDoctorCommand(opts: DoctorCommandOptions): Promise<numb
 }
 
 /**
- * Check 7 (F15/T8): agentes não-Pi — detectados, gerenciados, colisão.
- * Leitura mínima: detecção por binário + registro no state; checks formais
- * (configs injetadas, upstreams) são do F18 (checks 7–15 consolidados).
+ * F17 D3 check 7 — detecção por agente (informativo, nunca falha).
+ * Binary on PATH = installed; the config dir is informative only (F15 ADPT-02).
  */
-function checkAgents(rt: Runtime): DoctorCheck {
-  // Detecção síncrona (contrato do doctor é read-only/sync — F12 LIFE-01).
-  const binOnPath = (bin: string): boolean => {
-    try {
-      execFileSync("sh", ["-c", `command -v ${bin} 2>/dev/null`], {
-        env: rt.env as Record<string, string>,
-        timeout: 5_000,
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const detail: string[] = [];
-  const problems: string[] = [];
-  let anyDetected = false;
-  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
-  const managed = (id: string): boolean => loaded.ok && loaded.state.agents[id] !== undefined;
-  for (const id of SUPPORTED_AGENT_IDS) {
-    const adapter = ADAPTERS[id];
-    if (!binOnPath(adapter.bin)) continue;
-    anyDetected = true;
-    detail.push(`${id}${managed(id) ? " (gerenciado)" : " (não gerenciado)"}`);
-    if (!managed(id)) {
-      problems.push(`${id} detectado mas não gerenciado — rode \`harness install --agent ${id}\``);
-    }
+function checkAgentDetection(rt: Runtime): DoctorCheck {
+  const detected = detectedAgentIds(rt);
+  if (detected.length === 0) {
+    return { id: 7, name: "Agentes (detecção)", status: "pass", detail: "nenhum agente não-Pi detectado no PATH" };
   }
-  if (!anyDetected) {
-    return { id: 7, name: "Agentes não-Pi", status: "pass", detail: "nenhum agente não-Pi detectado no PATH" };
+  const detail = detected.map((id) => `${id} (bin '${ADAPTERS[id].bin}')`).join("; ");
+  return { id: 7, name: "Agentes (detecção)", status: "pass", detail: `detectado: ${detail}` };
+}
+
+/**
+ * F17 D3 check 8 — gerenciado? Binário presente sem state → warn "não
+ * gerenciado" (nunca "quebrado"), remedy install --agent. Sem detecção → skip.
+ */
+function checkAgentManaged(rt: Runtime): DoctorCheck {
+  const detected = detectedAgentIds(rt);
+  if (detected.length === 0) {
+    return { id: 8, name: "Agentes (gerenciado)", status: "skip", detail: "pulado — nenhum agente não-Pi detectado (check 7)" };
+  }
+  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
+  const notManaged = detected.filter((id) => !(loaded.ok && loaded.state.agents[id] !== undefined));
+  if (notManaged.length === 0) {
+    return { id: 8, name: "Agentes (gerenciado)", status: "pass", detail: `todos os agentes detectados são gerenciados: ${detected.join(", ")}` };
   }
   return {
-    id: 7,
-    name: "Agentes não-Pi",
-    status: problems.length > 0 ? "warn" : "pass",
-    detail: detail.join("; "),
-    remedy: problems.join(" | "),
+    id: 8,
+    name: "Agentes (gerenciado)",
+    status: "warn",
+    detail: `${notManaged.join(", ")} detectado(s) mas não gerenciado(s) pelo harness`,
+    remedy: `harness install --agent ${notManaged.join(",")}`,
   };
+}
+
+/**
+ * F17 D3 check 9 — configs injetadas: state registra um target, mas a seção
+ * `runecraft:` / entry MCP sumiu → "quebrado", remedy sync. Sem agente
+ * gerenciado → skip. Read-only (LIFE-01): usa hasSection/fingerprint, nunca
+ * escreve. Targets órfãos (sem célula na matriz atual) são domínio do check
+ * 13 — pulados aqui. Config ilegível (JSON inválido) conta como quebrado;
+ * o check 11 aponta o erro de parse.
+ */
+function checkAgentConfigs(rt: Runtime): DoctorCheck {
+  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
+  if (!loaded.ok || Object.keys(loaded.state.agents).length === 0) {
+    return { id: 9, name: "Agentes (configs)", status: "skip", detail: "pulado — nenhum agente não-Pi gerenciado no state" };
+  }
+  const problems: string[] = [];
+  for (const [agentId, record] of Object.entries(loaded.state.agents)) {
+    const adapter = ADAPTERS[agentId as keyof typeof ADAPTERS];
+    if (!adapter) continue; // órfã de matriz — check 13 reporta
+    for (const target of record.targets) {
+      const cell = MATRIX[agentId as keyof typeof MATRIX]?.[target.component as ComponentId];
+      if (cell === undefined) continue; // target órfão — check 13
+      if (target.kind === "rules") {
+        if (!hasSection(target.file, target.section)) {
+          problems.push(`${agentId}: seção '${target.section}' ausente em ${target.file}`);
+        }
+      } else {
+        let fingerprint: string | null;
+        try {
+          fingerprint = adapter.readMcpFingerprint(rt);
+        } catch (error) {
+          problems.push(`${agentId}: config MCP ilegível em ${target.file} (${(error as Error).message})`);
+          continue;
+        }
+        if (fingerprint === null) {
+          problems.push(`${agentId}: entry MCP '${target.entry}' ausente em ${target.file}`);
+        }
+      }
+    }
+  }
+  if (problems.length === 0) {
+    return { id: 9, name: "Agentes (configs)", status: "pass", detail: "seções runecraft: e entries MCP registradas presentes" };
+  }
+  return {
+    id: 9,
+    name: "Agentes (configs)",
+    status: "fail",
+    detail: problems.join("; "),
+    remedy: "harness sync --agent <id> (re-injeção idempotente)",
+  };
+}
+
+/**
+ * F17 D3 check 10 — colisão MCP upstream: entry `taskflow` presente apontando
+ * para bin não-runecraft → warn (detecção de donos formalizada no F18). O
+ * install nunca sobrescreve essa entry (F15 D5).
+ */
+function checkAgentMcpCollision(rt: Runtime): DoctorCheck {
+  const detected = detectedAgentIds(rt);
+  if (detected.length === 0) {
+    return { id: 10, name: "Agentes (colisão MCP)", status: "skip", detail: "pulado — nenhum agente não-Pi detectado (check 7)" };
+  }
+  const collisions: string[] = [];
+  for (const id of detected) {
+    let entry: unknown;
+    try {
+      entry = ADAPTERS[id].readMcpEntry(rt);
+    } catch {
+      continue; // config ilegível — check 11 reporta o parse
+    }
+    if (entry !== null && isUpstreamMcpEntry(entry)) {
+      collisions.push(`${id}: entry MCP 'taskflow' aponta para bin upstream (instalação manual?)`);
+    }
+  }
+  if (collisions.length === 0) {
+    return { id: 10, name: "Agentes (colisão MCP)", status: "pass", detail: "nenhuma entry MCP com referência upstream" };
+  }
+  return {
+    id: 10,
+    name: "Agentes (colisão MCP)",
+    status: "warn",
+    detail: collisions.join("; "),
+    remedy: "remova a entry manual (o install do harness nunca sobrescreve) — detecção de donos completa no F18",
+  };
+}
+
+/**
+ * F17 D3 check 11 — config do agente parseável: JSON hosts via JSON.parse
+ * estrito; codex TOML com validação estrutural mínima (sem parser TOML de
+ * runtime — zero deps, F11). Inválido → fail apontando arquivo + erro.
+ */
+function checkAgentConfigParse(rt: Runtime): DoctorCheck {
+  const detected = detectedAgentIds(rt);
+  if (detected.length === 0) {
+    return { id: 11, name: "Agentes (config parseável)", status: "skip", detail: "pulado — nenhum agente não-Pi detectado (check 7)" };
+  }
+  const problems: string[] = [];
+  for (const id of detected) {
+    const adapter = ADAPTERS[id];
+    const paths = adapter.paths(rt);
+    if (id === "codex") {
+      // Sem parser TOML no runtime (zero deps — F11), a validade TOML não é
+      // julgada aqui: o codex tem parser próprio. Só o ilegível (não-UTF8) é
+      // fail real; seções alheias/duplicadas são domínio do F18 (donos).
+      if (fs.existsSync(paths.mcpFile)) {
+        const raw = fs.readFileSync(paths.mcpFile);
+        if (!isValidUtf8(raw)) {
+          problems.push(`${paths.mcpFile}: não é UTF-8 legível`);
+        }
+      }
+      continue;
+    }
+    // JSON hosts: .mcp.json (claude) / opencode.json.
+    if (fs.existsSync(paths.mcpFile)) {
+      try {
+        JSON.parse(fs.readFileSync(paths.mcpFile, "utf8"));
+      } catch (error) {
+        problems.push(`${paths.mcpFile}: JSON inválido — ${(error as Error).message}`);
+      }
+    }
+  }
+  if (problems.length === 0) {
+    const detail =
+      detected.map((id) => (id === "codex" ? `${id} (estrutura mínima)` : id)).join("; ") + " — configs parseáveis (quando presentes)";
+    return { id: 11, name: "Agentes (config parseável)", status: "pass", detail };
+  }
+  return {
+    id: 11,
+    name: "Agentes (config parseável)",
+    status: "fail",
+    detail: problems.join("; "),
+    remedy: "corrija o arquivo apontado (ou restaure de um backup do harness)",
+  };
+}
+
+/**
+ * F17 D3 check 12 — detect-only: bins de agentes sem adapter (cursor, grok,
+ * …) presentes → informativo com guia (nunca falha — D4).
+ */
+function checkAgentDetectOnly(rt: Runtime): DoctorCheck {
+  const present: string[] = [];
+  for (const id of Object.keys(DETECT_ONLY_GUIDES)) {
+    if (binOnPath(id, rt)) present.push(id);
+  }
+  if (present.length === 0) {
+    return { id: 12, name: "Agentes (detect-only)", status: "pass", detail: "nenhum agente sem adapter detectado (cursor, grok, …)" };
+  }
+  const detail = present.map((id) => `${id}: ${DETECT_ONLY_GUIDES[id]}`).join(" | ");
+  return { id: 12, name: "Agentes (detect-only)", status: "pass", detail: `detectado(s): ${detail}` };
+}
+
+/**
+ * F17 D3 check 13 — órfãs de matriz: target no state cuja célula não existe
+ * mais na coluna da matriz atual (CLI mudou de versão) → warn, nunca remove
+ * (remoção é contrato do uninstall — D6).
+ */
+function checkAgentMatrixOrphans(rt: Runtime): DoctorCheck {
+  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
+  if (!loaded.ok || Object.keys(loaded.state.agents).length === 0) {
+    return { id: 13, name: "Agentes (órfãs de matriz)", status: "skip", detail: "pulado — nenhum agente gerenciado no state" };
+  }
+  const orphans: string[] = [];
+  for (const [agentId, record] of Object.entries(loaded.state.agents)) {
+    for (const target of record.targets) {
+      const cell = MATRIX[agentId as keyof typeof MATRIX]?.[target.component as ComponentId];
+      if (cell === undefined) {
+        orphans.push(`${agentId}: target órfão (matriz mudou) — '${target.component}' em ${target.file}`);
+      }
+    }
+  }
+  if (orphans.length === 0) {
+    return { id: 13, name: "Agentes (órfãs de matriz)", status: "pass", detail: "nenhum target órfão (todos mapeados na matriz atual)" };
+  }
+  return {
+    id: 13,
+    name: "Agentes (órfãs de matriz)",
+    status: "warn",
+    detail: orphans.join("; "),
+    remedy: "harness uninstall --agent <id> (remover o agente inteiro) ou uninstall manual do target",
+  };
+}
+
+/** Agentes não-Pi da matriz com binário no PATH (síncrono — read-only). */
+function detectedAgentIds(rt: Runtime): AgentId[] {
+  return SUPPORTED_AGENT_IDS.filter((id) => binOnPath(ADAPTERS[id].bin, rt));
+}
+
+/** `command -v <bin>` via sh, síncrono (contrato do doctor: read-only/sync — F12 LIFE-01). */
+function binOnPath(bin: string, rt: Runtime): boolean {
+  try {
+    execFileSync("sh", ["-c", `command -v ${bin} 2>/dev/null`], {
+      env: rt.env as Record<string, string>,
+      timeout: 5_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

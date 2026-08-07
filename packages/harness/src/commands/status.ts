@@ -24,10 +24,34 @@ import { loadState, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { execFileSync } from "node:child_process";
-import { ADAPTERS, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { hasSection } from "../adapters/rules.ts";
+import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
 import { COMPONENTS } from "../plan.ts";
+import { AGENTS, MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
+import type { AgentId } from "../adapters/types.ts";
+import type { AgentRecord, HarnessState } from "../state.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão";
+
+/** Per-cell agent state (F17 D3): configs reais × state × coluna da matriz. */
+export type AgentCellState =
+  | "ok"
+  | "ausente"
+  | "não gerenciado"
+  | "colisão"
+  | "órfã"
+  | "—";
+
+export interface StatusAgentComponent {
+  component: string;
+  /** false for matrix cells marked unsupported (fail-closed per cell). */
+  supported: boolean;
+  /** cell state; undefined when unsupported (reason carries the message). */
+  state?: AgentCellState;
+  /** unsupported reason (e.g. "subagents é extensão Pi; use --agent pi"). */
+  reason?: string;
+}
 
 export interface StatusRow {
   /** package name, e.g. @runecraft/subagents */
@@ -56,8 +80,18 @@ export interface StatusReport {
   piListError?: string;
   /** no state entries in this scope → render the install suggestion */
   nothingManaged: boolean;
-  /** F15/T8: non-Pi agents (detected + managed). */
-  agents: Array<{ agent: string; detected: boolean; managed: boolean }>;
+  /** F17 D3: agents × matrix columns, crossed with real configs + state. */
+  agents: StatusAgent[];
+}
+
+export interface StatusAgent {
+  agent: string;
+  detected: boolean;
+  managed: boolean;
+  /** cells of the matrix column + orphan targets (state rows without a cell). */
+  components: StatusAgentComponent[];
+  /** detect-only agents (outside the matrix): manual-config guide. */
+  guide?: string;
 }
 
 export interface StatusCommandOptions {
@@ -139,12 +173,152 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     piListSource: list.source,
     piListError: list.error,
     nothingManaged: Object.keys(state.components).length === 0 && Object.keys(state.agents).length === 0,
-    agents: SUPPORTED_AGENT_IDS.map((id) => ({
-      agent: id,
-      detected: agentBinOnPath(ADAPTERS[id].bin, rt.env),
-      managed: state.agents[id] !== undefined,
-    })),
+    agents: buildStatusAgents(rt, state, piDetected, identities, list.packages),
   };
+}
+
+/**
+ * F17 D3 — agents da matriz cruzando 3 fontes: configs reais (seção/entry) ×
+ * state (targets registrados) × coluna esperada (MATRIX). Pi entra com as
+ * células pi-packages (grupos; estado vem da tabela de packages) + rules
+ * native; os não-Pi com as células da coluna deles; detect-only curados
+ * (cursor, grok, …) com guia quando o binário é detectado.
+ */
+function buildStatusAgents(
+  rt: Runtime,
+  state: HarnessState,
+  piDetected: boolean,
+  piIdentities: Set<string>,
+  piPackages: string[],
+): StatusAgent[] {
+  const agents: StatusAgent[] = [];
+
+  // Pi (matrix row "pi"): cells pi-packages × 4 groups + rules native.
+  const piComponents: StatusAgentComponent[] = [];
+  for (const component of ["subagents", "taskflow", "goal-loop-audit", "pr-review"] as const) {
+    const cell = MATRIX.pi[component];
+    const def = COMPONENTS[component];
+    if (cell?.kind !== "pi-packages" || !def) continue;
+    const allPresent = def.packages.every((pkg) => state.components[pkg] !== undefined && piIdentities.has(`npm:${pkg}`));
+    piComponents.push({ component, supported: true, state: allPresent ? "ok" : "ausente" });
+  }
+  piComponents.push({ component: "rules", supported: true, state: "ok" }); // native
+  agents.push({
+    agent: "pi",
+    detected: piDetected,
+    managed: Object.keys(state.components).length > 0,
+    components: piComponents,
+  });
+
+  // Non-Pi matrix rows: rules/mcp cells evaluated against real configs.
+  for (const id of SUPPORTED_AGENT_IDS) {
+    const detected = agentBinOnPath(ADAPTERS[id].bin, rt.env);
+    const record = state.agents[id];
+    agents.push({
+      agent: id,
+      detected,
+      managed: record !== undefined,
+      components: nonPiAgentComponents(rt, id, detected, record),
+    });
+  }
+
+  // Detect-only (outside the matrix): detected → informative row with guide.
+  for (const id of Object.keys(DETECT_ONLY_GUIDES)) {
+    if (!agentBinOnPath(id, rt.env)) continue;
+    agents.push({
+      agent: id,
+      detected: true,
+      managed: false,
+      components: [],
+      guide: DETECT_ONLY_GUIDES[id],
+    });
+  }
+
+  return agents;
+}
+
+/** Cells of a non-Pi agent's matrix column + orphan targets (F17 D3). */
+function nonPiAgentComponents(
+  rt: Runtime,
+  agentId: AgentId,
+  detected: boolean,
+  record: AgentRecord | undefined,
+): StatusAgentComponent[] {
+  const adapter = ADAPTERS[agentId];
+  const paths = adapter.paths(rt);
+  const components: StatusAgentComponent[] = [];
+
+  for (const component of Object.keys(MATRIX[agentId]) as ComponentId[]) {
+    const cell = MATRIX[agentId][component];
+    if (cell?.kind === "unsupported") {
+      components.push({ component, supported: false, reason: cell.reason });
+      continue;
+    }
+    if (cell?.kind === "rules") {
+      components.push({
+        component,
+        supported: true,
+        state: rulesCellState(detected, record, paths.rulesFile, cell.section),
+      });
+    } else if (cell?.kind === "mcp") {
+      components.push({
+        component,
+        supported: true,
+        state: mcpCellState(rt, adapter, detected, record),
+      });
+    }
+  }
+
+  // Orphan targets: registered in the state but no cell in the current column
+  // (matrix changed between CLI versions — D6 reports, never removes).
+  for (const target of record?.targets ?? []) {
+    if (MATRIX[agentId][target.component as ComponentId] === undefined) {
+      components.push({ component: target.component, supported: true, state: "órfã" });
+    }
+  }
+
+  return components;
+}
+
+function rulesCellState(
+  detected: boolean,
+  record: AgentRecord | undefined,
+  rulesFile: string,
+  section: string,
+): AgentCellState {
+  if (!detected) return "—";
+  if (!record) return "não gerenciado";
+  const registered = record.targets.some((t) => t.kind === "rules" && t.section === section);
+  if (!registered) return "ausente";
+  return hasSection(rulesFile, section) ? "ok" : "ausente";
+}
+
+function mcpCellState(
+  rt: Runtime,
+  adapter: (typeof ADAPTERS)[AgentId],
+  detected: boolean,
+  record: AgentRecord | undefined,
+): AgentCellState {
+  if (!detected) return "—";
+  let fingerprint: string | null;
+  try {
+    fingerprint = adapter.readMcpFingerprint(rt);
+  } catch {
+    return record ? "ausente" : "não gerenciado"; // config ilegível — check 11 aponta
+  }
+  // Colisão upstream é um fato da config real — vale também para agentes
+  // não gerenciados (entry instalada à mão). O install nunca a sobrescreve.
+  if (fingerprint !== null && isUpstreamMcpEntry(adapter.readMcpEntry(rt))) return "colisão";
+  if (!record) return "não gerenciado";
+  const registered = record.targets.find((t) => t.kind === "mcp");
+  if (registered) {
+    if (fingerprint === null) return "ausente";
+    if (fingerprint === registered.contentHash) return "ok";
+    // Entry divergente (edição do usuário, sem upstream): config do harness
+    // não está lá; uninstall preserva + reporta (SETM-05).
+    return "ausente";
+  }
+  return fingerprint === null ? "ausente" : "ausente";
 }
 
 /** Síncrono (status é read-only) — `command -v` via sh. */
@@ -182,10 +356,26 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
-    lines.push("Agentes não-Pi (F15):");
+    lines.push("Agentes (matriz):");
     for (const agent of agents) {
-      const state = agent.managed ? "gerenciado" : "detectado (não gerenciado)";
-      lines.push(`  ${agent.agent.padEnd(12)}${state}`);
+      if (agent.agent === "pi") continue; // Pi coberto pela tabela de packages
+      if (agent.guide) {
+        lines.push(`  ${agent.agent.padEnd(12)} detect-only — ${agent.guide}`);
+        continue;
+      }
+      const state = agent.managed ? "gerenciado" : "não gerenciado";
+      const cells = agent.components
+        .filter((c) => c.supported)
+        .map((c) => `${c.component}: ${c.state ?? "?"}`)
+        .join(" · ");
+      const unsupported = agent.components.filter((c) => !c.supported).map((c) => c.component);
+      lines.push(`  ${agent.agent.padEnd(12)}${agent.detected ? "detectado" : "—"} · ${state}${cells ? ` · ${cells}` : ""}`);
+      if (unsupported.length > 0) {
+        const reasons = [...new Set(agent.components.filter((c) => !c.supported).map((c) => c.reason ?? ""))];
+        lines.push(`    não suportado: ${unsupported.join(", ")} (${reasons.join(" | ")})`);
+      }
+      const note = AGENTS[agent.agent as MatrixAgentId]?.note;
+      if (note) lines.push(`    note: ${note}`);
     }
   }
   if (!report.piDetected) lines.push("warn: binário `pi` não detectado — a coluna Instalado pode estar incompleta");
@@ -213,7 +403,17 @@ export function renderStatusJson(report: StatusReport): string {
         state: r.state,
         managed: r.managed,
       })),
-      agents: report.agents.map((a) => ({ agent: a.agent, detected: a.detected, managed: a.managed })),
+      agents: report.agents.map((a) => ({
+        agent: a.agent,
+        detected: a.detected,
+        managed: a.managed,
+        ...(a.guide ? { guide: a.guide } : {}),
+        components: a.components.map((c) =>
+          c.supported
+            ? { component: c.component, supported: true, state: c.state }
+            : { component: c.component, supported: false, reason: c.reason },
+        ),
+      })),
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

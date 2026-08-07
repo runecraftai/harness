@@ -95,6 +95,52 @@ function assertNoUpstream(command: string[]): void {
   }
 }
 
+/**
+ * True when a command array references an upstream (non-runecraft) package
+ * (F17 D3 check 10 — MCP collision warn; F18 owns the full detection).
+ * Same rule as the inject-time guard, without throwing.
+ */
+export function isUpstreamCommand(command: string[]): boolean {
+  try {
+    assertNoUpstream(command);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * True when an MCP entry references an upstream package. Accepts both shapes:
+ * JSON hosts ({ command: string|string[], args? }) and the codex TOML block
+ * (raw string with a `command = "..."` line).
+ */
+export function isUpstreamMcpEntry(entry: unknown): boolean {
+  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+    const record = entry as Record<string, unknown>;
+    const command = record.command;
+    if (typeof command === "string") {
+      const args = Array.isArray(record.args) ? record.args.map(String) : [];
+      return isUpstreamCommand([command, ...args]);
+    }
+    if (Array.isArray(command)) return isUpstreamCommand(command.map(String));
+    return false;
+  }
+  if (typeof entry === "string") {
+    const cmdMatch = /(?:^|\n)command\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(entry);
+    const cmd = cmdMatch ? (cmdMatch[1] ?? cmdMatch[2] ?? "") : "";
+    if (!cmd) return false;
+    const argsMatch = /(?:^|\n)args\s*=\s*\[([^\]]*)\]/.exec(entry);
+    const args = argsMatch
+      ? (argsMatch[1] ?? "")
+          .split(",")
+          .map((s) => s.trim().replace(/^"|"$/g, "").replace(/^'|'$/g, ""))
+          .filter(Boolean)
+      : [];
+    return isUpstreamCommand([cmd, ...args]);
+  }
+  return false;
+}
+
 /** Canonical entry fingerprint (F17 D2): the command/args JSON, normalized. */
 export function mcpEntryContentHash(command: string[], environment?: Record<string, string>): string {
   const canonical = JSON.stringify({ command, ...(environment ? { environment } : {}) });

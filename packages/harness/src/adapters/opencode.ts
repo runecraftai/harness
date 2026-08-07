@@ -137,4 +137,12 @@ export const opencodeAdapter: AgentAdapter = {
     const current = mcp?.[MCP_KEY];
     return current === undefined ? null : sha256Hex(JSON.stringify(current));
   },
+
+  readMcpEntry(rt: Runtime): unknown {
+    const mcpFile = path.join(opencodeHome(rt.env), MCP_FILE);
+    if (!fs.existsSync(mcpFile)) return null;
+    const cfg = readJsonConfig(mcpFile, false);
+    const mcp = cfg.content.mcp as Record<string, unknown> | undefined;
+    return mcp?.[MCP_KEY] ?? null;
+  },
 };

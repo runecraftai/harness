@@ -12,7 +12,7 @@ import { renderWorkflowRules } from "./rulesContent.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "./mcpConfig.ts";
 import { readJsonConfig } from "./jsonc.ts";
 import { upsertAgent, type AgentRecord, type AgentTarget, type HarnessState } from "../state.ts";
-import type { AgentAdapter, AgentContext, AgentId, DetectResult } from "./types.ts";
+import type { AgentAdapter, AgentContext, AgentId, DetectResult, InjectResult } from "./types.ts";
 import type { Runtime, Scope } from "../config.ts";
 
 export interface AgentInstallOutcome {
@@ -54,6 +54,54 @@ export function detectOnlyReport(agentId: string): { agentId: string; guide: str
 }
 
 /**
+ * Targets to register after an inject (F17 D2, shared install/sync): rules
+ * when written (or the previous registration survives a no-op rerun), mcp
+ * when written without conflict (or the fingerprint still matches the
+ * registered one). A foreign entry (conflict D5) is never registered as ours.
+ */
+export function buildAgentTargets(
+  adapter: AgentAdapter,
+  rt: Runtime,
+  ctx: AgentContext,
+  result: InjectResult,
+  registered: AgentRecord | undefined,
+): AgentTarget[] {
+  const paths = adapter.paths(rt);
+  const targets: AgentTarget[] = [];
+  const rulesWritten = result.written.includes(paths.rulesFile);
+  const rulesTarget = registered?.targets.find((t) => t.kind === "rules");
+  if (rulesWritten) {
+    if (fs.existsSync(paths.rulesFile)) {
+      targets.push({
+        kind: "rules",
+        component: "rules",
+        file: paths.rulesFile,
+        section: RULES_SECTION,
+        contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
+      });
+    }
+  } else if (rulesTarget && fs.existsSync(rulesTarget.file)) {
+    targets.push(rulesTarget); // rerun: registro prévio preservado
+  }
+  const mcpWritten = result.written.includes(paths.mcpFile) && result.conflicts.length === 0;
+  const mcpTarget = registered?.targets.find((t) => t.kind === "mcp");
+  const mcpFingerprint = adapter.readMcpFingerprint(rt);
+  if (mcpWritten) {
+    targets.push({
+      kind: "mcp",
+      component: "taskflow",
+      file: paths.mcpFile,
+      entry: paths.mcpKey,
+      bin: ctx.mcpBin,
+      contentHash: mcpFingerprint ?? "",
+    });
+  } else if (mcpTarget && mcpTarget.contentHash === mcpFingerprint) {
+    targets.push(mcpTarget); // rerun: entry nossa ainda no lugar
+  }
+  return targets;
+}
+
+/**
  * Install one non-Pi agent. Returns the outcome; throws never (failures are
  * reported per agent — D2). `failClosed` is set when the binary is missing.
  */
@@ -82,38 +130,7 @@ export async function installAgent(
     // nada mudou (written vazio) mas o fingerprint atual ainda bate com o
     // registrado — re-registra para manter o registro vivo. Entry estrangeira
     // (conflito D5) nunca é registrada como nossa — uninstall não a remove.
-    const paths = adapter.paths(rt);
-    const targets: AgentTarget[] = [];
-    const rulesWritten = result.written.includes(paths.rulesFile);
-    const rulesTarget = registered?.targets.find((t) => t.kind === "rules");
-    if (rulesWritten) {
-      if (fs.existsSync(paths.rulesFile)) {
-        targets.push({
-          kind: "rules",
-          component: "rules",
-          file: paths.rulesFile,
-          section: RULES_SECTION,
-          contentHash: sectionContentHash(RULES_SECTION, ctx.rulesContent),
-        });
-      }
-    } else if (rulesTarget && fs.existsSync(rulesTarget.file)) {
-      targets.push(rulesTarget); // rerun: registro prévio preservado
-    }
-    const mcpWritten = result.written.includes(paths.mcpFile) && result.conflicts.length === 0;
-    const mcpTarget = registered?.targets.find((t) => t.kind === "mcp");
-    const mcpFingerprint = adapter.readMcpFingerprint(rt);
-    if (mcpWritten) {
-      targets.push({
-        kind: "mcp",
-        component: "taskflow",
-        file: paths.mcpFile,
-        entry: paths.mcpKey,
-        bin: ctx.mcpBin,
-        contentHash: mcpFingerprint ?? "",
-      });
-    } else if (mcpTarget && mcpTarget.contentHash === mcpFingerprint) {
-      targets.push(mcpTarget); // rerun: entry nossa ainda no lugar
-    }
+    const targets = buildAgentTargets(adapter, rt, ctx, result, registered);
     const record: AgentRecord = {
       installedAt: registered?.installedAt ?? new Date().toISOString(),
       harnessVersion: registered?.harnessVersion ?? "0.1.0",

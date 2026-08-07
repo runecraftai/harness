@@ -126,6 +126,10 @@ export const claudeAdapter: AgentAdapter = {
     const current = readClaudeMcpEntry(mcpFile);
     return current === undefined ? null : sha256Hex(JSON.stringify(current));
   },
+
+  readMcpEntry(rt: Runtime): unknown {
+    return readClaudeMcpEntry(path.join(claudeCodeHome(rt.env), MCP_FILE)) ?? null;
+  },
 };
 
 export function mcpEntry(ctx: AgentContext): Record<string, unknown> {
