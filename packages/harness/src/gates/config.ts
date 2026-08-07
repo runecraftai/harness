@@ -130,9 +130,14 @@ export function serializeGatesConfig(enabled: boolean): string {
  */
 export function isGatesOnlyConfig(file: GatesConfigFile): boolean {
   if (!file.ok || file.absent || !file.config) return false;
-  const parsed = fs.existsSync(file.file)
-    ? (JSON.parse(fs.readFileSync(file.file, "utf8")) as Record<string, unknown>)
-    : null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file.file, "utf8")) as Record<string, unknown>;
+  } catch {
+    // TOCTOU: arquivo mudou entre a leitura original e esta (ou ficou ilegível)
+    // — não removível com segurança; preservar (SETM-05 conservador).
+    return false;
+  }
   if (!isPlainObject(parsed)) return false;
   const gates = parsed.gates;
   return (

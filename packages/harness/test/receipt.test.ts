@@ -141,6 +141,9 @@ describe("receipt/store — escrita atômica + scan (D6)", () => {
 
   test("receiptNameFromIssuedAt formata YYYYMMDD-HHmmss-SSS", () => {
     expect(receiptNameFromIssuedAt("2026-08-05T14:03:22.123Z")).toBe("20260805-140322-123");
+    // UTC sempre — o issuedAt é ISO com Z; getters locais deslocariam o nome
+    // em fusos negativos (2026-08-05T01:00Z vira 08-04 em UTC-3).
+    expect(receiptNameFromIssuedAt("2026-08-05T01:00:00.000Z")).toBe("20260805-010000-000");
   });
 });
 
@@ -244,6 +247,22 @@ describe("receipt capture — fluxo RPC com fake pi (RCPT-01..03)", () => {
       const result = await runHarness(sb, ["receipt", "capture", "42"], { cwd: repo.dir });
       expect(result.code).not.toBe(0);
       expect(result.stderr).toContain("pi /pr-review falhou");
+      expect(fs.existsSync(path.join(repo.dir, ".runecraft", "receipts"))).toBe(false);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  test("review com head_sha ≠ headRefOid atual → sem receipt (PR mudou durante o review)", async () => {
+    const repo = initReviewRepo();
+    try {
+      // O fake pi devolve um review cujo pr.head_sha é OUTRO commit — simula
+      // force-push/novo commit entre a chamada gh do harness e a do fork.
+      const reviewJson = reviewFixture({ pr: 42, headSha: "b".repeat(40) });
+      const sb = sandboxForCapture(repo, reviewJson);
+      const result = await runHarness(sb, ["receipt", "capture", "42"], { cwd: repo.dir });
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("mudou durante o review");
       expect(fs.existsSync(path.join(repo.dir, ".runecraft", "receipts"))).toBe(false);
     } finally {
       repo.cleanup();

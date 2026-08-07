@@ -21,13 +21,15 @@ function pad(n: number, width = 2): string {
   return String(n).padStart(width, "0");
 }
 
-/** File name stem for an issuedAt instant: `YYYYMMDD-HHmmss-SSS`. */
+/** File name stem for an issuedAt instant: `YYYYMMDD-HHmmss-SSS` (UTC — o
+ * issuedAt é ISO-8601 com Z; getters locais deslocariam o nome do valor
+ * registrado e inverteriam a ordenação newest-first em fusos negativos). */
 export function receiptNameFromIssuedAt(issuedAt: string): string {
   const date = new Date(issuedAt);
   return (
-    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
-    `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}` +
-    `-${pad(date.getMilliseconds(), 3)}`
+    `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
+    `-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}` +
+    `-${pad(date.getUTCMilliseconds(), 3)}`
   );
 }
 

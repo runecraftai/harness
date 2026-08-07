@@ -19,7 +19,7 @@ import { diffHash, git, initReviewRepo, type TestRepo } from "./gitrepo.ts";
 import { writeReceipt } from "../src/receipt/store.ts";
 import type { Receipt } from "../src/receipt/schema.ts";
 import { resolveRuntime } from "../src/config.ts";
-import { resolveGates, repoConfigPath, globalConfigPath, serializeGatesConfig, readGatesConfig } from "../src/gates/config.ts";
+import { resolveGates, repoConfigPath, globalConfigPath, serializeGatesConfig, readGatesConfig, isGatesOnlyConfig } from "../src/gates/config.ts";
 import { gatesShimBody, installGatesHooks, removeGatesHooks, hasGatesSection, ensureGitignoreLines, removeGitignoreLinesIfUnchanged, HOOK_NAMES, hooksDirFor, GITIGNORE_LINES } from "../src/gates/hook.ts";
 import { parsePrePushRefs } from "../src/gates/run.ts";
 
@@ -100,15 +100,23 @@ describe("gates/config — effective + kill switch (D3)", () => {
     }
   });
 
-  test("isGatesOnlyConfig: só keys conhecidas → true; estendido → false", () => {
+  test("isGatesOnlyConfig: só keys conhecidas → true; estendido → false; ilegível (TOCTOU) → false", () => {
     const sb = makeSandbox();
     try {
       const file = path.join(sb.dir, "config.json");
       fs.writeFileSync(file, serializeGatesConfig(false), "utf8");
       expect(readGatesConfig(file).ok).toBe(true);
+      expect(isGatesOnlyConfig(readGatesConfig(file))).toBe(true);
       fs.writeFileSync(file, `${JSON.stringify({ schemaVersion: 1, gates: { enabled: false }, minhas: 1 }, null, 2)}\n`, "utf8");
       expect(readGatesConfig(file).ok).toBe(true);
       expect((readGatesConfig(file).config?.gates.enabled)).toBe(false);
+      expect(isGatesOnlyConfig(readGatesConfig(file))).toBe(false);
+      // TOCTOU: config lida ok antes, mas o arquivo ficou ilegível entre a
+      // leitura e o re-parse do uninstall → preservar (SETM-05 conservador).
+      fs.writeFileSync(file, "not json", "utf8");
+      expect(
+        isGatesOnlyConfig({ file, absent: false, ok: true, config: { schemaVersion: 1, gates: { enabled: false } } }),
+      ).toBe(false);
     } finally {
       sb.cleanup();
     }

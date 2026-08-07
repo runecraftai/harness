@@ -216,6 +216,13 @@ async function captureRpc(opts: CaptureOptions): Promise<CaptureReport> {
   }
   const blocked = reviewBlocksReceipt(parsed.review);
   if (blocked) return { ok: false, pr: opts.pr, error: blocked };
+  if (parsed.review.pr.head_sha !== metadata.headRefOid) {
+    return {
+      ok: false,
+      pr: opts.pr,
+      error: `review.pr.head_sha ${parsed.review.pr.head_sha.slice(0, 8)} ≠ headRefOid atual ${metadata.headRefOid.slice(0, 8)} — o PR mudou durante o review; rode de novo`,
+    };
+  }
 
   return captureWithReview(opts, parsed.review, metadata.headRefOid, baseSha, metadata.baseRefName, remote);
 }
