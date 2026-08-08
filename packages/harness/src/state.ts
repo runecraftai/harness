@@ -21,6 +21,8 @@ import type { VerificationConfig } from "./verify/config.ts";
 import { defaultVerificationConfig } from "./verify/config.ts";
 import type { ResilienceConfig } from "./resilience/config.ts";
 import { defaultResilienceConfig } from "./resilience/config.ts";
+import type { ObservabilityConfig } from "./observability/config.ts";
+import { defaultObservabilityConfig } from "./observability/config.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -112,6 +114,9 @@ export interface HarnessState {
   /** resilience & continuity config (F27 D9; aditivo, schemaVersion permanece 1 —
    *  o config.ts valida em runtime; ausente = defaults do fork glla). */
   resilience?: ResilienceConfig;
+  /** observability & lessons config (F28 D9; aditivo, schemaVersion permanece 1 —
+   *  o config.ts valida em runtime; ausente = defaults). */
+  observability?: ObservabilityConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -131,6 +136,8 @@ export function emptyState(scope: Scope): HarnessState {
     verification: defaultVerificationConfig(),
     // F27: fail-closed por padrão — o estado declara a camada de resiliência LIGADA (D9).
     resilience: defaultResilienceConfig(),
+    // F28: fail-closed por padrão — o estado declara a camada de observabilidade LIGADA (D9).
+    observability: defaultObservabilityConfig(),
   };
 }
 

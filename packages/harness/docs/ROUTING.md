@@ -333,6 +333,43 @@ valores exatos: HEARTBEAT_STALL_MS, WEDGE_ALERT_DEFAULT_MINUTES,
 PENDING_LATCH_STUCK_MS, COMPACTION_GRACE_MS, DEFAULT_STALL_ESCALATION_REFIRES,
 REPETITION.*, BACKOFF_HARD_CAP_MS).
 
+## 8.9 Observability & Lessons — event store, bundles e lessons do harness (F28)
+
+A camada de observabilidade (M7, pilar 7 do doc do usuário — "Eventos tipados
+em event store auditável … exportável pra Langfuse/OTel") porta os hooks do
+arcanum (context-window-monitor / session-token-state / analytics —
+supersedidos, AD-001) para MECANISMOS REAIS do Pi 0.81.0 + taskflow:
+
+| Mecanismo | Existe (SDK 0.81.0 / fork glla / taskflow / harness) — evidência | F28 constrói |
+| --- | --- | --- |
+| Escrita append-only best-effort | F25 `recordSessionVerdict` (try/catch, "nunca derruba o handler") ✓ | `src/observability/store.ts` (D1 — mesmo padrão + prevHash chain) |
+| Logging sem stdout | F24 `guardLog` (stderr, `[runecraft:guards]`) ✓ | Reuso do guardLog (mesmo prefixo obs) |
+| Estado por sessão | F27 `.runecraft/continuation.json` (schema v1, append/atomic) ✓ | `lessons.jsonl` (estado) + `events/` (append-only) |
+| Contexto/tokens | taskflow `.pi/taskflows/runs/token-budget/*.json` (shape verificado) ✓; SDK `ctx.getContextUsage()` (`ContextUsage` tipado) ✓; `shouldCompact` puro ✓ | context-monitor + token-state (D4) + leitura read-only |
+| Reescrita de system prompt | SDK `before_agent_start` → systemPrompt encadeado (types.d.ts "If multiple extensions return this, they are chained") ✓ | Injeção do adendo de lessons (D6 — marker `<!-- runecraft:lessons -->`) |
+| Observação de bloqueio | SDK `tool_execution_end` (isError + reason no result.content — agent-loop.js `createErrorToolResult`) ✓; o `tool_call` NÃO expõe o block (runner.js short-circuit — validado no Execute) | `guard:blocked` live (D7a) |
+| Fingerprint canônico | F23 sort/normalize (chaves ordenadas) ✓; F19 renderRules puro ✓ | `src/observability/bundle.ts` (D3) |
+| Captura de lessons | Nenhum (novo domínio) | `src/observability/lessons.ts` (D5/D6) |
+| Export | Nenhum (sinks fragmentados) | `src/observability/export.ts` + `docs/EVENTS.md` (D7/D8) |
+| Memória de time | F29 (runes) — futuro | `promoted.jsonl` versionado (D5) — F29 consome |
+| OTel/Langfuse SDK | Nenhum (zero deps travado) | Tabela de mapeamento em `docs/EVENTS.md`; implementação adiada (nota datada 2026-08-08) |
+
+**Operação**: a extensão `extensions/observability.ts` (materializada nas
+sessões gerenciadas do harness — manifest do package) grava eventos tipados em
+`.runecraft/events/<sessionId>.jsonl` (header `session:started` com o bundle
+full + prefixo 12 hex nos demais), observa bloqueios via `tool_execution_end`
+(→ `guard:blocked` + lesson), monitora contexto (getContextUsage + token-
+budget read-only) e injeta adendo de lessons via `before_agent_start` (trilhas
+planning = promovidas no início; execution = lições do gate que falhou no
+turno seguinte — chaining preservado). Lessons em `.runecraft/lessons.jsonl`
+(estado, gitignored); promoção → `.runecraft/lessons/promoted.jsonl`
+(VERSIONADO — memória de time). CLI: `harness events export --format jsonl
+[--session <id>] [--include-external]` (determinístico + bridges) e `harness
+lessons list|promote <id>|archive <id>`. Kill switch
+`RUNECRAFT_OBSERVABILITY=0` (F20). O contrato do schema (kinds, fronteiras,
+mapeamento OTel/Langfuse) vive em `docs/EVENTS.md` (OBS-09 — schema É o
+contrato de F24/F25/F27).
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -448,6 +485,19 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   emissão real de `session_compact` no fixture não viável (QA-5 — handler
   exportado com eventos scriptados cobre o trigger; evals usam evento
   sintético, sem fabricação).
+- **2026-08-08**: Observability (section 8.9) verified in the Execute F28 —
+  `ContextEvent` = só messages (sem tokens): a fonte de contexto é a API
+  tipada `ctx.getContextUsage()` (`ContextUsage {tokens, contextWindow,
+  percent}` — types.d.ts do pi-coding-agent) + token-budget do taskflow
+  (shape real: `phases` OBJECT keyed com `usage{input,output,cacheRead,
+  cacheWrite,cost,contextTokens,turns}`) + `shouldCompact` puro; o resultado
+  do `tool_call` NÃO expõe o block F24 (runner.js short-circuit no primeiro
+  `{block:true}`) e chamadas bloqueadas NÃO emitem `tool_result` (agent-loop
+  pula afterToolCall p/ resultados imediatos) — a observação real é o
+  `tool_execution_end` (isError + reason `<guardId>: msg` no result.content);
+  `before_agent_start` é por prompt do usuário (o adendo execution entra no
+  próximo before_agent_start); `session_end` não existe no SDK 0.81.0 — o
+  fechamento usa `agent_end` + `session_shutdown` (idempotente).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

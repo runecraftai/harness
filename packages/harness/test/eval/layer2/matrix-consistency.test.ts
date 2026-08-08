@@ -9,6 +9,10 @@
 //
 // v5 (F27, AD-027): a lane do F27 (test/eval/framework/compaction-recovery
 // + test/eval/suites/compaction-recovery) entra na varredura — EVAL-017..021.
+//
+// v6 (F28, AD-028): a lane do F28 (test/eval/framework/observability
+// + test/eval/suites/observability + test/eval/cases/observability-block)
+// entra na varredura — EVAL-022..029.
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -67,8 +71,8 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
     expect(fs.existsSync(MATRIX_PATH)).toBe(true);
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     expect(matrix).toMatch(/MATRIX_VERSION:\s*\d+/);
-    expect(matrix).toMatch(/MATRIX_VERSION:\s*5/);
-    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016", "EVAL-017", "EVAL-018", "EVAL-019", "EVAL-020", "EVAL-021"]) {
+    expect(matrix).toMatch(/MATRIX_VERSION:\s*6/);
+    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016", "EVAL-017", "EVAL-018", "EVAL-019", "EVAL-020", "EVAL-021", "EVAL-022", "EVAL-023", "EVAL-024", "EVAL-025", "EVAL-026", "EVAL-027", "EVAL-028", "EVAL-029"]) {
       expect(matrix).toContain(id);
     }
   });
@@ -76,7 +80,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
   test("todo EVAL-<n> da matriz tem teste de fluxo na camada 2 que o referencia", () => {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const matrixIds = new Set([...matrix.matchAll(/EVAL-(\d{3}[a-z]?)/gi)].map((m) => m[0].toUpperCase()));
-    expect(matrixIds.size).toBeGreaterThanOrEqual(20); // EVAL-001..021 (EVAL-003 fora)
+    expect(matrixIds.size).toBeGreaterThanOrEqual(28); // EVAL-001..029 (EVAL-003 fora)
     const testTexts = layer2TestFiles().map((f) => ({ file: f, text: fs.readFileSync(f, "utf8") }));
 
     for (const id of matrixIds) {

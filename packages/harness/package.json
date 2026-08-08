@@ -108,6 +108,7 @@
       "./extensions/harness-status.ts",
       "./extensions/guards.ts",
       "./extensions/resilience.ts",
+      "./extensions/observability.ts",
       "node_modules/@runecraft/subagents/index.ts",
       "node_modules/@runecraft/taskflow/dist/index.js",
       "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",

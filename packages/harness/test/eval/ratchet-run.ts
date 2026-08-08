@@ -21,11 +21,12 @@ import { fileURLToPath } from "node:url";
 const BASELINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "baselines");
 const EVIDENCE_MISSING_MSG = "evidência não encontrada — suite F21 não rodou? (rode `bun test` ou `bun run test:eval` antes do ratchet)";
 // Piso de completude (fix cleric F23): nº de arquivos de teste com evalTest()
-// na suite completa (15 hoje — contagem em test/eval/evidence/partial/).
+// na suite completa (16 hoje — contagem em test/eval/evidence/partial/).
 // Bump explícito quando um arquivo novo entra na evidência (revisão como golden).
 // F26 (v4): +1 arquivo — test/eval/framework/constraint-adherence.test.ts (EVAL-014).
 // F27 (v5): +1 arquivo — test/eval/framework/compaction-recovery.test.ts (EVAL-017..021).
-const MIN_EVIDENCE_FILES = 15;
+// F28 (v6): +1 arquivo — test/eval/framework/observability.test.ts (EVAL-022..029).
+const MIN_EVIDENCE_FILES = 16;
 
 function print(lines: string[]): void {
   for (const line of lines) process.stdout.write(`${line}\n`);

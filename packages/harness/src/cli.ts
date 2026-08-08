@@ -19,6 +19,8 @@ import { runBackupsCommand, type BackupsCommandOptions } from "./commands/backup
 import { runGatesCommand } from "./commands/gates.ts";
 import { runReceiptCommand } from "./commands/receipt.ts";
 import { runVerifyCommand } from "./commands/verify.ts";
+import { runEventsCommand } from "./commands/events.ts";
+import { runLessonsCommand } from "./commands/lessons.ts";
 
 export interface DispatchContext {
   cwd?: string;
@@ -46,6 +48,8 @@ export const COMMANDS = [
   "gates",
   "receipt",
   "verify",
+  "events",
+  "lessons",
 ] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
@@ -74,6 +78,12 @@ export interface CliOptions {
   includeClosed?: boolean;
   /** verify: cwd do repo (default rt.cwd). */
   cwd?: string;
+  /** events: formato do export (v1: jsonl). */
+  format?: string;
+  /** events: filtro de sessão do export. */
+  session?: string;
+  /** events: inclui bridges externos no export. */
+  includeExternal?: boolean;
   help: boolean;
   version: boolean;
 }
@@ -138,6 +148,9 @@ export function parseCliArgs(argv: string[]): ParseResult {
     from?: string;
     "include-closed"?: boolean;
     cwd?: string;
+    format?: string;
+    session?: string;
+    "include-external"?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -155,6 +168,9 @@ export function parseCliArgs(argv: string[]): ParseResult {
         from: { type: "string" },
         "include-closed": { type: "boolean" },
         cwd: { type: "string" },
+        format: { type: "string" },
+        session: { type: "string" },
+        "include-external": { type: "boolean" },
       },
       allowPositionals: true,
       strict: true,
@@ -221,6 +237,9 @@ export function parseCliArgs(argv: string[]): ParseResult {
       from: values.from,
       includeClosed: values["include-closed"],
       cwd: values.cwd,
+      format: values.format,
+      session: values.session,
+      includeExternal: values["include-external"],
       help: false,
       version: false,
     },
@@ -385,6 +404,29 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         err,
         rt,
         cwd: options.cwd,
+      });
+    }
+    case "events": {
+      return runEventsCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+        format: options.format,
+        session: options.session,
+        includeExternal: options.includeExternal,
+      });
+    }
+    case "lessons": {
+      return runLessonsCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
       });
     }
     default:
