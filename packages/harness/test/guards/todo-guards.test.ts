@@ -141,6 +141,36 @@ describe("todo-continuation-enforcer — unit com ledger fake (T5)", () => {
     }
   });
 
+  test("goal sem taskList após goal com pendências → não cobra lista obsoleta (fix cleric F24)", () => {
+    const dir = makeTmp();
+    try {
+      const dirGlla = path.join(dir, ".pi-glla");
+      fs.mkdirSync(dirGlla, { recursive: true });
+      // Goal A (aborted/archived — o fork arquiva a lista junto) mantém
+      // taskList com pendências no ledger; goal B (atual — createGoal do
+      // fork NÃO inclui taskList) vem depois sem ela.
+      const goalA = {
+        status: "archived",
+        id: "gA",
+        objective: "old",
+        taskList: { version: 1, tasks: [task("1", "Phantom pending", "pending")] },
+      };
+      const goalB = { status: "active", id: "gB", objective: "new" };
+      const lines = [
+        JSON.stringify({ type: "state", value: { goal: goalA, list: [], loop: null }, at: "2026-08-07T00:00:00.000Z" }),
+        JSON.stringify({ type: "state", value: { goal: goalB, list: [], loop: null }, at: "2026-08-07T00:00:01.000Z" }),
+      ];
+      fs.writeFileSync(path.join(dirGlla, "active.jsonl"), `${lines.join("\n")}\n`, "utf8");
+
+      const read = readGllaTaskList(dir);
+      expect(read.ok).toBe(true);
+      if (read.ok) expect(read.tasks).toBeNull(); // reset — nada a cobrar do goal anterior
+      expect(decideTodoEnforcer(enforcerRuntime(), dir)).toBeUndefined(); // sem deadlock
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("guard disabled → não intervém (AC 3.4)", () => {
     const dir = makeTmp();
     try {

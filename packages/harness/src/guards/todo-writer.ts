@@ -80,8 +80,15 @@ export function readGllaTaskList(cwd: string): TodoLedgerRead {
     if (v.goal === null || v.goal === undefined) continue;
     if (typeof v.goal !== "object") continue;
     const goal = v.goal as { taskList?: unknown };
-    if (goal.taskList === null || goal.taskList === undefined) continue;
-    if (typeof goal.taskList !== "object") continue;
+    if (goal.taskList === null || goal.taskList === undefined || typeof goal.taskList !== "object") {
+      // Goal atual sem taskList (ou malformada): nada a cobrar deste goal —
+      // reset para não cobrar a taskList OBSOLETA de um goal anterior
+      // arquivado no mesmo ledger (fix review cleric F24: goal A aborted
+      // mantém a lista no ledger; goal B nasce sem taskList e seria
+      // bloqueado por tarefas fantasmas que o agente não consegue limpar).
+      taskList = null;
+      continue;
+    }
     taskList = goal.taskList;
   }
   if (taskList === null) return { ok: true, tasks: null };
