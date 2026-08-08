@@ -23,6 +23,7 @@ export function harnessExtensionPaths(): string[] {
     path.join(PACKAGE_ROOT, "extensions", "harness-status.ts"),
     path.join(PACKAGE_ROOT, "extensions", "guards.ts"),
     path.join(PACKAGE_ROOT, "extensions", "resilience.ts"),
+    path.join(PACKAGE_ROOT, "extensions", "routing.ts"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "subagents", "index.ts"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "taskflow", "dist", "index.js"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "goal-loop-audit", "extensions", "loops", "goal.ts"),

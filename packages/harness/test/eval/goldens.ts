@@ -14,6 +14,7 @@ import { renderMcpConfig, resolveMcpBin } from "../../src/adapters/mcpConfig.ts"
 import { renderRules } from "../../src/adapters/rulesContent.ts";
 import { markersFor } from "../../src/sections.ts";
 import type { AgentId } from "../../src/adapters/types.ts";
+import { PILOT_CHAIN_NAMES, pilotChainsAssetsDir } from "../../src/routing/materialize.ts";
 
 const EVAL_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const GOLDEN_DIR = path.resolve(EVAL_DIR, "../golden");
@@ -62,6 +63,12 @@ export function renderMcpGolden(host: AgentId, env: NodeJS.ProcessEnv): string {
   });
 }
 
+/** Render das pilot chains (F33 D4 — os assets SÃO a fonte; o golden é o
+ *  drift detector byte-a-byte quando o asset muda). */
+function renderPilotChain(name: string): string {
+  return fs.readFileSync(path.join(pilotChainsAssetsDir(), `${name}.chain.md`), "utf8");
+}
+
 export interface GoldenDef {
   name: string;
   render: () => string;
@@ -70,8 +77,8 @@ export interface GoldenDef {
   maxLines: number;
 }
 
-/** Os 6 goldens v1 + copilot (F31 D5 — arquivo mcp.json COMPLETO) — ordem
- *  estável para --update e relatórios. */
+/** Os 11 goldens (6 v1 + copilot F31 + 5 pilot chains F33) — ordem estável
+ *  para --update e relatórios. */
 export function goldenDefs(): GoldenDef[] {
   const env = pinnedEnv();
   return [
@@ -81,6 +88,12 @@ export function goldenDefs(): GoldenDef[] {
     { name: "mcp-opencode.golden", render: () => renderMcpGolden("opencode", env), maxLines: 20 },
     { name: "mcp-codex.golden", render: () => renderMcpGolden("codex", env), maxLines: 20 },
     { name: "mcp-copilot.golden", render: () => renderMcpGolden("copilot", env), maxLines: 20 },
+    // F33 (D4): as 5 pilot chains versionadas — golden byte-a-byte do asset.
+    ...PILOT_CHAIN_NAMES.map((name) => ({
+      name: `chain-${name}.golden`,
+      render: () => renderPilotChain(name),
+      maxLines: 50,
+    })),
   ];
 }
 

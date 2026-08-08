@@ -338,6 +338,26 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     }
   }
 
+  // 5d. F33 (T4): pilot chains — materialização three-way para
+  // <cwd>/.pi/chains/ (alvo REUSADO do F30 — QA-3a; escopo workspace).
+  // Best-effort — nunca falha o install; o reporte leva as notas. Usa o
+  // MESMO objeto state do passo 6.
+  if (scope === "workspace") {
+    try {
+      const { planPilotChains, applyPilotChains, pilotChainsDir } = await import("../routing/materialize.ts");
+      const piChains = state0.piChains ?? {};
+      const chainPlans = planPilotChains(rt.cwd, piChains);
+      const chainResult = applyPilotChains(rt.cwd, piChains, chainPlans);
+      if (chainResult.changed) state0.piChains = piChains;
+      if (chainResult.copied.length > 0) {
+        notes.push(`pilot chains materializadas em ${pilotChainsDir(rt.cwd)}: ${chainResult.copied.join(", ")} (F33)`);
+      }
+      notes.push(...chainResult.notes);
+    } catch (error) {
+      notes.push(`pilot chains: materialização FALHOU — ${error instanceof Error ? error.message : String(error)} (rode doctor)`);
+    }
+  }
+
   // 6. State upsert — só packages instalados com sucesso (CLI-10). O state já
   //    carregado em 5b é o mesmo objeto — não recarregar.
   const stateFile = stateFile0;

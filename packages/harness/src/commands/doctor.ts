@@ -49,9 +49,11 @@ import { scanReceipts } from "../receipt/store.ts";
 import { effectiveGuards, killSwitchState, readStateGuards } from "../guards/guardKit.ts";
 import { effectiveVerification, readStateVerification, verifyKillSwitch } from "../verify/config.ts";
 import { judgeEnvEnabled } from "../verify/stages/judge.ts";
-import { effectiveModels, modelsKillSwitch, modelOverrideEnv, readStateModels } from "../models/config.ts";
-import { modelsJsonPath, resolveAvailableModels } from "../models/registry.ts";
+import { effectiveModels, modelsKillSwitch, modelOverrideEnv, readStateModels } from "../models/config.ts";import { modelsJsonPath, resolveAvailableModels } from "../models/registry.ts";
 import { planRoleAgents } from "../agents/materialize.ts";
+import { effectiveRouting, routingKillSwitch, readStateRouting, enabledRoutes } from "../routing/config.ts";
+import { DELEGATABLE_ROUTE_IDS } from "../routing/routes.ts";
+import { planPilotChains } from "../routing/materialize.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -388,10 +390,77 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   // "check informativo"): warn quando o fork subagents está presente e papéis
   // estão ausentes (remedy: `harness sync` — re-inject three-way F19 D7).
   checks.push(checkRoleAgents(rt, pi));
+  // F33: check 23 (coded routing) — independente do Pi (só lê state.json +
+  // .pi/chains/ + env kill switch).
+  checks.push(checkRouting(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
   return { checks, summary, exitCode: summary.fail > 0 ? 1 : 0 };
+}
+
+/**
+ * F33 check 23 — Coded Routing (roteamento codificado, AD-033; AD-014: 22 é
+ * do F32, 23 é do F33). Read-only (LIFE-01). Regras (design D6):
+ *   - config por state.json (F13) dos DOIS scopes; ausente = defaults
+ *     (ROUTE_THRESHOLD=2, rotas do catálogo);
+ *   - kill switch RUNECRAFT_ROUTING=0 → pass informativo (desligado de
+ *     propósito — F20);
+ *   - config inválida → fail apontando os campos (fail-closed — D6);
+ *   - pilot chains ausentes de .pi/chains/ (fork subagents presente) → warn
+ *     com remedy `harness sync` (chains inertes sem o fork — matriz F17).
+ */
+function checkRouting(rt: Runtime): DoctorCheck {
+  const kill = routingKillSwitch(rt.env);
+  const scopes = ["workspace", "global"] as const;
+  const reads = scopes.map((scope) => ({ scope, ...readStateRouting(statePath(rt, scope), scope) }));
+  const corrupt = reads.filter((r) => r.corrupt);
+  if (corrupt.length > 0) {
+    return {
+      id: 23,
+      name: "Coded Routing",
+      status: "fail",
+      detail: `state.json corrompido em ${corrupt.map((c) => statePath(rt, c.scope)).join(", ")} — routing opera fail-closed (defaults) até o repair`,
+      remedy: "rode `harness restore` ou remova o arquivo manualmente",
+    };
+  }
+
+  const merged = effectiveRouting(reads[0]!.routing, reads[1]!.routing, rt.env);
+  const killNote = kill.active
+    ? ` — kill switch RUNECRAFT_ROUTING=${kill.value} ATIVO (roteamento inativo)`
+    : " · kill switch RUNECRAFT_ROUTING off";
+
+  if (merged.config === undefined) {
+    return {
+      id: 23,
+      name: "Coded Routing",
+      status: "fail",
+      detail: `config de routing inválida — ${merged.problems.join("; ")} (fail-closed: defaults seguros até o repair)`,
+      remedy: "corrija a seção `routing` do state.json apontada (ou restaure de um backup do harness)",
+    };
+  }
+
+  const cfg = merged.config;
+  const enabled = enabledRoutes(cfg);
+  const enabledList = DELEGATABLE_ROUTE_IDS.filter((id) => enabled.has(id));
+  const base = `routing ${cfg.enabled ? "enabled" : "disabled"} (fonte ${merged.source}) · threshold ${cfg.threshold.direct} · rotas: ${enabledList.join(", ") || "—"}${killNote}`;
+
+  // Pilot chains ausentes (workspace) — warn informativo (chains são DADOS;
+  // sem elas o router fail-closed para direct — D4).
+  const stateFile = statePath(rt, "workspace");
+  const loaded = loadStateReadonly(stateFile, "workspace");
+  const plans = planPilotChains(rt.cwd, loaded.ok ? loaded.state.piChains : undefined);
+  const missing = plans.filter((p) => p.status === "missing").map((p) => `${p.name}.chain.md`);
+  if (missing.length > 0) {
+    return {
+      id: 23,
+      name: "Coded Routing",
+      status: "warn",
+      detail: `${base} · pilot chains ausentes de .pi/chains/: ${missing.join(", ")} (rotas sem chain → fail-closed direct)`,
+      remedy: "rode `harness sync` no workspace — materialização three-way por conteúdo (F19 D7)",
+    };
+  }
+  return { id: 23, name: "Coded Routing", status: "pass", detail: base };
 }
 
 function renderDoctor(report: DoctorReport, opts: { tty: boolean }): string {

@@ -38,6 +38,7 @@ import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { withRunecraftLock } from "../lock.ts";
 import { defaultGuardsConfig } from "../guards/guardKit.ts";
 import { planRoleAgents, applyRoleAgents, roleAgentsDir, ROLE_ASSETS_VERSION } from "../agents/materialize.ts";
+import { planPilotChains, applyPilotChains, pilotChainsDir, PILOT_CHAIN_ASSETS_VERSION } from "../routing/materialize.ts";
 
 export interface SyncCommandOptions {
   json: boolean;
@@ -266,6 +267,18 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     ...rolePlans.filter((p) => p.status === "edited").map((p) => `${p.roleId}: preservado (editado — usuário editou; sync nunca sobrescreve)`),
     ...rolePlans.filter((p) => p.status === "adopted").map((p) => `${p.roleId}: registrado (arquivo == asset — adotado sem escrita)`),
   ];
+  // F33 (T4): reconciliação das pilot chains — three-way por conteúdo (F19
+  // D7) no alvo .pi/chains/ (REUSADO do F30 — QA-3a; só workspace).
+  const pilotChainPlans = scope === "workspace" ? planPilotChains(rt.cwd, loaded.state.piChains) : [];
+  const pilotChainPendingCount = pilotChainPlans.filter((p) => p.status === "missing" || p.status === "updated").length;
+  const pilotChainStateChange =
+    pilotChainPendingCount > 0 || pilotChainPlans.some((p) => p.status === "adopted");
+  const pilotChainNotes = [
+    ...pilotChainPlans.filter((p) => p.status === "missing").map((p) => `${p.name}: re-injetar (ausente)`),
+    ...pilotChainPlans.filter((p) => p.status === "updated").map((p) => `${p.name}: atualizar (template ${p.registered?.assetVersion ?? "?"}→${PILOT_CHAIN_ASSETS_VERSION})`),
+    ...pilotChainPlans.filter((p) => p.status === "edited").map((p) => `${p.name}: preservado (editado — usuário editou; sync nunca sobrescreve)`),
+    ...pilotChainPlans.filter((p) => p.status === "adopted").map((p) => `${p.name}: registrado (arquivo == asset — adotado sem escrita)`),
+  ];
   // F19 D7: os 4 estados por target rules (reportados nas notas; apenas
   // pending/stale geram escrita — edited preserva, in-sync não aparece).
   const templateChangedNotes = agentPlan.templateChanged.map(
@@ -282,7 +295,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   if (guardsDefaultsApplied) loaded.state.guards = defaultGuardsConfig();
   const guardsNote = guardsDefaultsApplied ? "guards: defaults fail-closed re-aplicados ao state (F24)" : "";
   const hasChanges =
-    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0 || guardsDefaultsApplied || roleStateChange;
+    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0 || guardsDefaultsApplied || roleStateChange || pilotChainStateChange;
 
   if (!hasChanges) {
     const report: SyncReport = {
@@ -294,7 +307,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       preserved: plan.preserved,
       conflicts: plan.conflicts,
       failed: [],
-      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes, ...roleNotes, ...(guardsNote ? [guardsNote] : [])],
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes, ...roleNotes, ...pilotChainNotes, ...(guardsNote ? [guardsNote] : [])],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -321,6 +334,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
         ...pendingNotes.map((n) => `(dry-run) ${n}`),
         ...templateChangedNotes.map((n) => `(dry-run) ${n}`),
         ...roleNotes.map((n) => `(dry-run) ${n}`),
+        ...pilotChainNotes.map((n) => `(dry-run) ${n}`),
         ...editedNotes,
         ...(guardsNote ? [`(dry-run) ${guardsNote}`] : []),
       ],
@@ -340,10 +354,14 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     scope === "workspace"
       ? rolePlans.map((p) => p.file).filter((file) => fs.existsSync(file))
       : [];
+  const pilotChainFiles =
+    scope === "workspace"
+      ? pilotChainPlans.map((p) => p.file).filter((file) => fs.existsSync(file))
+      : [];
   let backupFile: string | undefined;
   try {
     const snapshot = createSnapshot({
-      files: [...filesTouchedByInstall(rt, scope), ...agentTargetFiles, ...roleAgentFiles],
+      files: [...filesTouchedByInstall(rt, scope), ...agentTargetFiles, ...roleAgentFiles, ...pilotChainFiles],
       destDir: backupsDir(rt, scope),
       reason: "sync",
       scope,
@@ -480,6 +498,29 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     roleAgentsNotes.push(...applied.notes);
   }
 
+  // F33 (T4): materialização das pilot chains — three-way por conteúdo
+  // (missing/updated escrevem; edited preserva — F19 D7). Workspace apenas
+  // (alvo repo-scoped .pi/chains/ — QA-3a: REUSO do alvo do F30). Best-effort
+  // no caminho de escrita: nunca falha o sync; o reporte leva as notas.
+  const pilotChainsNotes: string[] = [];
+  if (scope === "workspace") {
+    const piChains = loaded.state.piChains ?? {};
+    const applied = applyPilotChains(rt.cwd, piChains, pilotChainPlans);
+    if (applied.changed) {
+      loaded.state.piChains = piChains;
+      pilotChainsNotes.push(`pilot chains: registros atualizados no state (F33)`);
+      try {
+        saveState(stateFile, loaded.state);
+      } catch (error) {
+        err.write(`@runecraft/harness sync: falha ao gravar o state das pilot chains (${(error as Error).message}).\n`);
+      }
+    }
+    if (applied.copied.length > 0) {
+      pilotChainsNotes.push(`pilot chains materializadas em ${pilotChainsDir(rt.cwd)}: ${applied.copied.join(", ")} (F33)`);
+    }
+    pilotChainsNotes.push(...applied.notes);
+  }
+
   // F30: materialização das chains SDD em .pi/chains/ (workspace — o fork
   // subagents descobre chains de <root>/.pi/chains/; D8). Só no caminho de
   // ESCRITA (status synced — ações foram tomadas); o caminho in-sync mantém
@@ -507,7 +548,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     conflicts: plan.conflicts,
     failed,
     backup: backupFile,
-    notes: [...plan.notes, ...agentNotes, ...roleAgentsNotes, ...(guardsNote ? [guardsNote] : []), ...sddChainsNote],
+    notes: [...plan.notes, ...agentNotes, ...roleAgentsNotes, ...pilotChainsNotes, ...(guardsNote ? [guardsNote] : []), ...sddChainsNote],
   };
   if (opts.json) out.write(renderSyncJson(report));
   else out.write(renderSync(report, { tty: false }));

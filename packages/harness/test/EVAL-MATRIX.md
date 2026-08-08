@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 10
+MATRIX_VERSION: 11
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -53,6 +53,36 @@ lê; a delegação real de `subagent` em sessão scriptada com completion do
 child não é viável de forma determinística (script único do fixture) — o
 routing é provado pelo delegation event tipado do F28 (EVAL-062/063/064,
 fallback documentado no design D9).
+
+**v11 (F33, AD-033):** entradas aditivas EVAL-067..078 (Coded Routing &
+Pilot Coordination — classificador determinístico puro `src/routing/` com
+thresholds em constantes (ROUTE_THRESHOLD=2, high ×2/medium ×1) e security
+OBRIGATÓRIA (bypassa threshold — espelho do paladin "MUST ... not optional"),
+catálogo de 7 rotas como DADOS mapeadas aos papéis F32 (explore→scout,
+research→researcher, implement→builder, review→reviewer, security→security,
+planning→planner, direct fail-closed), feature SDD `.specs/**/spec.md` → +2
+planning, pilot coordination via 5 chains `.chain.md` (implement/plan/
+research/explore/security — formato do fork 0.37.2 `## <papel>` + gate de
+veredito [APPROVE]/[REJECT] ≤3 blocking issues; assets versionados em
+`chains/` + materialização three-way para `.pi/chains/` — alvo reusado do
+F30), hook `before_agent_start` (event.prompt = primeira mensagem —
+validado no Execute: types.d.ts:518 "The raw user prompt text (after
+expansion)"; freeze por sessão F24 D12; kill switch RUNECRAFT_ROUTING=0;
+two-driver F19: goal-loop supervisionando → routing inerte) e fronteiras
+F27 (fallback NÃO re-roteia), F30 (modelos por papel via
+`models.agents.<id>` — contrato de ids), F28 (lessons → prompts, nunca
+rotas — teste de contrato). Política aditiva D9; a categoria **routing
+completeness** do eval-coverage do F26 (desbloqueada na v10 pelos papéis)
+agora está COMPLETA — última categoria do framework (ver
+docs/EVAL-FRAMEWORK.md); o teste de consistência agora também varre
+`test/eval/framework/routing` + `test/eval/suites/routing` +
+`test/eval/cases/routing-*` + `test/eval/scenarios/routing-*` (lane do
+roteamento). Nota datada 2026-08-13: os cases puros (EVAL-067..071) e os de
+wiring (EVAL-076..078) são unit/fixture do framework (mesmo padrão
+EVAL-017..020 do F27); os cases trajectory são EVAL-072..075 (sessões reais
+com a extensão routing materializada + chains em .pi/chains/ → delegação
+real via tool subagent + directive no systemPrompt).
+
 
 **v2 (F24, AD-022):** entradas aditivas EVAL-006 (write guard) e EVAL-007 (todo enforcer) — política aditiva D9; o teste de consistência agora também varre `test/guards/` (lane dos guards).
 
@@ -186,6 +216,22 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-064 | routing: builder→scout (F32 D5 — ROLE-05) | eval (framework/roles) + fixture | 1. `subagent({agent:"scout"})` → delegation event agent="scout" (recon pré-build); 2. scout.md read-only (sem write) | routing; delta vs EVAL-024 (evento de delegação já provado — F32 prova o ALVO papel) |
 | EVAL-065 | delegation-template (F32 D4/D5 — ROLE-04/05) | eval (framework/roles) | 1. `renderDelegationPrompt` 2 runs byte-idênticos (F21 D10); 2. lista os 7 papéis (buildKeyTriggersSection); 3. papel sem `subagent` no allowlist → null (fail-closed QA-5a) | unit do framework; spawn-wizard do arcanum portado como template (sem runtime novo) |
 | EVAL-066 | models interface (F32 D8 — ROLE-08) | eval (framework/roles) | 1. `resolveAgentModel` com ids de papel via custom chain do state (precedência override → custom > builtin → default → null + warn); 2. fim-de-chain → null + warn (nada inventado — F30 D4); 3. `validateModelsConfig` aceita os 7 ids | contrato F30 D5/D11 (F32 consome, não implementa); delta vs EVAL-042 (resolução já provada — F32 prova a ADIÇÃO dos ids de papel) |
+
+| ID | Fluxo (evidência F33) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-067 | classifier determinismo (F33 RTE-01 — D1/D3) | eval (framework/routing) | 1. `classifyRoute(input)` 2 runs → decisão byte-idêntica (todas as chaves, F21 D10); 2. constantes explícitas (ROUTE_THRESHOLD=2, high ×2, medium ×1) | unit do framework (mesmo padrão EVAL-017..020); zero LLM — decisão 3c |
+| EVAL-068 | classifier fail-closed (F33 RTE-01 — D3) | eval (framework/routing) | 1. input sem sinais → `direct` (nenhuma rota inventada, reason fail-closed); 2. vazio/ilegível → direct (reason empty) | falha-closed em tudo (sem sinal → direct) |
+| EVAL-069 | classifier boundaries (F33 RTE-02 — D3) | eval (framework/routing) | 1. score 1 (1 medium) → direct; 2. score 2 (2 mediums) → rota; 3. score 2 (1 high) → rota | ROUTE_THRESHOLD=2 em constante; calibração empírica (sem invenção) |
+| EVAL-070 | classifier security obrigatória (F33 RTE-02 — D3) | eval (framework/routing) | 1. keyword high de segurança + sinal de outra rota → security (reason mandatory, bypassa threshold); 2. 1 medium de segurança (score 1) → direct (obrigatoriedade só com high) | espelho do paladin "MUST ... not optional"; deny-list RPG ausente (EVAL-067) |
+| EVAL-071 | classifier prioridade (F33 RTE-02 — D3) | eval (framework/routing) | 1. empate implement/review → implement (ordem determinística); 2. ordem completa security>planning>implement>review>research>explore verificada por construção | nunca aleatório — decisão 3c |
+| EVAL-072 | routing explore→scout (F33 RTE-04/05 — D4/D5) | eval (suites/routing) + fixture | 1. sessão REAL com extensão routing + chain explore.chain.md em .pi/chains/ → input de recon → directive no systemPrompt (marker `<!-- runecraft:routing -->` + Route: explore); 2. delegação REAL via tool `subagent` → delegation event agent="scout" (F28); 3. trajectory-assertion (subagent) + tool-policy | categoria **routing completeness COMPLETA** (F26 — última categoria); delta vs EVAL-064 (delegação via evento já provada — F33 prova a ADIÇÃO do roteador codificado) |
+| EVAL-073 | routing research→researcher (F33 RTE-04/05 — D4/D5) | eval (suites/routing) + fixture | 1. sessão REAL + chain research.chain.md → input de pesquisa → directive Route: research; 2. delegação real → delegation event agent="researcher" | routing; delta vs EVAL-062..064 |
+| EVAL-074 | routing planning→planner (F33 RTE-02/04 — D3/D4) | eval (suites/routing) + fixture | 1. sessão REAL + chain plan.chain.md + `.specs/features/f1/spec.md` (SDD — +2 planning) → directive Route: planning; 2. delegação real → delegation event agent="planner" | feature SDD (D3): `.specs/**/spec.md` presente → planning |
+| EVAL-075 | routing implement→builder→reviewer (F33 RTE-04/05 — D4/D5) | eval (suites/routing) + fixture | 1. sessão REAL + chain implement.chain.md → directive Route: implement; 2. delegações reais → delegation events agent="builder" + agent="reviewer"; 3. veredito estruturado [APPROVE]/[REJECT] + ≤3 blocking issues no asset da chain | gate da chain (D4 — veredito F32); trajectory-assertion (subagent → subagent) |
+| EVAL-076 | extensão routing (F33 RTE-03 — D1/D6) | eval (framework/routing) | 1. before_agent_start injeta o directive (marker); 2. freeze por sessão (2ª chamada = mesma decisão — sem re-classificação por spawn); 3. `RUNECRAFT_ROUTING=0` → inerte (kill switch F20) | hook = before_agent_start (STOP RULES — event.prompt é a 1ª mensagem, types.d.ts:518); freeze F24 D12 |
+| EVAL-077 | two-driver (F33 RTE-06 — D6) | eval (framework/routing) | 1. ledger glla supervisionando (F19 isSupervising: goal active + autoContinue) → routing SKIP (nenhum directive — o loop é o piloto); 2. sem ledger → directive normal | two-driver rule (ROUTING.md §2); kill switch/documentação valem mesmo inertes |
+| EVAL-078 | chain selection + contrato F30 (F33 RTE-04/06 — D4/D7) | eval (framework/routing) | 1. chain ausente em .pi/chains/ → direct + warn (fail-closed — nunca inventa); 2. render do directive 2 runs byte-idênticos; 3. passo da chain (papel F32) → `models.agents.<id>` resolve (resolveAgentModel); 4. fim-de-chain → null + warn (F30 D4) | contrato F30 D5/D11 (F33 consome, não implementa); delta vs EVAL-066 |
+
 
 **Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é

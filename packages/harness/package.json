@@ -31,6 +31,7 @@
     "skills/",
     "assets/",
     "agents/",
+    "chains/",
     "README.md"
   ],
   "engines": {
@@ -114,6 +115,7 @@
       "./extensions/observability.ts",
       "./extensions/memory.ts",
       "./extensions/persona.ts",
+      "./extensions/routing.ts",
       "node_modules/@runecraft/subagents/index.ts",
       "node_modules/@runecraft/taskflow/dist/index.js",
       "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",
@@ -130,7 +132,8 @@
     ],
     "subagents": {
       "chains": [
-        "./assets/sdd/chains"
+        "./assets/sdd/chains",
+        "./chains"
       ]
     }
   }

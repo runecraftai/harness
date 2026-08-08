@@ -45,6 +45,10 @@ import { agentsForList, chainForAgent } from "../models/cli.ts";
 import { resolveAgentModel } from "../models/resolution.ts";
 import { planRoleAgents } from "../agents/materialize.ts";
 import { ROLE_IDS } from "../agents/catalog.ts";
+import { effectiveRouting, routingKillSwitch, enabledRoutes, mandatoryOf } from "../routing/config.ts";
+import { ROUTE_THRESHOLD } from "../routing/classifier.ts";
+import { DELEGATABLE_ROUTE_IDS } from "../routing/routes.ts";
+import { planPilotChains, PILOT_CHAIN_NAMES } from "../routing/materialize.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
 
@@ -120,6 +124,26 @@ export interface StatusReport {
   models: ModelsStatus;
   /** F32: papéis objetivos (materialização .pi/agents/ + registros do state). */
   roleAgents: RoleAgentsStatusReport;
+  /** F33: coded routing (config efetiva + kill switch + rotas habilitadas). */
+  routing: RoutingStatus;
+}
+
+/** F33 (D6): seção routing do status — config efetiva + kill switch + rotas
+ *  habilitadas/obrigatórias (fail-visible no status — D6). */
+export interface RoutingStatus {
+  killSwitch: boolean;
+  killSwitchValue: string | null;
+  enabled: boolean;
+  valid: boolean;
+  error?: string;
+  source: "workspace" | "global" | "default";
+  threshold: number;
+  /** rotas habilitadas (catálogo filtrado — config aditiva). */
+  enabledRoutes: string[];
+  /** rotas obrigatórias efetivas (ex.: security). */
+  mandatoryRoutes: string[];
+  /** pilot chains materializadas no escopo workspace (file-level). */
+  pilotChains: { installed: string[]; preserved: string[]; missing: string[]; total: number };
 }
 
 /** F32 (T5): seção dos papéis objetivos do status — file-level (arquivo
@@ -308,6 +332,48 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     // F32 (T5): papéis objetivos — materialização file-level × registros do
     // state + dependência do componente subagents (fork ausente → inertes).
     roleAgents: computeRoleAgentsStatus(rt, scope, state, identities),
+    // F33 (D6): coded routing — config efetiva + kill switch + rotas/chains.
+    routing: computeRoutingStatus(rt, scope, state),
+  };
+}
+
+/** F33 (D6): estado efetivo do roteamento codificado para o scope (mesmo
+ *  merge do routing/config.ts — workspace > global > default; rotas
+ *  habilitadas = catálogo filtrado; pilot chains file-level no workspace). */
+export function computeRoutingStatus(rt: Runtime, scope: Scope, state: HarnessState): RoutingStatus {
+  const globalFile = statePath(rt, "global");
+  const globalRaw = (() => {
+    const loaded = loadStateReadonly(globalFile, "global");
+    return loaded.ok ? loaded.state.routing : undefined;
+  })();
+  const scopeLayer = scope === "workspace" ? state.routing : undefined;
+  const globalLayer = scope === "global" ? state.routing : globalRaw;
+  const merged = effectiveRouting(scopeLayer, globalLayer, rt.env);
+  const kill = routingKillSwitch(rt.env);
+  const cfg = merged.config;
+  const enabled = enabledRoutes(cfg);
+  const enabledRoutesList = DELEGATABLE_ROUTE_IDS.filter((id) => enabled.has(id));
+  const mandatoryRoutesList = DELEGATABLE_ROUTE_IDS.filter((id) => mandatoryOf(cfg, id));
+  const pilotChains = { installed: [], preserved: [], missing: [], total: PILOT_CHAIN_NAMES.length } as RoutingStatus["pilotChains"];
+  if (scope === "workspace") {
+    const plans = planPilotChains(rt.cwd, state.piChains);
+    for (const plan of plans) {
+      if (plan.status === "missing") pilotChains.missing.push(`${plan.name}.chain.md`);
+      else if (plan.status === "edited") pilotChains.preserved.push(`${plan.name}.chain.md`);
+      else pilotChains.installed.push(`${plan.name}.chain.md`);
+    }
+  }
+  return {
+    killSwitch: kill.active,
+    killSwitchValue: kill.value,
+    enabled: cfg?.enabled ?? false,
+    valid: cfg !== undefined,
+    ...(cfg === undefined ? { error: merged.problems.join("; ") } : {}),
+    source: merged.source,
+    threshold: cfg?.threshold.direct ?? ROUTE_THRESHOLD,
+    enabledRoutes: enabledRoutesList,
+    mandatoryRoutes: mandatoryRoutesList,
+    pilotChains,
   };
 }
 
@@ -712,6 +778,23 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
     const resolved = agent.resolved ?? `null${agent.warning !== undefined ? " + warn" : ""}`;
     lines.push(`  ${agent.agent.padEnd(10)}chain: ${chainText} · resolvido: ${resolved} (via ${agent.via})`);
   }
+  // F33: seção Routing (config efetiva + kill switch + rotas habilitadas/chains).
+  lines.push("");
+  lines.push("Routing (F33):");
+  const r = report.routing;
+  if (r.killSwitch) {
+    lines.push(`  kill switch: RUNECRAFT_ROUTING=${r.killSwitchValue} ATIVO — roteamento inativo`);
+  } else {
+    lines.push("  kill switch: RUNECRAFT_ROUTING off");
+  }
+  const rState = r.enabled ? "enabled" : "disabled";
+  const rValid = r.valid ? "" : ` · config inválida (fail-closed: ${r.error ?? "?"})`;
+  lines.push(`  routing: ${rState} (fonte ${r.source}) · threshold ${r.threshold}${rValid}`);
+  lines.push(`  rotas habilitadas: ${r.enabledRoutes.join(", ") || "—"}`);
+  lines.push(`  obrigatórias: ${r.mandatoryRoutes.join(", ") || "—"}`);
+  lines.push(
+    `  pilot chains: ${r.pilotChains.installed.length} instaladas · ${r.pilotChains.preserved.length} preservadas (editadas) · ${r.pilotChains.missing.length} faltando (${r.pilotChains.total} total — .pi/chains/)`,
+  );
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -815,6 +898,18 @@ export function renderStatusJson(report: StatusReport): string {
         override: report.models.override,
         default: report.models.default,
         agents: report.models.agents,
+      },
+      routing: {
+        killSwitch: report.routing.killSwitch,
+        killSwitchValue: report.routing.killSwitchValue,
+        enabled: report.routing.enabled,
+        valid: report.routing.valid,
+        ...(report.routing.error !== undefined ? { error: report.routing.error } : {}),
+        source: report.routing.source,
+        threshold: report.routing.threshold,
+        enabledRoutes: report.routing.enabledRoutes,
+        mandatoryRoutes: report.routing.mandatoryRoutes,
+        pilotChains: report.routing.pilotChains,
       },
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },

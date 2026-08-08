@@ -30,6 +30,9 @@ import { defaultModelsConfig } from "./models/config.ts";
 import type { PersonaConfig } from "./persona/config.ts";
 import { defaultPersonaConfig } from "./persona/config.ts";
 import type { RoleAgentRecord } from "./agents/materialize.ts";
+import type { RoutingConfig } from "./routing/config.ts";
+import { defaultRoutingConfig } from "./routing/config.ts";
+import type { PilotChainRecord } from "./routing/materialize.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -137,6 +140,13 @@ export interface HarnessState {
   /** persona config (F30 D5; aditivo, schemaVersion permanece 1 — o
    *  config.ts valida em runtime; ausente = defaults). */
   persona?: PersonaConfig;
+  /** coded routing config (F33 D6; aditivo, schemaVersion permanece 1 — o
+   *  config.ts valida em runtime; ausente = defaults do classificador). */
+  routing?: RoutingConfig;
+  /** pilot chains materializadas em <cwd>/.pi/chains/ (F33 D4 — three-way
+   *  por conteúdo, contentHash F13; aditivo, schemaVersion permanece 1;
+   *  ausente = nada materializado). */
+  piChains?: Record<string, PilotChainRecord>;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -165,6 +175,10 @@ export function emptyState(scope: Scope): HarnessState {
     models: defaultModelsConfig(),
     // F30: fail-closed por padrão — o estado declara a camada de persona LIGADA (D5).
     persona: defaultPersonaConfig(),
+    // F33: fail-closed por padrão — o estado declara o roteamento codificado LIGADO (D6).
+    routing: defaultRoutingConfig(),
+    // F33: pilot chains materializadas (D4 — registros three-way por conteúdo).
+    piChains: {},
   };
 }
 

@@ -605,7 +605,93 @@ reviewer/auditor — semântica extraída do arcanum.)
 Evals: EVAL-057..066 (matriz v10 — categorias tool-use correctness e routing
 completeness desbloqueadas).
 
-## 9. Appendix: injected text (golden)
+## 8.14 Coded Routing & Pilot Coordination — roteamento codificado do harness (F33)
+
+O harness roteia cada tarefa por **CÓDIGO PURO** (decisão 3c — AD-022): o
+classificador determinístico (`src/routing/classifier.ts`) transforma
+features de texto/arquivo → rota, com thresholds explícitos em constantes —
+NUNCA LLM, nunca probabilístico. A semântica das categorias vem do
+prompt-composer do bard do arcanum (lido — D3); o MECANISMO probabilístico
+(LLM decide a rota) NÃO é portado, e a injeção "ULTRAWORK" (tema RPG) foi
+dropada (zero valor determinístico — decisão 2). O hook é o
+`before_agent_start` (STOP RULES — sem evento `input` no surface F21..F28; a
+primeira mensagem É o `event.prompt`: types.d.ts:518 "The raw user prompt
+text (after expansion)" — validado no Execute F33).
+
+### Tabela de categorias (7 rotas × papel F32 × keywords × threshold)
+
+| Rota | Papel F32 | Chain de piloto | Sinais high (×2) | Sinais medium (×1) | Priority | Mandatory |
+| --- | --- | --- | --- | --- | --- | --- |
+| explore | scout | explore.chain.md | locate, trace, where is, find where, map the codebase, codebase recon, recon | explore, navigate, codebase, understand the code, module boundaries | 1 | não |
+| research | researcher | research.chain.md | research, look up docs, look up documentation, external docs, check the docs, search the web, read the docs, find documentation | documentation, sources, cite, best practices, compare | 2 | não |
+| review | reviewer | — (sem chain no v1) | review, validate, check my work, approve, verify my changes, code review, review my | assess, quality, verdict, audit, verify, feedback, check the | 3 | não |
+| implement | builder | implement.chain.md | implement, build, refactor, add feature, port, fix, execute the plan, write the code, create the | modify, update, edit, create, add, execute, code changes, todo list | 4 | não |
+| planning | planner | plan.chain.md | plan, planning, break down, roadmap, spec, specification, design, redesign, scope, task list, decompose, estimate, architecture | outline, approach, strategy, steps, todos, milestones, requirements | 5 | não |
+| security | security | security.chain.md | auth, authentication, authorization, crypto, cryptographic, token(s), secret(s), password(s), session(s), cors, oauth, oidc, saml, .env, input validation, signature(s), csrf, xss, credential(s), encrypt(ion), sanitize | security, vulnerability, threat, privilege, permissions, exploit, injection, data breach, leak | 6 | **SIM** (high-signal bypassa o threshold — espelho do paladin) |
+| direct | — | — | — | — | 0 | fail-closed default |
+
+**Features**: texto do prompt/tarefa (case-insensitive; palavra única com
+token-boundary, frases por substring); presença de `.specs/**/spec.md` (SDD —
+`specPath` injetado pelo caller ou menção de `.specs/` no texto) → **+2
+planning**. Contagem de arquivos (`git status`) NÃO entra na rota inicial — é
+gate da CHAIN (≥3 arquivos → passo de review). `ROUTE_THRESHOLD = 2`
+(constante): score ≥ 2 → rota; score < 2 → `direct` (fail-closed — o bard só
+delegava trabalho substancial). Empate → prioridade determinística
+(security > planning > implement > review > research > explore). Entrada
+vazia/ilegível → `direct`.
+
+### Pilot coordination — chains (workflow engine do guild → dados)
+
+O workflow engine do guild (steps/gates/artifacts) vira **5 pilot chains**
+versionadas (`chains/*.chain.md` no formato REAL do fork subagents 0.37.2 —
+front-matter `name`+`description` + seções `## <papel>`; materializadas em
+`<cwd>/.pi/chains/` — alvo REUSADO do F30 — com three-way por conteúdo F19
+D7 + contentHash F13):
+
+| Chain | Passos | Gate |
+| --- | --- | --- |
+| implement.chain.md | builder (executa) → reviewer (gate) → builder (resumo/handoff) | veredito `[APPROVE]/[REJECT]` + ≤3 blocking issues |
+| plan.chain.md | planner (plan.md) → reviewer (gate) → builder (executa) → reviewer (work review) | veredito estruturado |
+| research.chain.md | researcher (brief com fontes) | — |
+| explore.chain.md | scout (recon read-only) | — |
+| security.chain.md | builder (implementa) → security (auditoria: triage + fast-exit, classes de vulnerabilidade) → builder (corrige) → reviewer (gate) | veredito estruturado |
+
+Seleção: rota ≠ `direct` → chain pelo catálogo (1:1 no v1); **chain ausente
+em `.pi/chains/` → `direct` + warn** (fail-closed — nunca inventa rota/chain;
+a rota review não tem chain no v1 → idem). `REJECT` no gate → pause/fail
+(semântica do workflow engine portada — sem engine novo). Modelo por passo:
+`models.agents.<papel>.fallbackChain` (F30 — contrato de ids; fim-de-chain →
+null + warn, nada inventado).
+
+### Delegação
+
+`call_guild_agent` NÃO é portado — a tool `subagent` do fork (F2) é o
+equivalente nativo (child session + prompt + retorno). O ROUTING DIRECTIVE
+(marker `<!-- runecraft:routing -->`) injetado no `before_agent_start`
+instrui a sessão com `renderDelegationPrompt` + `buildKeyTriggersSection`
+(F32 — alvos válidos nome/descrição/tools). Política QA-5 PRESERVADA: só o
+builder tem `subagent` no allowlist; a ORQUESTRAÇÃO é da chain (runtime do
+fork spawna os passos), não do papel — papéis não-delegadores não spawnam.
+
+### Config, kill switch e fronteiras
+
+- **Config aditiva** `state.routing` (F13, schemaVersion 1): `{enabled,
+  threshold: {direct}, routes: {<id>: {enabled?, mandatory?}}}` — defaults no
+  código; freeze por sessão (F24 D12); rotas desabilitadas não são
+  selecionáveis.
+- **Kill switch** `RUNECRAFT_ROUTING=0|false|off` → extensão inerte (F20).
+- **Two-driver** (F19): sessão supervisionada pelo goal-loop (`sessionDriver`
+  — loop ativo OU goal active+autoContinue) → routing INERTE (o loop é o
+  piloto; ROUTING.md §2).
+- **F27**: fallback NÃO re-roteia (rota congelada por sessão; `modelSwitch`
+  troca MODELO, nunca rota).
+- **F30**: modelos por papel via `models.agents.<id>` (contrato de ids).
+- **F28**: lessons informam PROMPTS (adendo intacto), NUNCA rotas — rota =
+  função pura do input (fronteira RTE-07; teste de contrato).
+- **F32**: catalog read-only; QA-5 preservado; evals EVAL-067..078 (matriz
+  v11 — routing completeness COMPLETA, última categoria do F26).
+
+
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
 F19 "Conteúdo dos templates (v1)" — D5/D6). The golden test asserts
@@ -613,6 +699,8 @@ F19 "Conteúdo dos templates (v1)" — D5/D6). The golden test asserts
 divergence is red (D9). The markers are stable block delimiters; the text
 between them is what the section engine injects (the `runecraft:workflow`
 markers themselves are F15/F18 concerns).
+
+## 9. Appendix: injected text (golden)
 
 <!-- BEGIN runecraft:golden:pi -->
 Runecraft workflow rules (v1)

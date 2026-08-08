@@ -423,8 +423,8 @@ describe("update — --update (D6/RCTH-02)", () => {
       const cov = report.baselines.find((b) => b.baseline === "command-coverage.txt");
       expect(known).toMatchObject({ added: 1, removed: 0, unchanged: 1 });
       expect(cov).toMatchObject({ added: 1, removed: 0, unchanged: 1 });
-      // F31: 6 goldens (mcp-copilot.golden aditivo — D5).
-      expect(report.goldens).toHaveLength(6);
+      // F33: 11 goldens (5 pilot chains aditivas — D4).
+      expect(report.goldens).toHaveLength(11);
       // arquivo gravado reflete o estado atual + ordenação pinada
       const written = fs.readFileSync(path.join(base, "known-failures.txt"), "utf8");
       expect(written).toContain("novo\ty\tfalha nova");

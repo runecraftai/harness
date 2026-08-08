@@ -18,7 +18,7 @@
 | Testes do framework (port adaptado dos testes do arcanum) | `packages/harness/test/eval/framework/` |
 | Evidência (F21 — dono): `evalTest()` → `evidence/partial/*.jsonl` → merge → `last-run.json` | `test/eval/evidence/` |
 | Ratchets (F23 — dono): baselines + goldens | `test/eval/baselines/`, `test/golden/` |
-| Registro de governo | `test/EVAL-MATRIX.md` (v10 — EVAL-057..066) |
+| Registro de governo | `test/EVAL-MATRIX.md` (v11 — EVAL-067..078) |
 
 ## 2. Mapeamento arcanum → harness (fonte real do checkout `~/Projects/arcanum`)
 
@@ -82,7 +82,7 @@
 | --- | --- | --- | --- | --- |
 | Constraint adherence | Guards F24 (write-existing-file-guard, ranger-md-only, todo-*) | ✅ disponível | EVAL-014 (write-guard, ranger, adversarial) | AGORA |
 | Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | ✅ disponível (v10) | EVAL-059..061 (scout read-only, builder writer, auditor md-only) | AGORA (F32) |
-| Routing completeness | Agentes F32 (orquestração → papéis via delegação) | ✅ disponível (v10) | EVAL-062..064 (planner→builder, builder→reviewer, builder→scout) | AGORA (F32) |
+| Routing completeness | F32 (papéis) + F33 (roteador codificado — classificação → delegação) | ✅ COMPLETA (v11) | EVAL-062..064 (delegação via evento) + EVAL-067..078 (classificador puro, chains, extensão, fronteiras) | AGORA (F33) |
 | Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
 | Model failover | F30 (port model-resolution, fallback chain) | ✅ disponível (v8) | EVAL-042..043 (resolução por agente via models.json fixture; modelSwitch leve→forte→halt+humano) | AGORA (F30) |
 | Memory | F29 (port runes — tools `rune_*` + runes.db) | ✅ disponível (v7) | EVAL-030..038 (round-trip, 10 tools no fixture, cross-session, semântica search/context, compaction, bridge F28, config/kill switch, determinismo, privacidade) | AGORA (F29) |
@@ -108,6 +108,20 @@ honesta (Execute F32): o fork NÃO seta RUNECRAFT_AGENT_ID por dispatch
 (pi-args.ts seta PI_SUBAGENT_CHILD_AGENT) — a bridge documentada no design
 (adendo before_agent_start do F28 — src/agents/identity.ts) traduz a
 identidade do child para o env que o guard lê, SEM tocar o guard.
+
+
+**v11 (F33, AD-033):** a categoria **Routing completeness está COMPLETA** —
+EVAL-067..078 na matriz (nota datada 2026-08-13): o roteador codificado
+(classificador determinístico puro `src/routing/` com thresholds em
+constantes — decisão 3c: rota por CÓDIGO, nunca LLM; catálogo de rotas como
+dados mapeado aos papéis F32; pilot coordination via 5 chains `.chain.md`
+com gate de veredito; hook before_agent_start com freeze por sessão, kill
+switch RUNECRAFT_ROUTING=0 e two-driver F19) fecha a ÚLTIMA categoria do
+eval-coverage do F26 (todas as 5 categorias agora cobertas: constraint
+adherence, tool-use, routing, compaction recovery, model failover). O
+roteamento é provado por trajectory REAL (sessões do fixture com a extensão
+routing materializada → delegação via tool subagent no transcript + evento
+delegation tipado do F28) e por unit/fixture puro (EVAL-067..071/076..078).
 
 **v7 (F29, AD-029):** a categoria Memory foi ADICIONADA — EVAL-030..038 na
 matriz (nota datada 2026-08-09). Tool-use/routing (F32) seguem sem entrada

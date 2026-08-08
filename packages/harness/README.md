@@ -41,6 +41,22 @@ researcher — compatível+endurecido) e são consumíveis por
 `state.models.agents.<id>.fallbackChain` (F30). Detalhes em
 `docs/ROUTING.md` §8.13.
 
+**Roteamento codificado (F33):** o harness roteia cada tarefa por **CÓDIGO
+puro** (decisão 3c — nunca LLM): classificador determinístico com thresholds
+em constantes (`ROUTE_THRESHOLD=2`; high ×2 / medium ×1; security
+OBRIGATÓRIA — bypassa threshold, espelho do paladin; empate → prioridade
+fixa) → 7 rotas mapeadas aos papéis F32 (explore→scout, research→researcher,
+implement→builder, review→reviewer, security→security, planning→planner,
+direct fail-closed) → 5 pilot chains `.chain.md` (implement/plan/research/
+explore/security — assets versionados em `chains/` + materialização three-way
+em `<cwd>/.pi/chains/`, alvo reusado do F30) com gate de veredito
+`[APPROVE]/[REJECT]` + ≤3 blocking issues. O hook é o `before_agent_start`
+(primeira mensagem = `event.prompt`; freeze por sessão; kill switch
+`RUNECRAFT_ROUTING=0`; two-driver F19: goal-loop supervisionando → inerte;
+F27 não re-roteia; F30 modelos por papel; F28 lessons → prompts, nunca
+rotas). Evals EVAL-067..078 (matriz v11 — routing completeness COMPLETA,
+última categoria do F26). Detalhes em `docs/ROUTING.md` §8.14.
+
 **Nota sobre deps compartilhadas:** npm não instala deps transitivas de pacotes bundled. Por isso as deps de runtime não-peer dos forks (jiti/yaml do subagents, typescript do taskflow-dsl) são declaradas como `dependencies` regulares deste package — o npm as baixa do registry no `pi install`. O `prepack` materializa cópias reais dos 6 forks em `node_modules/@runecraft/*` antes do pack (os symlinks do bun geram paths `..` no tarball).
 
 ## Instalação
