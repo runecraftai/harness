@@ -1,9 +1,0 @@
-{
-	"upstreamRepo": "heggria/taskflow",
-	"ref": "v0.2.6",
-	"resolvedSha": "3c2dfdba9678673b8f18305b4533f8f3a62c1d1b",
-	"npmName": "opencode-taskflow",
-	"npmVersion": "0.2.6",
-	"subpath": "packages/opencode-taskflow",
-	"vendoredAt": "2026-08-07T09:56:33.991Z"
-}

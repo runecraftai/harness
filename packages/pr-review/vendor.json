@@ -1,9 +1,0 @@
-{
-	"upstreamRepo": "10ego/pi-pr-review",
-	"ref": "v1.11.4",
-	"resolvedSha": "dbb4ad7d7d993e737da26543240d787405683cf8",
-	"npmName": "pi-pr-review",
-	"npmVersion": "1.11.4",
-	"subpath": null,
-	"vendoredAt": "2026-07-30T14:15:19.238Z"
-}

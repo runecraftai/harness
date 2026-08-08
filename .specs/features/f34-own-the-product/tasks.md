@@ -31,9 +31,9 @@
 
 ## T4 — Delete da máquina + scripts raiz (D8/D9, UNV-04/05)
 
-- [ ] `git rm`: `vendor.manifest.json` · `scripts/vendor.ts` · `scripts/sync-upstream.ts` · `scripts/sync-upstream/` (18 arquivos, 58 testes) · `patches/` (4 registry.json) · `docs/SYNC.md` · os **12** `packages/*/vendor.json`
-- [ ] `package.json` (raiz): remover scripts `vendor`, `sync:upstream`, `test:sync-upstream` (manter `eval:e2e`/`test:eval-e2e` — são do produto)
-- [ ] **Verificar:** `bun run lint` + `bun run build` + `bun test` verdes (1193 harness + 71 e2e offline; 58 sync saem); goldens/ratchets sem `--update`; `git status --porcelain packages/{subagents,taskflow,goal-loop-audit,pr-review}` **vazio** (UNV-05); greps de remanescência vazios: `vendor.manifest|vendor.ts|sync-upstream|patches/|SYNC.md|vendor.json` (fora de .specs/node_modules)
+- [x] `git rm`: `vendor.manifest.json` · `scripts/vendor.ts` · `scripts/sync-upstream.ts` · `scripts/sync-upstream/` (18 arquivos, 58 testes) · `patches/` (4 registry.json) · `docs/SYNC.md` · os **12** `packages/*/vendor.json`
+- [x] `package.json` (raiz): remover scripts `vendor`, `sync:upstream`, `test:sync-upstream` (manter `eval:e2e`/`test:eval-e2e` — são do produto)
+- [x] **Verificar:** `bun run lint` + `bun run build` + `bun test` verdes (1193 harness + 71 e2e offline; 58 sync saem); goldens/ratchets sem `--update`; `git status --porcelain packages/{subagents,taskflow,goal-loop-audit,pr-review}` **vazio** (UNV-05); greps de remanescência vazios: `vendor.manifest|vendor.ts|sync-upstream|patches/|SYNC.md|vendor.json` (fora de .specs/node_modules)
 
 ## T5 — Remap: menções removidas em todo o repo, funcionamento preservado (D10, REM-01/02/03) — após Front 1
 
