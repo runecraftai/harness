@@ -92,10 +92,16 @@ resolveModelSwitch(agent, {failedModel, availableModels, chain})
 
 **Fronteira D11:** ZERO mudanças nos arquivos do F27 (EVAL-043 asserta o diff
 byte a byte). **Mecanismo de APLICAÇÃO (validado no Execute):** o SDK 0.81.0
-NÃO tem API de troca de modelo em runtime (model-runtime.js/model-registry.js
-sem switchModel/setModel/reloadModels) — models.json é o único mecanismo
-(provado pela fixture F21). Aplicar a troca = regenerar o models.json com a
-chain (D7) + restart/reload da sessão (documentado — sem API inventada).
+não expõe troca de modelo em runtime nas APIs de model-runtime/model-registry
+(sem switchModel/setModel/reloadModels nesses módulos) — models.json é o
+mecanismo determinístico (provado pela fixture F21). Aplicar a troca =
+regenerar o models.json com a chain (D7) + restart/reload da sessão. **Nota
+(fix cleric F30):** `AgentSession.setModel()` e `ExtensionAPI.setModel`
+EXISTEM (agent-session.js:1194 / loader.js:283 — inclusive `cycleModel`); a
+verificação do Execute grepou apenas model-runtime.js/model-registry.js. O
+ponto de wiring in-process via `setModel` fica documentado como evolução
+(F31/F32) — a geração + reload continua sendo o caminho determinístico e
+testável offline.
 
 ## 7. CLI `harness models generate|list|doctor`
 

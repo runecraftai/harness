@@ -64,11 +64,8 @@ export async function runModelsCommand(opts: ModelsCommandOptions): Promise<numb
 				opts.err.write(result.text);
 				return result.code;
 			}
-			if (opts.json) {
-				opts.out.write(modelsJsonShape("generate", { ok: true, wrote: file, bytes: Buffer.byteLength(result.text) }));
-				return 0;
-			}
-			// Escreve o arquivo (merge determinístico; atômico — padrão F20).
+			// Fix cleric F30: o modo --json NÃO pode pular a escrita (mentia
+			// "wrote: <path>" sem gravar) — escreve primeiro, reporta depois.
 			try {
 				fs.mkdirSync(path.dirname(file), { recursive: true });
 				const tmp = `${file}.tmp-${process.pid}`;
@@ -77,6 +74,10 @@ export async function runModelsCommand(opts: ModelsCommandOptions): Promise<numb
 			} catch (error) {
 				opts.err.write(`@runecraft/harness models: falha ao escrever ${file} — ${error instanceof Error ? error.message : String(error)}\n`);
 				return 1;
+			}
+			if (opts.json) {
+				opts.out.write(modelsJsonShape("generate", { ok: true, wrote: file, bytes: Buffer.byteLength(result.text) }));
+				return 0;
 			}
 			opts.out.write(`models.json escrito em ${file} (${result.text.trim().split(/\r?\n/).length} linhas)\n`);
 			return 0;

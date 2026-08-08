@@ -2,12 +2,15 @@
 // state `models` (D7, PFC-07).
 //
 // O mecanismo real do SDK é o models.json: ModelRuntime.create({modelsPath})
-// + getModel (F21/AD-021 — provado pela fixture); o SDK 0.81.0 NÃO tem API
-// de troca de modelo em runtime (validado no Execute F30 — model-runtime.js/
-// model-registry.js sem switchModel/setModel/reloadModels). A geração é a
-// superfície de APLICAÇÃO do roteamento: as chains do state
-// (models.agents.<id>.fallbackChain) declaram QUAIS modelos existem por
-// provider — o models.json gerado os torna disponíveis ao SDK.
+// + getModel (F21/AD-021 — provado pela fixture); model-runtime.js e
+// model-registry.js não expõem switchModel/setModel/reloadModels (validado no
+// Execute F30) — a geração é a superfície de APLICAÇÃO do roteamento: as
+// chains do state (models.agents.<id>.fallbackChain) declaram QUAIS modelos
+// existem por provider — o models.json gerado os torna disponíveis ao SDK.
+// Nota (fix cleric F30): `AgentSession.setModel`/`ExtensionAPI.setModel`
+// EXISTEM no SDK (agent-session.js:1194 / loader.js:283 — incl. cycleModel);
+// o wiring in-process fica para F31/F32 — geração + reload é o caminho
+// determinístico e testável offline.
 //
 // Determinístico por construção (F21 D10): chaves ordenadas (canonicalJson —
 // padrão F23), sem timestamp/path absoluto; 2 runs → byte-idêntico. O shape

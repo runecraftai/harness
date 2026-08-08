@@ -44,7 +44,9 @@ export function resolveForAgent(
 	return { model: outcome.model, via: outcome.via };
 }
 
-/** Lista de agentes da tabela (hosts + qualquer agente com chain configurada). */
+/** Lista de agentes da tabela (hosts + qualquer agente com chain configurada).
+ *  Fix cleric F30: hosts SEM chain ainda entram — o render decide o que emitir;
+ *  o guard `agents.length === 0` era morto (sempre ≥ 4). */
 export function agentsForList(config: ModelsConfig): string[] {
 	const ids = new Set<string>(Object.keys(config.agents));
 	for (const host of ["pi", "opencode", "claude", "codex"]) ids.add(host);
@@ -59,7 +61,10 @@ export function chainForAgent(config: ModelsConfig, agent: string): FallbackEntr
 export function runModelsGenerate(ctx: ModelsCliContext): ModelsCliResult {
 	const config = ctx.config;
 	const agents = agentsForList(config);
-	if (agents.length === 0) {
+	// Fix cleric F30: a mensagem "nothing to generate" só faz sentido sem NENHUMA
+	// chain configurada (agentsForList sempre retorna os 4 hosts).
+	const hasChains = agents.some((id) => chainForAgent(config, id).length > 0);
+	if (!hasChains) {
 		return { code: 0, text: "no agent chains configured — nothing to generate\n" };
 	}
 	// Delegado ao render (mesma fonte de generate.ts — determinismo).
