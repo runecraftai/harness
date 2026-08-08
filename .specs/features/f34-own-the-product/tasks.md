@@ -73,9 +73,9 @@
 
 ## T10 — Docs páginas 3/3: CODEBASE-GUIDE + testing (D4, DOC-02)
 
-- [ ] `packages/harness/docs/CODEBASE-GUIDE.md` (EN) — repository-map (workspaces + 13 packages + scripts + patches? não — pós-un-vendor: sem scripts de vendoring) · mental-model (camadas: forks → extensões → guards/verification/evals/resilience/observability/memory/routing → CLI) · maintainer-playbook (testes: `bun test` harness + e2e offline; convenções EN docs/PT-BR código AD-038; forks são source commitado — **sem sync**; onde mora cada contrato: versions.ts, ratchets, goldens)
-- [ ] `packages/harness/docs/testing.md` (EN) — landing de evals: suites determinísticas F21 (fixture), framework F26, ratchets/goldens F23 (comandos), E2E env-gated F22 (RUNECRAFT_E2E=1) → link para EVAL-FRAMEWORK.md (referência detalhada, sem reescrita)
-- [ ] **Verificar:** links resolvem (incl. EVAL-FRAMEWORK.md); zero menção a vendor/sync (estado pós-Front 1); EN; `bun test` verde
+- [x] `packages/harness/docs/CODEBASE-GUIDE.md` (EN) — repository-map (workspaces + 13 packages + scripts + patches? não — pós-un-vendor: sem scripts de vendoring) · mental-model (camadas: forks → extensões → guards/verification/evals/resilience/observability/memory/routing → CLI) · maintainer-playbook (testes: `bun test` harness + e2e offline; convenções EN docs/PT-BR código AD-038; forks são source commitado — **sem sync**; onde mora cada contrato: versions.ts, ratchets, goldens)
+- [x] `packages/harness/docs/testing.md` (EN) — landing de evals: suites determinísticas F21 (fixture), framework F26, ratchets/goldens F23 (comandos), E2E env-gated F22 (RUNECRAFT_E2E=1) → link para EVAL-FRAMEWORK.md (referência detalhada, sem reescrita)
+- [x] **Verificar:** links resolvem (incl. EVAL-FRAMEWORK.md); zero menção a vendor/sync (estado pós-Front 1); EN; `bun test` verde
 
 ## T11 — READMEs + índice + verificação final (D5/D6/D9, DOC-03/04/05)
 
