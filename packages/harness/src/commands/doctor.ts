@@ -46,6 +46,8 @@ import { repoRoot } from "../gates/git.ts";
 import { resolveGates } from "../gates/config.ts";
 import { scanReceipts } from "../receipt/store.ts";
 import { effectiveGuards, killSwitchState, readStateGuards } from "../guards/guardKit.ts";
+import { effectiveVerification, readStateVerification, verifyKillSwitch } from "../verify/config.ts";
+import { judgeEnvEnabled } from "../verify/stages/judge.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -371,6 +373,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   checks.push(checkGates(rt));
   // F24: check 18 (guards) — independente do Pi (só lê state.json + env kill switch).
   checks.push(checkGuards(rt));
+  // F25: check 19 (verification) — independente do Pi (só lê state.json + env).
+  checks.push(checkVerification(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -418,9 +422,58 @@ export async function runDoctorCommand(opts: DoctorCommandOptions): Promise<numb
 }
 
 /**
- * F17 D3 check 7 — detecção por agente (informativo, nunca falha).
- * Binary on PATH = installed; the config dir is informative only (F15 ADPT-02).
+ * F25 check 19 — Verification (cascata de verificação, AD-022/AD-023; AD-014:
+ * 18 é do F24, 19 é do F25). Read-only (LIFE-01). Regras (design D9/D12):
+ *   - config por state.json (F13) dos DOIS scopes; ausente = defaults (ligada)
+ *   - kill switch RUNECRAFT_VERIFY=0 → pass informativo (desligada de propósito)
+ *   - config inválida (min >= max, política desconhecida, tipos) → fail
+ *     apontando os campos (fail-closed — a cascata não roda com contrato quebrado)
+ *   - estado do judge (RUNECRAFT_VERIFY_LLM_JUDGE) → informativo (VER-10)
  */
+function checkVerification(rt: Runtime): DoctorCheck {
+  const kill = verifyKillSwitch(rt.env);
+  const scopes = ["workspace", "global"] as const;
+  const reads = scopes.map((scope) => ({ scope, ...readStateVerification(statePath(rt, scope), scope) }));
+  const corrupt = reads.filter((r) => r.corrupt);
+  if (corrupt.length > 0) {
+    return {
+      id: 19,
+      name: "Verification",
+      status: "fail",
+      detail: `state.json corrompido em ${corrupt.map((c) => statePath(rt, c.scope)).join(", ")} — verificação opera fail-closed (defaults) até o repair`,
+      remedy: "rode `harness restore` ou remova o arquivo manualmente",
+    };
+  }
+
+  const merged = effectiveVerification(reads[0]!.verification, reads[1]!.verification, rt.env);
+  const judgeNote = judgeEnvEnabled(rt.env) ? ` · judge LLM ATIVO (RUNECRAFT_VERIFY_LLM_JUDGE=1)` : " · judge LLM off (env nao definido — CI offline)";
+  const killNote = kill.active
+    ? ` — kill switch RUNECRAFT_VERIFY=${kill.value} ATIVO (cascata inativa)`
+    : " · kill switch RUNECRAFT_VERIFY off";
+
+  if (merged.config === undefined) {
+    return {
+      id: 19,
+      name: "Verification",
+      status: "fail",
+      detail: `config de verificação inválida — ${merged.problems.join("; ")} (fail-closed: a cascata não roda até o repair)`,
+      remedy: "corrija a seção `verification` do state.json apontada (ou restaure de um backup do harness)",
+    };
+  }
+
+  const cfg = merged.config;
+  const detail =
+    `cascade ${cfg.enabled ? "enabled" : "disabled"} (fonte ${merged.source}) · embedding min ${cfg.thresholds.embedding.min}/max ${cfg.thresholds.embedding.max}` +
+    ` · sufficiency ${cfg.thresholds.sufficiency.minRatio}..${cfg.thresholds.sufficiency.maxRatio}` +
+    ` · onFail ${Object.entries(cfg.policy.onFail).map(([l, a]) => `${l}=${a}`).join(",")}${judgeNote}${killNote}`;
+  return {
+    id: 19,
+    name: "Verification",
+    status: "pass",
+    detail,
+  };
+}
+
 /**
  * F24 check 18 — Guards (execution guards, AD-022; AD-014: 18 é do F24).
  * Read-only (LIFE-01). Regras (design D2/D9/D10):
@@ -473,6 +526,10 @@ function checkGuards(rt: Runtime): DoctorCheck {
   };
 }
 
+/**
+ * F17 D3 check 7 — detecção por agente (informativo, nunca falha).
+ * Binary on PATH = installed; the config dir is informative only (F15 ADPT-02).
+ */
 function checkAgentDetection(rt: Runtime): DoctorCheck {
   const detected = detectedAgentIds(rt);
   if (detected.length === 0) {

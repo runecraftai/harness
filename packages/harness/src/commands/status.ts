@@ -36,6 +36,8 @@ import { repoRoot } from "../gates/git.ts";
 import type { AgentId } from "../adapters/types.ts";
 import type { AgentRecord, HarnessState } from "../state.ts";
 import { GUARD_IDS, effectiveGuards, killSwitchState, type GuardRuntime } from "../guards/guardKit.ts";
+import { effectiveVerification, verifyKillSwitch } from "../verify/config.ts";
+import { judgeEnvEnabled } from "../verify/stages/judge.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
 
@@ -105,6 +107,8 @@ export interface StatusReport {
   gates: GatesStatusReport | null;
   /** F24: execution guards (estado por guard do scope + kill switch). */
   guards: GuardsStatus;
+  /** F25: verification cascade (config efetiva do scope + kill switch + judge env). */
+  verification: VerificationStatus;
 }
 
 /** F24: seção guards do status (D9 — Pi-only honesto: guards são extensão Pi). */
@@ -119,6 +123,18 @@ export interface GuardsStatus {
     mdOnlyAgents?: string[];
     source: GuardRuntime["source"];
   }>;
+}
+
+/** F25: seção verification do status (D9 — estado da config + kill switch + judge). */
+export interface VerificationStatus {
+  killSwitch: boolean;
+  killSwitchValue: string | null;
+  judgeEnabled: boolean;
+  enabled: boolean;
+  valid: boolean;
+  error?: string;
+  source: "workspace" | "global" | "default";
+  thresholds: { embedding: { min: number; max: number }; sufficiency: { minRatio: number; maxRatio: number; scopePaths: string[] } };
 }
 
 export interface StatusAgent {
@@ -236,6 +252,41 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     gates: root !== null ? computeGatesStatus(rt, root) : null,
     // F24: guards do SCOPE (state deste scope × global do env) + kill switch.
     guards: computeGuardsStatus(rt, scope, state),
+    // F25: verification do SCOPE (workspace > global > default) + kill switch + judge.
+    verification: computeVerificationStatus(rt, scope, state),
+  };
+}
+
+/** F25: estado efetivo da verificação para o scope (mesmo merge do config.ts). */
+export function computeVerificationStatus(rt: Runtime, scope: Scope, state: HarnessState): VerificationStatus {
+  const globalFile = statePath(rt, "global");
+  const globalRaw = (() => {
+    const loaded = loadStateReadonly(globalFile, "global");
+    return loaded.ok ? loaded.state.verification : undefined;
+  })();
+  const scopeLayer = scope === "workspace" ? state.verification : undefined;
+  const globalLayer = scope === "global" ? state.verification : globalRaw;
+  const merged = effectiveVerification(scopeLayer, globalLayer, rt.env);
+  const kill = verifyKillSwitch(rt.env);
+  const cfg = merged.config;
+  return {
+    killSwitch: kill.active,
+    killSwitchValue: kill.value,
+    judgeEnabled: judgeEnvEnabled(rt.env),
+    enabled: cfg?.enabled ?? false,
+    valid: cfg !== undefined,
+    ...(cfg === undefined ? { error: merged.problems.join("; ") } : {}),
+    source: merged.source,
+    thresholds: cfg
+      ? {
+          embedding: { min: cfg.thresholds.embedding.min, max: cfg.thresholds.embedding.max },
+          sufficiency: {
+            minRatio: cfg.thresholds.sufficiency.minRatio,
+            maxRatio: cfg.thresholds.sufficiency.maxRatio,
+            scopePaths: cfg.thresholds.sufficiency.scopePaths,
+          },
+        }
+      : { embedding: { min: 0, max: 0 }, sufficiency: { minRatio: 0, maxRatio: 0, scopePaths: [] } },
   };
 }
 
@@ -498,6 +549,22 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
     lines.push(`  ${guard.id.padEnd(26)}${state} (fonte ${guard.source})${agents}${valid}`);
   }
   lines.push("  (guards são extensão Pi — agentes não-Pi não têm enforcement; ver ROUTING.md seção Guards)");
+  // F25: seção Verification (config efetiva + kill switch + judge env).
+  lines.push("");
+  lines.push("Verification (F25):");
+  const v = report.verification;
+  if (v.killSwitch) {
+    lines.push(`  kill switch: RUNECRAFT_VERIFY=${v.killSwitchValue} ATIVO — cascata inativa`);
+  } else {
+    lines.push("  kill switch: RUNECRAFT_VERIFY off");
+  }
+  const vState = v.enabled ? "enabled" : "disabled";
+  const vValid = v.valid ? "" : ` · config inválida (fail-closed: ${v.error ?? "?"})`;
+  lines.push(`  cascade: ${vState} (fonte ${v.source})${vValid}`);
+  if (v.valid) {
+    lines.push(`  thresholds: embedding [${v.thresholds.embedding.min}, ${v.thresholds.embedding.max}] · sufficiency ${v.thresholds.sufficiency.minRatio}..${v.thresholds.sufficiency.maxRatio}${v.thresholds.sufficiency.scopePaths.length > 0 ? ` · scopePaths [${v.thresholds.sufficiency.scopePaths.join(", ")}]` : ""}`);
+  }
+  lines.push(v.judgeEnabled ? "  judge LLM: ATIVO (RUNECRAFT_VERIFY_LLM_JUDGE=1)" : "  judge LLM: off (env nao definido — CI offline)");
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -568,6 +635,7 @@ export function renderStatusJson(report: StatusReport): string {
         killSwitchValue: report.guards.killSwitchValue,
         guards: report.guards.guards,
       },
+      verification: report.verification,
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

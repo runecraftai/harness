@@ -183,6 +183,11 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
+// O limite da janela de conversa é um guard de memória do fixture; F25 (cascata
+// de verificação) exige o reason do block (complete_goal) visível NA conversa
+// do passo seguinte (D7c — evidência na ordem) — o system prompt com skills
+// domina a janela em máquinas com muitos skills, então 100k cobre o fluxo
+// completo (sessão curta da camada 2) sem comprometer o determinismo.
 function conversationTextOf(messages: Array<{ role?: unknown; content?: unknown }> | undefined): string {
   if (!Array.isArray(messages)) return "";
   const parts: string[] = [];
@@ -195,7 +200,7 @@ function conversationTextOf(messages: Array<{ role?: unknown; content?: unknown 
       }
     }
   }
-  return parts.join("\n").slice(0, 20_000);
+  return parts.join("\n").slice(0, 100_000);
 }
 
 function lastUserText(messages: Array<{ role?: unknown; content?: unknown }> | undefined): string {

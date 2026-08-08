@@ -172,6 +172,7 @@ export function helpText(): string {
     "  backups        Lista snapshots (data, tamanho, arquivos, pinado) — F13",
     "  gates          Delivery gates (F20): enable | disable | status | run pre-commit|pre-push",
     "  receipt        Receipt leve (F20): capture <pr> [--from <file>] [--include-closed] | list [--json]",
+    "  verify         Cascata de verificação (F25): MESMA engine do gate de sessão — exit 0/1/2/3, --json, --cwd",
     "",
     "Flags:",
     "  --component <a,b>  Components (install/uninstall); repita a flag ou separe por vírgula",

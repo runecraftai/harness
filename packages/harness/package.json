@@ -36,8 +36,8 @@
   "scripts": {
     "prepack": "node ./scripts/prepack.mjs",
     "generate:versions": "node ./scripts/gen-versions.mjs",
-    "test": "bun test --preload ./test/eval/setup.ts --preload ./test/guards/setup.ts",
-    "test:eval": "bun test test/eval --preload ./test/eval/setup.ts --preload ./test/guards/setup.ts",
+    "test": "bun test --preload ./test/eval/setup.ts --preload ./test/guards/setup.ts --preload ./test/verify/setup.ts",
+    "test:eval": "bun test test/eval test/guards test/verify --preload ./test/eval/setup.ts --preload ./test/guards/setup.ts --preload ./test/verify/setup.ts",
     "merge:evidence": "bun scripts/eval-merge-evidence.ts",
     "typecheck": "tsc"
   },

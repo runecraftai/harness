@@ -18,6 +18,7 @@ import { runRestoreCommand, type RestoreCommandOptions } from "./commands/restor
 import { runBackupsCommand, type BackupsCommandOptions } from "./commands/backups.ts";
 import { runGatesCommand } from "./commands/gates.ts";
 import { runReceiptCommand } from "./commands/receipt.ts";
+import { runVerifyCommand } from "./commands/verify.ts";
 
 export interface DispatchContext {
   cwd?: string;
@@ -44,6 +45,7 @@ export const COMMANDS = [
   "backups",
   "gates",
   "receipt",
+  "verify",
 ] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
@@ -70,6 +72,8 @@ export interface CliOptions {
   from?: string;
   /** receipt capture: permit a closed PR (--include-closed, allowNonOpen no fork). */
   includeClosed?: boolean;
+  /** verify: cwd do repo (default rt.cwd). */
+  cwd?: string;
   help: boolean;
   version: boolean;
 }
@@ -94,6 +98,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
         yes: false,
         all: false,
         args: [],
+        cwd: undefined,
         help: true,
         version: false,
       },
@@ -112,6 +117,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
         yes: false,
         all: false,
         args: [],
+        cwd: undefined,
         help: false,
         version: true,
       },
@@ -131,6 +137,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
     keep?: string;
     from?: string;
     "include-closed"?: boolean;
+    cwd?: string;
   };
   try {
     const parsed = parseArgs({
@@ -147,6 +154,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
         keep: { type: "string" },
         from: { type: "string" },
         "include-closed": { type: "boolean" },
+        cwd: { type: "string" },
       },
       allowPositionals: true,
       strict: true,
@@ -212,6 +220,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
       keep: values.keep,
       from: values.from,
       includeClosed: values["include-closed"],
+      cwd: values.cwd,
       help: false,
       version: false,
     },
@@ -229,6 +238,7 @@ function unsetOptions(): CliOptions {
     yes: false,
     all: false,
     args: [],
+    cwd: undefined,
     help: false,
     version: false,
   };
@@ -367,6 +377,15 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         rt,
       };
       return runReceiptCommand(opts);
+    }
+    case "verify": {
+      return runVerifyCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        cwd: options.cwd,
+      });
     }
     default:
       err.write(`@runecraft/harness: comando desconhecido ${options.command}\n`);

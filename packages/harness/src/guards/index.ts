@@ -24,12 +24,17 @@ import { decideWriteGuard } from "./write-existing-file-guard.ts";
 import { decideRangerMdOnly, currentAgentId } from "./ranger-md-only.ts";
 import { rewriteTodoInput, TODO_WRITE_TOOL } from "./todo-description-override.ts";
 import { decideTodoEnforcer, TODO_COMPLETE_TOOL } from "./todo-continuation-enforcer.ts";
+import { SessionVerifyConfig } from "../verify/config.ts";
+import { configInvalidReason, runSessionVerification } from "../verify/engine.ts";
+import type { VerifyDeps } from "../verify/types.ts";
 
 export interface GuardsDeps {
   /** env override (testes) — default process.env */
   env?: NodeJS.ProcessEnv;
   /** identidade do agente atual (testes) — default RUNECRAFT_AGENT_ID ?? "main" */
   getAgentId?: () => string | undefined;
+  /** F25: deps injetáveis da cascata de verificação (testes — fake judge/runner). */
+  verify?: VerifyDeps;
 }
 
 /**
@@ -40,15 +45,19 @@ export interface GuardsDeps {
 export function installGuards(pi: ExtensionAPI, deps: GuardsDeps = {}): void {
   const env = deps.env ?? process.env;
   const sessionConfig = new SessionGuardConfig(env);
+  const verifyConfig = new SessionVerifyConfig(env);
 
   pi.on("session_start", (_event, ctx) => {
     // D12: config congelada por sessão — lida aqui, mantida durante a sessão.
     sessionConfig.capture(ctx.cwd);
+    verifyConfig.capture(ctx.cwd);
     const frozen = sessionConfig.frozen(ctx.cwd);
     for (const problem of frozen.problems) guardLog.warn(`config: ${problem}`);
+    const verify = verifyConfig.frozen(ctx.cwd);
+    for (const problem of verify.problems) guardLog.warn(`config (verification): ${problem}`);
   });
 
-  pi.on("tool_call", (event, ctx) => {
+  pi.on("tool_call", async (event, ctx) => {
     const frozen = sessionConfig.frozen(ctx.cwd);
     if (frozen.killSwitch) return undefined; // AC 1.4: RUNECRAFT_GUARDS=0 → tudo inativo
 
@@ -90,12 +99,39 @@ export function installGuards(pi: ExtensionAPI, deps: GuardsDeps = {}): void {
 
     // 4. todo-continuation-enforcer (GUARD-05) — gate de conclusão (AC 3.2/3.3).
     if (isToolCallEventType(TODO_COMPLETE_TOOL, event)) {
+      // F24 PRIMEIRO (D11 — ordem determinística): pendências bloqueiam antes
+      // da cascata (o gate mais barato/duro; bloqueou, não gasta a verificação).
       const cfg = frozen.guards.todoContinuationEnforcer;
       if (cfg.enabled) {
         const decision = decideTodoEnforcer(cfg, ctx.cwd);
         if (decision) {
           guardLog.debug(`blocked: ${decision.reason}`);
           return decision;
+        }
+      }
+
+      // F25 (D11 — aditivo, mesmo ponto de registro): cascata de verificação.
+      const verify = verifyConfig.frozen(ctx.cwd);
+      if (!verify.killSwitch) {
+        if (verify.config === undefined) {
+          // Config inválida → fail-closed (D9): bloqueia com o motivo nomeando
+          // os campos; o doctor reporta e o CLI sai 3 (mesma engine).
+          const reason = configInvalidReason(verify.problems);
+          guardLog.warn(`verification config invalid — blocking: ${verify.problems.join("; ")}`);
+          return { block: true, reason };
+        }
+        if (verify.config.enabled) {
+          const result = await runSessionVerification({
+            cwd: ctx.cwd,
+            env,
+            config: verify.config,
+            input: (event.input ?? {}) as Record<string, unknown>,
+            deps: deps.verify,
+          });
+          if (result.block && result.reason !== null) {
+            guardLog.debug(`blocked (verification): ${result.reason}`);
+            return { block: true, reason: result.reason };
+          }
         }
       }
     }

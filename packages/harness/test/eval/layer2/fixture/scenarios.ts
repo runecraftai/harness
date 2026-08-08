@@ -73,6 +73,15 @@ const AUDITOR_APPROVED: ScriptedStep = {
   },
 };
 
+/** Aprovação de auditor com evidência CUSTOM (o approved genérico cita greeting.txt
+ *  — a validação de contrato do glla reprova evidência que não cobre o goal). */
+function auditorApproved(evidence: string): ScriptedStep {
+  return {
+    expect: { auditor: true },
+    reply: { kind: "text", text: `<evidence>${evidence}</evidence>\n<approved/>` },
+  };
+}
+
 /** EVAL-001 — goal trivial: /goal start → write real → complete_goal → auditor aprova. */
 export const EVAL_001: ScriptedScenario = {
   id: "EVAL-001",
@@ -309,6 +318,210 @@ export const EVAL_007: ScriptedScenario = {
   ]),
 };
 
+/**
+ * EVAL-008 — cascata de verificação na sessão (F25): lint quebrado no
+ * complete_goal → veredito ESTRUTURAL com sugestão (política default skip —
+ * SOFT, sem block; QA-1) → o goal conclui (goal_archived) e o veredito fica
+ * no log da sessão (.runecraft/verify-verdicts.jsonl). O repo fixture nasce
+ * com package.json cujo `lint` falha até existir LINT_OK (correção validada
+ * no teste via CLI — paridade da mesma engine).
+ */
+export const EVAL_008: ScriptedScenario = {
+  id: "EVAL-008",
+  description: "cascata na sessão: lint quebrado → veredito estrutural com sugestão (skip, sem block) → goal conclui",
+  ...script([
+    {
+      expect: { toolsSubset: ["write"] },
+      reply: { kind: "tool", name: "write", args: { path: "notes.txt", content: "hello verify" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: {
+        kind: "tool",
+        name: "complete_goal",
+        args: {
+          completionSummary: "notes.txt created",
+          verificationSummary: "<evidence>notes.txt exists with content hello verify</evidence>",
+        },
+      },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "notes.txt" } },
+    },
+    auditorApproved("notes.txt exists with content hello verify"),
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
+/**
+ * EVAL-009 (integridade) — o modelo DELETA um arquivo protegido (README.md
+ * rastreado no HEAD) via bash → complete_goal BLOQUEADO (política halt —
+ * QA-1) com reason do F24 (`write-existing-file-guard: integrity — …`); o
+ * passo 3 exige o reason na conversa (D7c — evidência na ordem). Restaura +
+ * entrega → conclui.
+ */
+export const EVAL_009_INTEGRITY: ScriptedScenario = {
+  id: "EVAL-009-int",
+  description: "integridade: delete de arquivo protegido → block (reason F24); restaura → conclui",
+  ...script([
+    {
+      expect: { toolsSubset: ["bash"] },
+      reply: { kind: "tool", name: "bash", args: { command: "rm README.md" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: { kind: "tool", name: "complete_goal", args: { completionSummary: "done" } },
+    },
+    {
+      expect: { toolsSubset: ["bash"], conversationContains: ["write-existing-file-guard: integrity"] },
+      reply: {
+        kind: "tool",
+        name: "bash",
+        args: { command: "git checkout -- README.md && printf 'done' > done.txt" },
+      },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: {
+        kind: "tool",
+        name: "complete_goal",
+        args: {
+          completionSummary: "README.md restored and done.txt created",
+          verificationSummary: "<evidence>README.md intact and done.txt exists with content done</evidence>",
+        },
+      },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "done.txt" } },
+    },
+    auditorApproved("done.txt exists with content done and README.md is unchanged"),
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
+/** EVAL-009 (diff vazio) — complete_goal sem mudança → BLOQUEADO (empty). */
+export const EVAL_009_EMPTY: ScriptedScenario = {
+  id: "EVAL-009-empty",
+  description: "suficiência: diff vazio → block (mudança ausente); entrega → conclui",
+  ...script([
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: { kind: "tool", name: "complete_goal", args: { completionSummary: "no changes needed" } },
+    },
+    {
+      expect: { toolsSubset: ["write"], conversationContains: ["mudança ausente"] },
+      reply: { kind: "tool", name: "write", args: { path: "result.txt", content: "ok" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: {
+        kind: "tool",
+        name: "complete_goal",
+        args: {
+          completionSummary: "result.txt created",
+          verificationSummary: "<evidence>result.txt exists with content ok</evidence>",
+        },
+      },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "result.txt" } },
+    },
+    auditorApproved("result.txt exists with content ok"),
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
+/** EVAL-009 (diff gigante) — complete_goal com diff desproporcional → BLOQUEADO (oversized). */
+export const EVAL_009_OVERSIZED: ScriptedScenario = {
+  id: "EVAL-009-big",
+  description: "suficiência: diff gigante → block (mudança desproporcional); reduz → conclui",
+  ...script([
+    {
+      expect: { toolsSubset: ["bash"] },
+      reply: { kind: "tool", name: "bash", args: { command: "seq 1 500 > big.txt" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: { kind: "tool", name: "complete_goal", args: { completionSummary: "big change done" } },
+    },
+    {
+      expect: { toolsSubset: ["bash"], conversationContains: ["mudança desproporcional"] },
+      reply: { kind: "tool", name: "bash", args: { command: "rm big.txt && printf 'small' > note.txt" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: {
+        kind: "tool",
+        name: "complete_goal",
+        args: {
+          completionSummary: "note.txt created",
+          verificationSummary: "<evidence>note.txt exists with content small</evidence>",
+        },
+      },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "note.txt" } },
+    },
+    auditorApproved("note.txt exists with content small"),
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
+/**
+ * EVAL-010 — zona cinza + kill switch na sessão (F25): output na zona cinza
+ * (0.35 < score < 0.75 — texto calibrado no Execute) → sem env: grayZoneNoJudge
+ * (default fail, registrado — sem block); com RUNECRAFT_VERIFY_LLM_JUDGE=1 e
+ * adaptador fake: judge chamado com a spec (spy) → pass. RUNECRAFT_VERIFY=0:
+ * cascata inerte (goal conclui sem log).
+ */
+export const EVAL_010_GOAL: ScriptedScenario = {
+  id: "EVAL-010",
+  description: "zona cinza + kill switch: complete_goal com output na zona cinza (veredito/registro por env)",
+  ...script([
+    {
+      expect: { toolsSubset: ["write"] },
+      reply: { kind: "tool", name: "write", args: { path: "notes.txt", content: "hello verify" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: {
+        kind: "tool",
+        name: "complete_goal",
+        args: {
+          completionSummary: "The file notes.txt was created.",
+          verificationSummary:
+            "Its content is hello verify, matching the requested content in the repository. <evidence>notes.txt exists with the exact content</evidence>",
+        },
+      },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "notes.txt" } },
+    },
+    auditorApproved("notes.txt exists with content hello verify"),
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
 export const SCENARIOS: Record<string, ScriptedScenario> = {
   "EVAL-001": EVAL_001,
   "EVAL-002": EVAL_002,
@@ -316,4 +529,9 @@ export const SCENARIOS: Record<string, ScriptedScenario> = {
   "EVAL-005": EVAL_005,
   "EVAL-006": EVAL_006,
   "EVAL-007": EVAL_007,
+  "EVAL-008": EVAL_008,
+  "EVAL-009-int": EVAL_009_INTEGRITY,
+  "EVAL-009-empty": EVAL_009_EMPTY,
+  "EVAL-009-big": EVAL_009_OVERSIZED,
+  "EVAL-010": EVAL_010_GOAL,
 };

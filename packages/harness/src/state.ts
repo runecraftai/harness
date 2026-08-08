@@ -17,6 +17,8 @@ import * as path from "node:path";
 import type { Scope } from "./config.ts";
 import type { GuardsConfig } from "./guards/guardKit.ts";
 import { defaultGuardsConfig } from "./guards/guardKit.ts";
+import type { VerificationConfig } from "./verify/config.ts";
+import { defaultVerificationConfig } from "./verify/config.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -102,6 +104,9 @@ export interface HarnessState {
   /** execution guards config (F24 D2; aditivo, schemaVersion permanece 1 — o
    *  guardKit valida em runtime; ausente = defaults fail-closed). */
   guards?: GuardsConfig;
+  /** verification cascade config (F25 D9; aditivo, schemaVersion permanece 1 —
+   *  o config.ts valida em runtime; ausente = defaults fail-closed). */
+  verification?: VerificationConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -117,6 +122,8 @@ export function emptyState(scope: Scope): HarnessState {
     agents: {},
     // F24: fail-closed por padrão — o estado declara os guards LIGADOS (D10).
     guards: defaultGuardsConfig(),
+    // F25: fail-closed por padrão — o estado declara a cascata de verificação LIGADA (D9).
+    verification: defaultVerificationConfig(),
   };
 }
 

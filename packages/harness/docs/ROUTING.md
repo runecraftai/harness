@@ -199,6 +199,57 @@ têm enforcement — a coluna deles na matriz é detect-only com guia (ADPT-03).
   conclusão é `complete_goal`. O enforcer usa `tool_call` de `complete_goal`
   (turn_end/agent_end NÃO bloqueiam no Pi 0.81.0 — runner.js).
 
+## 8.6 Verification — cascata de verificação do harness (F25)
+
+A cascata de verificação (determinismo de SAÍDA — AD-022 d6) roda no
+`complete_goal` do enforcer F24 (DEPOIS do check de pendências — ordem
+determinística D11) e via CLI `harness verify` (MESMA engine pura
+`runVerificationCascade` — D1). Cascata cheap→expensive com short-circuit:
+
+| Camada (config `verification.policy.onFail.<id>`) | O que verifica | Falha → |
+| --- | --- | --- |
+| `structural` | scripts do repo (lint/typecheck/test — `bun run <script>`, timeout 120s; defaults detectados no package.json da raiz git; override `structural.commands`) | skip (veredito + sugestão — QA-1) |
+| `integrity` | arquivos protegidos = domínio do write-guard F24 (rastreados no HEAD, realpath; exceções `allow`/`force` do F24) — DELETE ou SUBSTITUIÇÃO INTEGRAL → reason-id F24 (`write-existing-file-guard`) | halt (bloqueia — QA-1) |
+| `sufficiency` | QA-2: escopo de arquivos (`thresholds.sufficiency.scopePaths`; vazio = não aplica) + proporção `added+deleted tokens ∈ [minRatio, maxRatio] × |spec|` → `empty`/`oversized`/`scope-violation` | halt (bloqueia — QA-1) |
+| `embedding` | similaridade local determinística (char n-gram n=3 TF + cosseno, zero deps/rede — D4): `score ≥ max → pass`, `≤ min → fail`, meio → gray | skip (veredito + sugestão) |
+| `judge` | LLM env-gated SÓ na zona cinza (`RUNECRAFT_VERIFY_LLM_JUDGE=1`); prompt de faithfulness versionado (spec derivado, nunca auto-avaliação); JSON estrito `{verdict, confidence, reasons[]}`; inválido/timeout → fail-closed contabilizado no cap | skip (veredito + sugestão) |
+
+**Operação:**
+
+- **Fail-closed por padrão**: cascata LIGADA em sessões gerenciadas
+  (defaults QA-1: integrity/sufficiency halt; structural/embedding/judge skip).
+- **Kill switch**: `RUNECRAFT_VERIFY=0` → cascata inativa (sessão e CLI — exit 0).
+- **Congelado por sessão**: config lida no `session_start` (D12 — sem drift mid-turn).
+- **Cost caps** (`verification.costCaps`): `maxCascadeRuns`/`maxJudgeCalls`/`maxJudgeTokens`
+  por execução; cap esgotado → HALT sem judge (reason com contabilidade).
+- **Degrade** (`verification.degrade`): `embeddingUnavailable` default `skip`
+  (veredito degraded registrado — sem essa evidência não é violação);
+  `grayZoneNoJudge` default `fail` (fail-closed: CI não certifica caso duvidoso
+  sem judge — CLI exit 1).
+- **Config**: seção aditiva `verification` do state.json (F13, schemaVersion 1) —
+  sem arquivo novo; inválida → fail-closed (sessão bloqueia com motivo; CLI exit 3);
+  `harness status` mostra a seção, `harness doctor` check 19 valida.
+- **CLI `harness verify`**: exit codes 0 pass/skip/degraded · 1 fail · 2 halt ·
+  3 config/infra; `--json` = `{ok, checks[], warnings[], verdict}` (shape do
+  verify-gate do arcanum); escopo = working tree do repo (goal ativo via ledger
+  F19 quando presente); judge nunca sem env (CI/merge gate F20 offline).
+- **Vereditos de sessão**: gravados no log `.runecraft/verify-verdicts.jsonl`
+  (append-only, precedente do ledger do glla — o Pi 0.81.0 não permite anotar
+  tool_call que passa, validado no Execute: `ToolCallEventResult` = `{block, reason}`).
+
+**Port verification-reminder/verify-gate (arcanum → F25, D12)**: a fonte real
+foi recuperada do checkout `~/Projects/arcanum` (supersedido — AD-001):
+`packages/guild/src/hooks/verification-reminder.ts` (prompt "Verification
+Required": diff/checks/validação de comportamento/gate decision) e
+`packages/guild/src/tools/verify-gate.ts` (runner de checks com timeout +
+`{ok, checks[], warnings[]}`). O que era TEXTO DE PROMPT vira MECANISMO:
+
+| Arcanum (guild, OpenCode) | F25 (harness, Pi) | Onde |
+| --- | --- | --- |
+| `verification-reminder` (prompt — "strong persistent prompt injection, not a kernel-level completion block") | Gate real: veredito + sugestão acionável estruturada; o conteúdo semântico do prompt (diff/checks/validação de comportamento/gate decision) vira `suggestions.ts` por camada | `src/verify/suggestions.ts` |
+| `verify-gate` (tool com `{ok, checks[], warnings[]}`, exec com timeout) | Runner da camada 1 (structural) + shape do report do CLI `--json` | `src/verify/stages/structural.ts` + `src/commands/verify.ts` |
+| (sem enforcement no OpenCode — aviso ignorável) | Bloqueio HARD via `{block:true}` em complete_goal (política halt) + cost caps → HALT | `src/verify/engine.ts` (D7/D8) |
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -292,6 +343,16 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   hooks `complete_goal` (tool_call). glla tool names validated in the fork:
   no `todowrite`/`todoresolve` — `propose_task_list`/`update_task_status`/
   `complete_task`/`complete_goal`; ledger `.pi-glla/active.jsonl` (F24).
+- **2026-08-08**: Verification (section 8.6) validated in the Execute F25 —
+  `complete_goal` payload = `{completionSummary, verificationSummary,
+  newObjective}` (fork goal.ts); handler de `tool_call` PODE ser async
+  (runner awaits handlers); spec da sessão = objective do ledger (a glla
+  limpa o texto no start — "Done when" vira verificationContract);
+  `ToolCallEventResult` não permite anotar tool_call que passa (veredito
+  skip/degraded vai para o log `.runecraft/verify-verdicts.jsonl`);
+  auditor do glla reprova evidência que não cobre o contrato (approved
+  genérico do fixture não serve para qualquer goal); diff do working tree
+  exclui `.pi-glla/` e `.runecraft/` (bookkeeping do harness).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

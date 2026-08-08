@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 2
+MATRIX_VERSION: 3
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -14,9 +14,11 @@ bump de `MATRIX_VERSION`); **nada sai sem AD**. Correção in-place do script
 linha. Mudança SEMÂNTICA de fluxo (novo passo no meio) = entrada nova, nunca
 edição da antiga.
 
-Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-deterministic/spec.md`) + F24 GUARD-01..08 (ver `.specs/features/f24-execution-guards/spec.md` — EVAL-006 → GUARD-01/02/07/08; EVAL-007 → GUARD-04/05/07/08).
+Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-deterministic/spec.md`) + F24 GUARD-01..08 (ver `.specs/features/f24-execution-guards/spec.md` — EVAL-006 → GUARD-01/02/07/08; EVAL-007 → GUARD-04/05/07/08) + F25 VER-01..13 (ver `.specs/features/f25-verification-cascade/spec.md` — EVAL-008 → VER-01/02; EVAL-009 → VER-03/04; EVAL-010 → VER-07/08/09/10; EVAL-011 → VER-06).
 
 **v2 (F24, AD-022):** entradas aditivas EVAL-006 (write guard) e EVAL-007 (todo enforcer) — política aditiva D9; o teste de consistência agora também varre `test/guards/` (lane dos guards).
+
+**v3 (F25, AD-023):** entradas aditivas EVAL-008..011 (verification cascade) — política aditiva D9; o teste de consistência agora também varre `test/verify/` (lane da cascata).
 
 | ID | Fluxo (evidência F7) | Ferramentas | Script esperado (tool calls por turno) | Notas |
 | --- | --- | --- | --- | --- |
@@ -32,6 +34,13 @@ Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-dete
 > 2026-08-05, I1): a decisão aprovada era só hello world; o cenário standalone
 > fica no F22 S3 (E2E com modelos reais). Não referencia `EVAL-003` em teste
 > novo sem AD.
+
+| ID | Fluxo (evidência F7) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-008 | cascata sessão: lint quebrado no complete_goal (F25 verification-cascade) | verify (structural) | 1. sessão com cascade on; 2. modelo escreve notes.txt (lint do fixture falha); 3. complete_goal → veredito ESTRUTURAL com sugestão (política default skip — SOFT, sem block — QA-1); goal conclui (goal_archived); 4. veredito no log da sessão (`.runecraft/verify-verdicts.jsonl`); 5. correção (LINT_OK) → CLI `harness verify` na MESMA engine → structural passa | short-circuit: camadas 2+ não rodam quando a 1 falha (stages do veredito = [structural]) |
+| EVAL-009 | integridade + suficiência (F25) | verify (integrity/sufficiency) | 1. modelo DELETA arquivo protegido (bash rm README.md — rastreado no HEAD) → complete_goal BLOQUEADO com reason do F24 (`write-existing-file-guard: integrity — …` — halt, QA-1); restaura + entrega → conclui; 2. diff vazio → BLOQUEADO (mudança ausente — halt); 3. diff gigante → BLOQUEADO (mudança desproporcional — halt) | reason estável (normalização F21); substituição integral (numstat ≥ linhas do HEAD) também falha; allow/force do F24 são as exceções (herança — sem definição nova de "protegido") |
+| EVAL-010 | zona cinza + degrade + kill switch (F25) | verify (embedding + judge) | 1. RUNECRAFT_VERIFY=0 → cascata INERTE (goal conclui, log ausente); 2. output na zona cinza sem env → grayZoneNoJudge (default fail) registrado no log (sem block — QA-1 embedding é SOFT); 3. env=1 + gray → judge chamado (fake LLM via extensão com spy) com a SPEC no prompt + critérios de faithfulness → pass; 4. adversarial: sem env o judge NUNCA é chamado (spy ausente) | judge nunca em CI (env off por construção); decisão de escalar = código (boundaries min/max — D5); cap → HALT sem judge (ver engine.test.ts) |
+| EVAL-011 | CLI verify exit codes (F25) | commands/verify | 1. repo limpo sem goal → 0 (camadas degradam); 2. lint quebrado (política default skip) → 0 com warning (D10 — "0 pass incl. skip com warning"); 3. zona cinza sem judge → 1 (grayZoneNoJudge fail); 4. halt (goal ativo + diff vazio) → 2; 5. config inválida (min ≥ max) → 3; 6. --json shape {ok, checks[], warnings[], verdict} estável | paridade com a engine (mesma runVerificationCascade no mesmo repo/spec); fora de repo git → 3 (infra); kill switch → inativo, exit 0 |
 
 **Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é
@@ -60,6 +69,7 @@ vivem nos testes existentes do package — F21 reconciliação:
 | routing golden (renderRules == ROUTING.md, ausência não-Pi, limites de linhas) | `test/f19-routing.test.ts` |
 | state schema F13 (escrita atômica, migração, corrompido) | `test/state.test.ts` |
 | bin real via subprocess (exit code + JSON) | `test/eval/layer1/smoke-subprocess.test.ts` (NOVO) |
+| verify (F25): engine pura + stages + config + CLI `harness verify` (exit codes, paridade, adversarial) | `test/verify/{engine,stages,config,cli,cascade-eval}.test.ts` (NOVO) |
 
 **Limites de linhas dos templates (calibrados no Execute):** pi = 46 linhas,
 não-pi = 13 (o design estimou ≤45/≤25; o teste existente calibrou 46/25 —
