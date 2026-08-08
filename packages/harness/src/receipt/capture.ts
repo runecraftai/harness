@@ -273,14 +273,14 @@ export async function runReceiptCapture(opts: CaptureOptions): Promise<number> {
       opts.out.write(`${JSON.stringify(report, null, 2)}\n`);
     } else {
       opts.out.write(
-        `@runecraft/harness receipt: receipt emitido — ${report.file}\n` +
+        `@runecraft/companion receipt: receipt emitido — ${report.file}\n` +
           `  candidate: head ${report.headSha?.slice(0, 8)} · base ${report.baseSha?.slice(0, 8)} (${report.baseRef}@${report.remote}) · diff_hash ${report.diffHash?.slice(0, 8)}…\n` +
           `  reviewHash: ${report.reviewHash?.slice(0, 8)}… · verdict approve (sem P0/P1)\n`,
       );
     }
     return 0;
   }
-  const message = `@runecraft/harness receipt: NENHUM receipt emitido — ${report.error ?? "falha desconhecida"}`;
+  const message = `@runecraft/companion receipt: NENHUM receipt emitido — ${report.error ?? "falha desconhecida"}`;
   if (opts.json) {
     opts.out.write(`${JSON.stringify({ ok: false, pr: opts.pr, error: report.error ?? "falha desconhecida" }, null, 2)}\n`);
   } else {
@@ -324,7 +324,7 @@ export function listReceipts(root: string, json: boolean, out: TextSink): number
     out.write(`${JSON.stringify({ root, receipts: entries }, null, 2)}\n`);
     return 0;
   }
-  const lines = [`@runecraft/harness receipt list (${root})`];
+  const lines = [`@runecraft/companion receipt list (${root})`];
   if (entries.length === 0) lines.push("nenhum receipt encontrado — rode `harness receipt capture <pr>`");
   for (const entry of entries) {
     if (entry.error) {

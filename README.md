@@ -12,7 +12,7 @@ Multi-agent harness for the [Pi coding agent](https://pi.dev): subagent dispatch
 | `@runecraft/taskflow-dsl` | Compile-time TypeScript authoring (`.tf.ts` → Taskflow JSON) |
 | `@runecraft/goal-loop-audit` | Goal/List/Loop with isolated auditor + regression shield |
 | `@runecraft/pr-review` | Parallel tiered PR review |
-| `@runecraft/harness` | Umbrella: installs and wires everything |
+| `@runecraft/companion` | Umbrella: installs and wires everything |
 
 ## Development
 

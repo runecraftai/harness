@@ -1,4 +1,4 @@
-# @runecraft/harness
+# @runecraft/companion
 
 Runecraft Harness — umbrella meta-package (F6). Instala os 4 forks do Pi num único comando:
 
@@ -62,8 +62,8 @@ rotas). Evals EVAL-067..078 (matriz v11 — routing completeness COMPLETA,
 ## Instalação
 
 ```bash
-pi install npm:@runecraft/harness     # global
-pi install npm:@runecraft/harness -l  # projeto local (.pi/settings.json)
+pi install npm:@runecraft/companion     # global
+pi install npm:@runecraft/companion -l  # projeto local (.pi/settings.json)
 ```
 
 Uma sessão Pi nova carrega as extensões dos 4 forks: `/tf`, `/goal`, `subagent({action:"list"})` e o comando de pr-review respondem na mesma sessão.
@@ -77,7 +77,7 @@ Cada fork traz seus próprios defaults e docs (`subagents.defaultModel`, modelo 
 A sequência de doctor documentada é entregue pelo CLI do harness (F12 — `.specs/features/f12-lifecycle`). Checagem manual equivalente:
 
 ```bash
-pi list                                   # mostra @runecraft/harness
+pi list                                   # mostra @runecraft/companion
 pi -p "/tf --help"                        # taskflow responde
 pi -p "/goal status"                      # goal-loop-audit responde
 pi -p "subagent({action:'list'})"         # subagents responde

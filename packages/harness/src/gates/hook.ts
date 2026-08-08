@@ -9,7 +9,7 @@
 // execution).
 //
 // Binary resolution (design fluxo 3): `RUNECRAFT_BIN` (testability, F11
-// pattern) > `harness` on PATH > `npx --no-install @runecraft/harness` (no
+// pattern) > `harness` on PATH > `npx --no-install @runecraft/companion` (no
 // download, fast fail). Binary missing → deny fail-closed with a remedy.
 //
 // Note (divergência documentada): the fluxo-3 block of the design shows the
@@ -47,9 +47,9 @@ export function gatesShimBody(hook: GateHookName): string {
     "elif command -v harness >/dev/null 2>&1; then",
     `  exec harness gates run ${hook}`,
     "elif command -v npx >/dev/null 2>&1; then",
-    `  exec npx --no-install @runecraft/harness gates run ${hook}`,
+    `  exec npx --no-install @runecraft/companion gates run ${hook}`,
     "else",
-    '  echo "runecraft gates: harness não encontrado (npm i -g @runecraft/harness)" >&2',
+    '  echo "runecraft gates: harness não encontrado (npm i -g @runecraft/companion)" >&2',
     "  exit 1",
     "fi",
   ].join("\n");

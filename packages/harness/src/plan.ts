@@ -157,10 +157,10 @@ export function helpText(): string {
     return `  ${name.padEnd(16)} ${def.description} (${def.packages.map((p) => `npm:${p}@${HARNESS_VERSIONS[p] ?? "?"}`).join(", ")})`;
   });
   return [
-    "@runecraft/harness — CLI do harness. Orquestra `pi install` para os components runecraft.",
+    "@runecraft/companion — CLI do harness. Orquestra `pi install` para os components runecraft.",
     "",
     "Uso:",
-    "  npx @runecraft/harness <comando> [flags]",
+    "  npx @runecraft/companion <comando> [flags]",
     "",
     "Comandos:",
     "  install        Instala os components selecionados via `pi install` (default: preset minimal)",
@@ -203,25 +203,25 @@ export function helpText(): string {
     "             conflito reportado, nunca sobrescrito; adições registradas e removíveis no uninstall",
     "",
     "Exemplos:",
-    "  npx @runecraft/harness install",
-    "  npx @runecraft/harness doctor --json",
-    "  npx @runecraft/harness status --scope workspace",
-    "  npx @runecraft/harness sync --dry-run",
-    "  npx @runecraft/harness uninstall --component goal-loop-audit",
-    "  npx @runecraft/harness uninstall --all --yes",
-    "  npx @runecraft/harness backups",
-    "  npx @runecraft/harness restore runecraft-20260805-120000-000.tar.gz",
-    "  npx @runecraft/harness gates enable",
-    "  npx @runecraft/harness gates status",
-    "  npx @runecraft/harness gates run pre-commit   (hook shim — debug)",
-    "  npx @runecraft/harness receipt capture 123 --include-closed",
-    "  npx @runecraft/harness receipt capture 123 --from review.json",
-    "  npx @runecraft/harness receipt list --json",
+    "  npx @runecraft/companion install",
+    "  npx @runecraft/companion doctor --json",
+    "  npx @runecraft/companion status --scope workspace",
+    "  npx @runecraft/companion sync --dry-run",
+    "  npx @runecraft/companion uninstall --component goal-loop-audit",
+    "  npx @runecraft/companion uninstall --all --yes",
+    "  npx @runecraft/companion backups",
+    "  npx @runecraft/companion restore runecraft-20260805-120000-000.tar.gz",
+    "  npx @runecraft/companion gates enable",
+    "  npx @runecraft/companion gates status",
+    "  npx @runecraft/companion gates run pre-commit   (hook shim — debug)",
+    "  npx @runecraft/companion receipt capture 123 --include-closed",
+    "  npx @runecraft/companion receipt capture 123 --from review.json",
+    "  npx @runecraft/companion receipt list --json",
     "",
   ].join("\n");
 }
 
 export function versionText(): string {
   const pkg = require("../package.json") as { version?: string };
-  return `@runecraft/harness ${pkg.version ?? "0.0.0"}\n`;
+  return `@runecraft/companion ${pkg.version ?? "0.0.0"}\n`;
 }

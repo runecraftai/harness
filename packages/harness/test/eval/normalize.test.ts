@@ -50,7 +50,7 @@ describe("normalize — regexes versionadas (um teste por padrão, D2)", () => {
   });
 
   test("versão de pacote: 0.1.0, bun@1.3.14 → <ver> (bump legítimo)", () => {
-    expect(applyPatterns("@runecraft/harness@0.1.0 quebrou")).toBe("@runecraft/harness@<ver> quebrou");
+    expect(applyPatterns("@runecraft/companion@0.1.0 quebrou")).toBe("@runecraft/companion@<ver> quebrou");
     expect(applyPatterns("requer bun@1.3.14 ou maior")).toBe("requer bun@<ver> ou maior");
   });
 

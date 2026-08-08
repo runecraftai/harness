@@ -129,7 +129,7 @@ describe("gates/hook — shim POSIX (D4, fluxo 3)", () => {
     expect(body).toContain(`if [ -n "$RUNECRAFT_BIN" ]; then`);
     expect(body).toContain(`exec "$RUNECRAFT_BIN" gates run pre-commit`);
     expect(body).toContain("exec harness gates run pre-commit");
-    expect(body).toContain("exec npx --no-install @runecraft/harness gates run pre-commit");
+    expect(body).toContain("exec npx --no-install @runecraft/companion gates run pre-commit");
     expect(body).toContain("harness não encontrado");
     expect(body).toContain("exit 1");
     // pre-push usa o mesmo shim com o nome do hook

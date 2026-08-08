@@ -93,7 +93,7 @@ export interface GatesEnableResult {
 }
 
 export function renderGatesEnable(result: GatesEnableResult): string {
-  const lines = [`@runecraft/harness gates enable (repo ${result.root})`];
+  const lines = [`@runecraft/companion gates enable (repo ${result.root})`];
   lines.push(`  config: ${result.configFile} → {"gates":{"enabled":true}}`);
   lines.push(`  hooks: ${result.hooksDir}`);
   for (const hook of result.hooksWritten) lines.push(`    ✓ ${path.basename(hook)} (${result.hooksCreated.includes(hook) ? "criado" : "seção upserted"})`);
@@ -129,7 +129,7 @@ export async function runGatesEnable(
 ): Promise<number> {
   const root = repoRoot(rt.cwd);
   if (root === null) {
-    opts.err.write("@runecraft/harness gates: enable exige um repositório git (git rev-parse falhou)\n");
+    opts.err.write("@runecraft/companion gates: enable exige um repositório git (git rev-parse falhou)\n");
     return 1;
   }
   const rtRoot = rtAtRoot(rt, root);
@@ -171,7 +171,7 @@ export async function runGatesEnable(
     result.backup = snapshot.file;
   } catch (error) {
     opts.err.write(
-      `@runecraft/harness gates: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
+      `@runecraft/companion gates: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
     );
     return 1;
   }
@@ -205,7 +205,7 @@ export async function runGatesEnable(
   try {
     saveState(stateFile, loaded.state);
   } catch (error) {
-    opts.err.write(`@runecraft/harness gates: falha ao gravar o state (${(error as Error).message}).\n`);
+    opts.err.write(`@runecraft/companion gates: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
   if (opts.json) opts.out.write(renderGatesEnableJson(result));
@@ -241,7 +241,7 @@ export interface GatesDisableResult {
 
 function renderGatesDisable(result: GatesDisableResult): string {
   const lines = [
-    `@runecraft/harness gates disable (${result.scope})`,
+    `@runecraft/companion gates disable (${result.scope})`,
     `  ${result.file} → {"gates":{"enabled":false}}`,
   ];
   for (const note of result.notes) lines.push(`  note: ${note}`);
@@ -290,7 +290,7 @@ export async function runGatesDisable(opts: GatesDisableOptions): Promise<number
   const notes: string[] = [];
   const root = repoRoot(rt.cwd);
   if (scope === "workspace" && root === null) {
-    err.write("@runecraft/harness gates: --scope workspace exige um repositório git\n");
+    err.write("@runecraft/companion gates: --scope workspace exige um repositório git\n");
     return 1;
   }
   const rtScope = scope === "workspace" && root !== null ? rtAtRoot(rt, root) : rt;
@@ -331,7 +331,7 @@ export async function runGatesDisable(opts: GatesDisableOptions): Promise<number
     });
     result.backup = snapshot.file;
   } catch (error) {
-    err.write(`@runecraft/harness gates: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`);
+    err.write(`@runecraft/companion gates: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`);
     return 1;
   }
 
@@ -347,7 +347,7 @@ export async function runGatesDisable(opts: GatesDisableOptions): Promise<number
   try {
     saveState(stateFile, loaded.state);
   } catch (error) {
-    err.write(`@runecraft/harness gates: falha ao gravar o state (${(error as Error).message}).\n`);
+    err.write(`@runecraft/companion gates: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
   if (scope === "global") {
@@ -412,7 +412,7 @@ export function computeGatesStatus(rt: Runtime, root: string): GatesStatusReport
 }
 
 export function renderGatesStatus(report: GatesStatusReport): string {
-  const lines = [`@runecraft/harness gates status (${report.root})`];
+  const lines = [`@runecraft/companion gates status (${report.root})`];
   const label = (value: boolean | undefined, present: boolean, error?: string): string => {
     if (error) return `erro (${error})`;
     if (!present) return "ausente";
@@ -458,7 +458,7 @@ export async function runGatesRun(
   err: TextSink,
 ): Promise<number> {
   if (hook !== "pre-commit" && hook !== "pre-push") {
-    err.write(`@runecraft/harness gates run: hook inválido '${hook}' (esperado pre-commit|pre-push)\n`);
+    err.write(`@runecraft/companion gates run: hook inválido '${hook}' (esperado pre-commit|pre-push)\n`);
     return 1;
   }
   const stdinText = hook === "pre-push" ? await readStreamAll(stdin) : undefined;
@@ -504,7 +504,7 @@ export async function runGatesCommand(opts: GatesCommandOptions): Promise<number
     case "status": {
       const root = repoRoot(rt.cwd);
       if (root === null) {
-        err.write("@runecraft/harness gates: status exige um repositório git\n");
+        err.write("@runecraft/companion gates: status exige um repositório git\n");
         return 1;
       }
       const report = computeGatesStatus(rt, root);
@@ -515,7 +515,7 @@ export async function runGatesCommand(opts: GatesCommandOptions): Promise<number
     case "run":
       return runGatesRun(rt, opts.args[0] ?? "", opts.stdin, out, err);
     default:
-      err.write(`@runecraft/harness gates: subcomando desconhecido '${opts.subcommand}' (esperado enable|disable|status|run)\n`);
+      err.write(`@runecraft/companion gates: subcomando desconhecido '${opts.subcommand}' (esperado enable|disable|status|run)\n`);
       return 1;
   }
 }

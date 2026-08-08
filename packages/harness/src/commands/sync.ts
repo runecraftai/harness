@@ -132,7 +132,7 @@ export function buildSyncPlan(
 function renderSync(report: SyncReport, opts: { tty: boolean }): string {
   const c = (s: string, color: string) => (opts.tty ? `${color}${s}\u001b[0m` : s);
   if (report.status === "in-sync") {
-    const lines = [`@runecraft/harness sync (scope ${report.scope}): already in sync — zero mudanças`];
+    const lines = [`@runecraft/companion sync (scope ${report.scope}): already in sync — zero mudanças`];
     for (const note of report.notes) lines.push(`${c("note:", "\u001b[2m")} ${note}`);
     if (report.preserved.length > 0) {
       lines.push(`Preservado (instalado à mão, fora do state): ${report.preserved.join(", ")}`);
@@ -142,7 +142,7 @@ function renderSync(report: SyncReport, opts: { tty: boolean }): string {
     }
     return `${lines.join("\n")}\n`;
   }
-  const lines = [`@runecraft/harness sync (scope ${report.scope})`];
+  const lines = [`@runecraft/companion sync (scope ${report.scope})`];
   for (const note of report.notes) lines.push(`${c("note:", "\u001b[2m")} ${note}`);
   if (report.installed.length > 0) {
     lines.push(`${c(`Reinstalado (${report.installed.length}):`, "\u001b[32m")}`);
@@ -203,7 +203,7 @@ export async function runSyncCommand(opts: SyncCommandOptions): Promise<number> 
   try {
     return await withRunecraftLock(opts.rt, opts.scope, "sync", () => runSyncCommandLocked(opts));
   } catch (error) {
-    opts.err.write(`@runecraft/harness sync: ${(error as Error).message}\n`);
+    opts.err.write(`@runecraft/companion sync: ${(error as Error).message}\n`);
     return 1;
   }
 }
@@ -228,13 +228,13 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     return 1;
   }
   if (loaded.created) {
-    const message = "warn: nenhum state registrado neste scope — nada para reconciliar (rode `npx @runecraft/harness install`).";
+    const message = "warn: nenhum state registrado neste scope — nada para reconciliar (rode `npx @runecraft/companion install`).";
     if (opts.json) {
       out.write(
         renderSyncJson({ scope, status: "in-sync", installed: [], diverged: [], kept: [], preserved: [], conflicts: [], failed: [], notes: [message] }),
       );
     } else {
-      out.write(`@runecraft/harness sync (scope ${scope}): ${message}\n`);
+      out.write(`@runecraft/companion sync (scope ${scope}): ${message}\n`);
     }
     return 0;
   }
@@ -369,7 +369,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     backupFile = snapshot.file;
   } catch (error) {
     err.write(
-      `@runecraft/harness sync: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
+      `@runecraft/companion sync: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
     );
     return 1;
   }
@@ -400,7 +400,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   try {
     saveState(stateFile, loaded.state);
   } catch (error) {
-    err.write(`@runecraft/harness sync: falha ao gravar o state (${(error as Error).message}).\n`);
+    err.write(`@runecraft/companion sync: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
   // F17 D6: re-inject dos agentes pendentes (planejados acima) — idempotente,
@@ -471,7 +471,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     try {
       saveState(stateFile, loaded.state);
     } catch (error) {
-      err.write(`@runecraft/harness sync: falha ao gravar o state dos agentes (${(error as Error).message}).\n`);
+      err.write(`@runecraft/companion sync: falha ao gravar o state dos agentes (${(error as Error).message}).\n`);
     }
   }
 
@@ -489,7 +489,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       try {
         saveState(stateFile, loaded.state);
       } catch (error) {
-        err.write(`@runecraft/harness sync: falha ao gravar o state dos papéis (${(error as Error).message}).\n`);
+        err.write(`@runecraft/companion sync: falha ao gravar o state dos papéis (${(error as Error).message}).\n`);
       }
     }
     if (applied.copied.length > 0) {
@@ -512,7 +512,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       try {
         saveState(stateFile, loaded.state);
       } catch (error) {
-        err.write(`@runecraft/harness sync: falha ao gravar o state das pilot chains (${(error as Error).message}).\n`);
+        err.write(`@runecraft/companion sync: falha ao gravar o state das pilot chains (${(error as Error).message}).\n`);
       }
     }
     if (applied.copied.length > 0) {

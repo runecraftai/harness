@@ -129,7 +129,7 @@ function checkPiConfig(rt: Runtime): DoctorCheck {
           name: "Pi config",
           status: "fail",
           detail: `arquivo ausente: ${file}`,
-          remedy: "o `pi install` cria o arquivo de settings — rode `npx @runecraft/harness install`",
+          remedy: "o `pi install` cria o arquivo de settings — rode `npx @runecraft/companion install`",
         };
       }
       continue;
@@ -206,7 +206,7 @@ function checkComponents(rt: Runtime, pi: PiInterop): DoctorCheck {
       name: "Components",
       status: "warn",
       detail: "nada registrado no state do harness (nenhum package gerenciado)",
-      remedy: "`npx @runecraft/harness install`",
+      remedy: "`npx @runecraft/companion install`",
     };
   }
   if (problems.length === 0) {
@@ -478,7 +478,7 @@ function renderDoctor(report: DoctorReport, opts: { tty: boolean }): string {
   };
   const RESET = "\u001b[0m";
   const c = (s: string, status: DoctorStatus) => (opts.tty ? `${color[status]}${s}${RESET}` : s);
-  const lines = ["@runecraft/harness doctor — diagnóstico (read-only, nada foi modificado)"];
+  const lines = ["@runecraft/companion doctor — diagnóstico (read-only, nada foi modificado)"];
   for (const check of report.checks) {
     lines.push(`[${check.id}] ${check.name} ..... ${c(statusLabel[check.status].padEnd(6), check.status)} ${check.detail}`);
     if (check.remedy) lines.push(`     remedy: ${check.remedy}`);

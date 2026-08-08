@@ -39,7 +39,7 @@ describe("--help / --version (CLI-06)", () => {
     try {
       const result = await dispatchCapture(sb, ["--version"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("@runecraft/harness");
+      expect(result.stdout).toContain("@runecraft/companion");
     } finally {
       sb.cleanup();
     }
@@ -52,7 +52,7 @@ describe("F13 implementado: backups e restore", () => {
     try {
       const result = await runHarness(sb, ["backups"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("harness backups");
+      expect(result.stdout).toContain("companion backups");
       expect(result.stdout).toContain("nenhum snapshot");
       expect(result.stdout).not.toContain("F13");
     } finally {
@@ -129,7 +129,7 @@ describe("comandos F12 implementados (stubs removidos)", () => {
     try {
       const result = await runHarness(sb, ["status"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("harness status");
+      expect(result.stdout).toContain("companion status");
       expect(result.stdout).toContain("nada instalado pelo harness");
       expect(result.stdout).not.toContain("F12");
     } finally {
@@ -175,7 +175,7 @@ describe("bin wrapper smoke (F21 D1)", () => {
       // dispatch("status") sem pi → tabela vazia + sugestão de install (F12 real)
       const result = await runHarness(sb, ["status"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("npx @runecraft/harness install");
+      expect(result.stdout).toContain("npx @runecraft/companion install");
     } finally {
       sb.cleanup();
     }

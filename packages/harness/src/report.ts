@@ -83,7 +83,7 @@ export function renderReport(report: InstallReport, opts: RenderOptions): string
   if (opts.json) return `${JSON.stringify(toJson(report), null, 2)}\n`;
   const c = (s: string, color: string) => (opts.tty ? `${color}${s}${RESET}` : s);
   const lines: string[] = [
-    `@runecraft/harness install (preset ${report.preset}, scope ${report.scope})`,
+    `@runecraft/companion install (preset ${report.preset}, scope ${report.scope})`,
   ];
   for (const note of report.notes) lines.push(`${c("note:", DIM)} ${note}`);
   if (report.installed.length > 0) {
@@ -195,7 +195,7 @@ export function renderDryRun(
   }
   const c = (s: string, color: string) => (opts.tty ? `${color}${s}${RESET}` : s);
   const lines: string[] = [
-    `@runecraft/harness install — DRY-RUN (nada será modificado)`,
+    `@runecraft/companion install — DRY-RUN (nada será modificado)`,
     `preset: ${plan.preset} · components: ${plan.components.join(", ")} · packages: ${plan.specs.length}`,
     "",
     "Specs:",

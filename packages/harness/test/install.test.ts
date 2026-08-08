@@ -423,7 +423,7 @@ describe("install — pi ausente, fail-closed (CLI-04)", () => {
       const result = await runHarness(sb, ["install"], { piBin: path.join(sb.dir, "no-such-pi") });
       expect(result.code).toBe(1);
       expect(result.stderr).toContain("npm install -g --ignore-scripts @earendil-works/pi-coding-agent");
-      expect(result.stderr).toContain("npx @runecraft/harness install");
+      expect(result.stderr).toContain("npx @runecraft/companion install");
       // fail-closed: nada foi escrito
       expect(fs.existsSync(settingsFile(sb))).toBe(false);
       expect(fs.existsSync(stateFile(sb))).toBe(false);

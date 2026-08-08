@@ -46,7 +46,7 @@ export async function runMemoryCommand(opts: MemoryCommandOptions): Promise<numb
 	// Kill switch (F20): recusa fail-visible — NADA criado (D5).
 	const kill = memoryKillSwitch(opts.rt.env);
 	if (kill.active) {
-		opts.out.write(`@runecraft/harness memory: memory disabled (RUNECRAFT_MEMORY=${kill.value})\n`);
+		opts.out.write(`@runecraft/companion memory: memory disabled (RUNECRAFT_MEMORY=${kill.value})\n`);
 		return 0;
 	}
 
@@ -58,7 +58,7 @@ export async function runMemoryCommand(opts: MemoryCommandOptions): Promise<numb
 		db = openDatabase(memoryDir);
 	} catch (error) {
 		opts.err.write(
-			`@runecraft/harness memory: não foi possível abrir o store — ${error instanceof Error ? error.message : String(error)}\n`,
+			`@runecraft/companion memory: não foi possível abrir o store — ${error instanceof Error ? error.message : String(error)}\n`,
 		);
 		return 1;
 	}

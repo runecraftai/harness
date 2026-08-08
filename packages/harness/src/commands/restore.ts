@@ -49,7 +49,7 @@ export interface RestoreErrorReport {
 }
 
 function renderRestore(report: RestoreReport): string {
-  const lines = [`@runecraft/harness restore (scope ${report.scope})`];
+  const lines = [`@runecraft/companion restore (scope ${report.scope})`];
   lines.push(`Restaurado de ${report.snapshot} (${report.restored.length} arquivo${report.restored.length === 1 ? "" : "s"}):`);
   for (const file of report.restored) lines.push(`  ✓ ${file}`);
   if (report.failed.length > 0) {
@@ -75,7 +75,7 @@ function renderRestoreJson(report: RestoreReport): string {
 }
 
 function renderRestoreError(report: RestoreErrorReport): string {
-  const lines = [`@runecraft/harness restore (scope ${report.scope}): ${report.error}`];
+  const lines = [`@runecraft/companion restore (scope ${report.scope}): ${report.error}`];
   if (report.available.length === 0) {
     lines.push("Nenhum snapshot disponível neste scope — todo install/sync/uninstall cria um antes de modificar config.");
   } else {
@@ -125,7 +125,7 @@ export function runRestoreCommand(opts: RestoreCommandOptions): number {
   // STBK 3.2: backup inexistente (ou nome ausente) → falha listando os disponíveis.
   const rawName = opts.name?.trim() ?? "";
   if (rawName === "") {
-    return fail("especifique o snapshot a restaurar: `npx @runecraft/harness restore <nome>`");
+    return fail("especifique o snapshot a restaurar: `npx @runecraft/companion restore <nome>`");
   }
   const snapshotFile = resolveSnapshot(dir, rawName);
   if (snapshotFile === null) {

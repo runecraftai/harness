@@ -27,14 +27,14 @@ export async function runReceiptCommand(opts: ReceiptCommandOptions): Promise<nu
   const { out, err, rt } = opts;
   const root = repoRoot(rt.cwd);
   if (root === null) {
-    err.write("@runecraft/harness receipt: é preciso estar dentro de um repositório git (o receipt liga o review ao diff local)\n");
+    err.write("@runecraft/companion receipt: é preciso estar dentro de um repositório git (o receipt liga o review ao diff local)\n");
     return 1;
   }
   switch (opts.subcommand) {
     case "capture": {
       const prArg = opts.args[0];
       if (!prArg || !/^\d+$/.test(prArg)) {
-        err.write("@runecraft/harness receipt: uso — `harness receipt capture <pr> [--from <review.json>] [--include-closed]`\n");
+        err.write("@runecraft/companion receipt: uso — `harness receipt capture <pr> [--from <review.json>] [--include-closed]`\n");
         return 1;
       }
       return runReceiptCapture({
@@ -51,7 +51,7 @@ export async function runReceiptCommand(opts: ReceiptCommandOptions): Promise<nu
     case "list":
       return listReceipts(root, opts.json, out);
     default:
-      err.write(`@runecraft/harness receipt: subcomando desconhecido '${opts.subcommand}' (esperado capture|list)\n`);
+      err.write(`@runecraft/companion receipt: subcomando desconhecido '${opts.subcommand}' (esperado capture|list)\n`);
       return 1;
   }
 }

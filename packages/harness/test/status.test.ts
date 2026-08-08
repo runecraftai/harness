@@ -41,10 +41,10 @@ describe("status — estado vazio (LIFE 4.3)", () => {
     try {
       const result = await runHarness(sb, ["status"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("harness status");
+      expect(result.stdout).toContain("companion status");
       for (const pkg of CATALOG) expect(result.stdout).toContain(pkg);
       expect(result.stdout.match(/ausente/g)).toHaveLength(6);
-      expect(result.stdout).toContain("npx @runecraft/harness install");
+      expect(result.stdout).toContain("npx @runecraft/companion install");
     } finally {
       sb.cleanup();
     }

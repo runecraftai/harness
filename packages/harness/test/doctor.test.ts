@@ -260,7 +260,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("nada registrado no state");
-      expect(result.stdout).toContain("npx @runecraft/harness install");
+      expect(result.stdout).toContain("npx @runecraft/companion install");
     } finally {
       sb.cleanup();
     }

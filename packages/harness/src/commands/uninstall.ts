@@ -114,7 +114,7 @@ function confirmUninstall(opts: UninstallCommandOptions, count: number): Promise
 
 function renderUninstall(report: UninstallReport, opts: { tty: boolean }): string {
   const c = (s: string, color: string) => (opts.tty ? `${color}${s}\u001b[0m` : s);
-  const lines = [`@runecraft/harness uninstall (scope ${report.scope})`];
+  const lines = [`@runecraft/companion uninstall (scope ${report.scope})`];
   for (const note of report.notes) lines.push(`${c("note:", "\u001b[2m")} ${note}`);
   if (report.removed.length > 0) {
     lines.push(`${c(`Removido (${report.removed.length}):`, "\u001b[32m")}`);
@@ -187,7 +187,7 @@ export async function runUninstallCommand(opts: UninstallCommandOptions): Promis
   try {
     return await withRunecraftLock(opts.rt, opts.scope, "uninstall", () => runUninstallCommandLocked(opts));
   } catch (error) {
-    opts.err.write(`@runecraft/harness uninstall: ${(error as Error).message}\n`);
+    opts.err.write(`@runecraft/companion uninstall: ${(error as Error).message}\n`);
     return 1;
   }
 }
@@ -208,14 +208,14 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
   // Validação de seleção primeiro (uso explícito obrigatório): nada de
   // uninstall acidental. `--all` e `--component` são mutuamente exclusivos.
   if (opts.all && opts.components && opts.components.length > 0) {
-    const message = "@runecraft/harness uninstall: use `--all` ou `--component`, não ambos";
+    const message = "@runecraft/companion uninstall: use `--all` ou `--component`, não ambos";
     if (opts.json)
       out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     else err.write(`${message}\n`);
     return 1;
   }
   if (!opts.all && (!opts.components || opts.components.length === 0) && (!opts.agents || opts.agents.length === 0)) {
-    const message = "@runecraft/harness uninstall: especifique o que remover: `--all`, `--component <a,b>` ou `--agent <a,b>`";
+    const message = "@runecraft/companion uninstall: especifique o que remover: `--all`, `--component <a,b>` ou `--agent <a,b>`";
     if (opts.json)
       out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     else err.write(`${message}\n`);
@@ -249,7 +249,7 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     if (opts.json) {
       out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     } else {
-      out.write(`@runecraft/harness uninstall (scope ${scope}): ${message}\n`);
+      out.write(`@runecraft/companion uninstall (scope ${scope}): ${message}\n`);
     }
     return 0;
   }
@@ -275,7 +275,7 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     if (opts.json) {
       out.write(renderUninstallJson({ scope, removed: [], removedFiles: [], removedSettings: [], preservedSettings: [], preserved: [], failed: [], notes: [message], agentsRemoved: [] }));
     } else {
-      out.write(`@runecraft/harness uninstall (scope ${scope}): ${message}\n`);
+      out.write(`@runecraft/companion uninstall (scope ${scope}): ${message}\n`);
     }
     return 0;
   }
@@ -330,7 +330,7 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
     backupFile = snapshot.file;
   } catch (error) {
     err.write(
-      `@runecraft/harness uninstall: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
+      `@runecraft/companion uninstall: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`,
     );
     return 1;
   }
@@ -507,7 +507,7 @@ async function runUninstallCommandLocked(opts: UninstallCommandOptions): Promise
   try {
     saveState(stateFile, loaded.state);
   } catch (error) {
-    err.write(`@runecraft/harness uninstall: falha ao gravar o state (${(error as Error).message}).\n`);
+    err.write(`@runecraft/companion uninstall: falha ao gravar o state (${(error as Error).message}).\n`);
   }
 
   const report: UninstallReport = {

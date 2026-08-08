@@ -37,13 +37,13 @@ export async function runSddCommand(opts: SddCommandOptions): Promise<number> {
 		case "new": {
 			const feature = opts.args[0];
 			if (feature === undefined) {
-				opts.err.write("@runecraft/harness sdd: uso: harness sdd new <feature> [--scope quick|medium|large]\n");
+				opts.err.write("@runecraft/companion sdd: uso: harness sdd new <feature> [--scope quick|medium|large]\n");
 				return 2;
 			}
 			const scopeArg = opts.sddScope ?? opts.args.find((a) => a !== feature && !a.startsWith("-"));
 			const scope = parseScope(scopeArg) ?? undefined;
 			if (opts.sddScope !== undefined && scope === undefined) {
-				opts.err.write(`@runecraft/harness sdd: --scope inválido "${opts.sddScope}" (esperado quick|medium|large)\n`);
+				opts.err.write(`@runecraft/companion sdd: --scope inválido "${opts.sddScope}" (esperado quick|medium|large)\n`);
 				return 2;
 			}
 			const result = scaffoldFeature(ctx, { feature, scope });
@@ -95,7 +95,7 @@ export async function runSddCommand(opts: SddCommandOptions): Promise<number> {
 			return 0;
 		}
 		default:
-			opts.err.write(`@runecraft/harness sdd: subcomando desconhecido "${opts.subcommand}" (esperado new|chains)\n`);
+			opts.err.write(`@runecraft/companion sdd: subcomando desconhecido "${opts.subcommand}" (esperado new|chains)\n`);
 			return 2;
 	}
 }
@@ -105,12 +105,12 @@ export async function runPlansCommand(opts: SddCommandOptions): Promise<number> 
 	const ctx = { cwd: opts.rt.cwd, packageRoot: packageRoot() };
 	const sub = opts.subcommand;
 	if (sub !== "archive") {
-		opts.err.write(`@runecraft/harness plans: subcomando desconhecido "${sub}" (esperado archive)\n`);
+		opts.err.write(`@runecraft/companion plans: subcomando desconhecido "${sub}" (esperado archive)\n`);
 		return 2;
 	}
 	const slug = opts.args[0];
 	if (slug === undefined) {
-		opts.err.write("@runecraft/harness plans: uso: harness plans archive <slug>\n");
+		opts.err.write("@runecraft/companion plans: uso: harness plans archive <slug>\n");
 		return 2;
 	}
 	const result = plansArchive(ctx, slug);

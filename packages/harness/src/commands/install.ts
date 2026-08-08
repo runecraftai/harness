@@ -105,7 +105,7 @@ export async function runInstall(opts: InstallCommandOptions): Promise<number> {
   try {
     return await withRunecraftLock(opts.rt, opts.scope, "install", () => runInstallLocked(opts));
   } catch (error) {
-    opts.err.write(`@runecraft/harness install: ${(error as Error).message}\n`);
+    opts.err.write(`@runecraft/companion install: ${(error as Error).message}\n`);
     return 1;
   }
 }
@@ -136,7 +136,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   if (nonPiAgents.length > 0 && opts.components && opts.components.length > 0) {
     const blocked = firstUnsupported(nonPiAgents, opts.components as ComponentId[]);
     if (blocked) {
-      err.write(`@runecraft/harness install: ${blocked.reason} (componente não suportado por ${blocked.agent}).\n`);
+      err.write(`@runecraft/companion install: ${blocked.reason} (componente não suportado por ${blocked.agent}).\n`);
       return 1;
     }
   }
@@ -181,7 +181,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     try {
       plan = buildPlan(opts.preset, opts.components);
     } catch (error) {
-      err.write(`@runecraft/harness install: ${(error as Error).message}\n`);
+      err.write(`@runecraft/companion install: ${(error as Error).message}\n`);
       return 1;
     }
   }
@@ -254,7 +254,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   // colisões detectadas (MXST-04), não-TTY sem --yes aborta (fail-closed).
   if (ownerWarnings.length > 0 && !opts.isTTY && !opts.yes) {
     err.write(
-      `@runecraft/harness install: ${ownerWarnings.length} colisão(ões) detectada(s) — sem TTY e sem --yes, abortando (fail-closed). ` +
+      `@runecraft/companion install: ${ownerWarnings.length} colisão(ões) detectada(s) — sem TTY e sem --yes, abortando (fail-closed). ` +
         `Rode com --yes para prosseguir registrando os avisos no relatório.\n`,
     );
     return 1;
@@ -280,7 +280,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
       scope,
     });
   } catch (error) {
-    err.write(`@runecraft/harness install: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`);
+    err.write(`@runecraft/companion install: falha ao criar o snapshot pré-write — nada foi modificado.\n  ${(error as Error).message}\n`);
     return 1;
   }
 
@@ -410,9 +410,9 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
       } catch (error) {
         mergeError = error instanceof Error ? error.message : String(error);
         if (error instanceof MergeError) {
-          err.write(`@runecraft/harness install: merge de settings abortado — ${error.message}\n`);
+          err.write(`@runecraft/companion install: merge de settings abortado — ${error.message}\n`);
         } else {
-          err.write(`@runecraft/harness install: merge de settings falhou — ${mergeError}\n`);
+          err.write(`@runecraft/companion install: merge de settings falhou — ${mergeError}\n`);
         }
       }
     }
@@ -421,7 +421,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   try {
     saveState(stateFile, state);
   } catch (error) {
-    err.write(`@runecraft/harness install: falha ao gravar o state (${(error as Error).message}).\n`);
+    err.write(`@runecraft/companion install: falha ao gravar o state (${(error as Error).message}).\n`);
     // State é bookkeeping — a instalação ocorreu; reporta o erro mas não falseia o exit.
   }
 

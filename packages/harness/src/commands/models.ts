@@ -39,7 +39,7 @@ export async function runModelsCommand(opts: ModelsCommandOptions): Promise<numb
 	// Kill switch (F20/D5): recusa fail-visible — NADA escrito (D7).
 	const kill = modelsKillSwitch(env);
 	if (kill.active) {
-		opts.out.write(`@runecraft/harness models: models disabled (RUNECRAFT_MODELS=${kill.value})\n`);
+		opts.out.write(`@runecraft/companion models: models disabled (RUNECRAFT_MODELS=${kill.value})\n`);
 		return 0;
 	}
 
@@ -72,7 +72,7 @@ export async function runModelsCommand(opts: ModelsCommandOptions): Promise<numb
 				fs.writeFileSync(tmp, result.text, "utf8");
 				fs.renameSync(tmp, file);
 			} catch (error) {
-				opts.err.write(`@runecraft/harness models: falha ao escrever ${file} — ${error instanceof Error ? error.message : String(error)}\n`);
+				opts.err.write(`@runecraft/companion models: falha ao escrever ${file} — ${error instanceof Error ? error.message : String(error)}\n`);
 				return 1;
 			}
 			if (opts.json) {
@@ -119,7 +119,7 @@ export async function runModelsCommand(opts: ModelsCommandOptions): Promise<numb
 			return 0;
 		}
 		default:
-			opts.err.write(`@runecraft/harness models: subcomando desconhecido "${opts.subcommand}" (esperado generate|list|doctor)\n`);
+			opts.err.write(`@runecraft/companion models: subcomando desconhecido "${opts.subcommand}" (esperado generate|list|doctor)\n`);
 			return 2;
 	}
 }

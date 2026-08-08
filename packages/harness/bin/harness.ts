@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @runecraft/harness CLI entry (F11).
+ * @runecraft/companion CLI entry (F11).
  *
  * Thin wrapper over dispatch(argv, ctx) — F21 D1 contract: shebang + exit
  * code; all parsing lives in src/cli.ts. Runs under Node ≥ 22.19 (type

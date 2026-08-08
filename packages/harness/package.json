@@ -1,7 +1,7 @@
 {
-  "name": "@runecraft/harness",
+  "name": "@runecraft/companion",
   "version": "0.1.0",
-  "description": "Runecraft Harness — umbrella meta-package: one install loads subagents, taskflow, goal-loop-audit and pr-review into a Pi session.",
+  "description": "Runecraft Companion \u2014 the multi-agent harness that equips Pi with guards, verification, evals, memory and coded routing.",
   "license": "MIT",
   "author": "Runecraft",
   "type": "module",
@@ -10,6 +10,7 @@
     "pi",
     "pi-coding-agent",
     "harness",
+    "companion",
     "subagents",
     "taskflow",
     "goal-loop-audit",
@@ -59,6 +60,7 @@
     "@runecraft/taskflow-grok": "0.2.6"
   },
   "bin": {
+    "companion": "./bin/harness.ts",
     "harness": "./bin/harness.ts"
   },
   "dependencies": {

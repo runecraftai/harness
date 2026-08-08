@@ -23,7 +23,7 @@ export interface BackupsCommandOptions {
 
 function renderBackups(snapshots: SnapshotInfo[], opts: { dir: string; scope: Scope }): string {
   const lines = [
-    `@runecraft/harness backups (scope ${opts.scope}) — ${snapshots.length} snapshot${snapshots.length === 1 ? "" : "s"} em ${opts.dir}`,
+    `@runecraft/companion backups (scope ${opts.scope}) — ${snapshots.length} snapshot${snapshots.length === 1 ? "" : "s"} em ${opts.dir}`,
   ];
   if (snapshots.length === 0) {
     lines.push("nenhum snapshot ainda — todo install/sync/uninstall cria um antes de modificar config.");
@@ -38,7 +38,7 @@ function renderBackups(snapshots: SnapshotInfo[], opts: { dir: string; scope: Sc
     lines.push(`    arquivos (${snap.files.length}): ${snap.files.length > 0 ? snap.files.join(", ") : "(nenhum arquivo existente no momento do snapshot)"}`);
   }
   lines.push("");
-  lines.push("Para restaurar: `npx @runecraft/harness restore <snapshot>` · para pinar: `npx @runecraft/harness backups --keep <snapshot>`");
+  lines.push("Para restaurar: `npx @runecraft/companion restore <snapshot>` · para pinar: `npx @runecraft/companion backups --keep <snapshot>`");
   return `${lines.join("\n")}\n`;
 }
 
@@ -69,7 +69,7 @@ export function runBackupsCommand(opts: BackupsCommandOptions): number {
     try {
       pinSnapshot(dir, opts.keep);
     } catch (error) {
-      const message = `@runecraft/harness backups: ${(error as Error).message}`;
+      const message = `@runecraft/companion backups: ${(error as Error).message}`;
       if (opts.json) {
         opts.out.write(`${JSON.stringify({ scope: opts.scope, error: message, snapshots: listSnapshots(dir).map((s) => s.name) }, null, 2)}\n`);
       } else {

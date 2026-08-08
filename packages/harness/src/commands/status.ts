@@ -684,7 +684,7 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   const YELLOW = "\u001b[33m";
   const colored = (s: string, color: string) => (opts.tty ? `${color}${s}${RESET}` : s);
   const c = (s: string, state: RowState) => (opts.tty ? `${colors[state]}${s}${RESET}` : s);
-  const lines = [`@runecraft/harness status (scope ${report.scope})`];
+  const lines = [`@runecraft/companion status (scope ${report.scope})`];
   lines.push(`${"Package".padEnd(36)}${"Grupo".padEnd(18)}${"Instalado".padEnd(11)}${"Esperado".padEnd(11)}Estado`);
   for (const row of report.rows) {
     lines.push(
@@ -838,7 +838,7 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   if (report.piListError) lines.push(`warn: \`pi list\` falhou (${report.piListError}) — coluna Instalado usa o fallback de settings.json`);
   if (report.nothingManaged) {
     lines.push("");
-    lines.push("nada instalado pelo harness — rode `npx @runecraft/harness install`.");
+    lines.push("nada instalado pelo harness — rode `npx @runecraft/companion install`.");
   }
   return `${lines.join("\n")}\n`;
 }
@@ -911,7 +911,7 @@ export function renderStatusJson(report: StatusReport): string {
         mandatoryRoutes: report.routing.mandatoryRoutes,
         pilotChains: report.routing.pilotChains,
       },
-      suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
+      suggestion: report.nothingManaged ? "npx @runecraft/companion install" : null,
     },
     null,
     2,
@@ -940,7 +940,7 @@ export function buildStatusMessage(env: NodeJS.ProcessEnv = process.env, cwd: st
     parts.push(`${scope}: ${managed.map((r) => `${r.package}@${r.stateVersion ?? r.expected}`).join(", ")}`);
   }
   if (parts.length === 0) {
-    return "harness: nada instalado ainda — rode `npx @runecraft/harness install`.";
+    return "harness: nada instalado ainda — rode `npx @runecraft/companion install`.";
   }
-  return `harness: ${parts.join(" · ")} (estado completo: npx @runecraft/harness status)`;
+  return `harness: ${parts.join(" · ")} (estado completo: npx @runecraft/companion status)`;
 }

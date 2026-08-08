@@ -47,7 +47,7 @@ describe("/harness — registro e resposta (CLI-07)", () => {
       const deps: HarnessStatusDeps = { env: sb.env, cwd: sb.dir };
       registerHarnessStatus(fake.pi as never, deps);
       fake.commands.harness?.handler("status", fake.ctx);
-      expect(fake.messages.join("\n")).toContain("npx @runecraft/harness install");
+      expect(fake.messages.join("\n")).toContain("npx @runecraft/companion install");
     } finally {
       sb.cleanup();
     }

@@ -1,4 +1,4 @@
-// Prepack hook for @runecraft/harness (F6).
+// Prepack hook for @runecraft/companion (F6).
 //
 // Problem: in this monorepo, bun workspaces link the bundled forks into
 // node_modules/@runecraft/* as symlinks. npm pack follows those symlinks and

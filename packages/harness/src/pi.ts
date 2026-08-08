@@ -63,13 +63,13 @@ export function piInstallCommandHint(): string {
 /** Fail-closed message naming the exact commands to install/configure Pi (CLI-04). */
 export function piNotFoundMessage(): string {
   return [
-    "@runecraft/harness: binário `pi` não foi detectado no PATH.",
+    "@runecraft/companion: binário `pi` não foi detectado no PATH.",
     "O harness orquestra o pi em vez de reimplementar a resolução de packages — instale-o com:",
     "",
     `  ${piInstallCommandHint()}`,
     "",
     "Depois de instalar, rode o harness:",
-    "  npx @runecraft/harness install",
+    "  npx @runecraft/companion install",
     "",
   ].join("\n");
 }

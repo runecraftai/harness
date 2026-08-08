@@ -161,7 +161,7 @@ function writeReport(opts: VerifyCommandOptions, report: VerifyReport, exitCode:
 
 function renderVerify(report: VerifyReport, exitCode: number): string {
   const verdict = report.verdict;
-  const lines = ["@runecraft/harness verify (verification-cascade)"];
+  const lines = ["@runecraft/companion verify (verification-cascade)"];
   if (verdict.status === "inactive") {
     lines.push(`verification INATIVA — ${report.warnings.join("; ")}`);
     lines.push(`exit ${exitCode}`);

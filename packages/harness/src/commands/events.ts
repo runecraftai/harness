@@ -61,18 +61,18 @@ export function parseEventsExportFlags(args: string[]): { ok: boolean; flags: Ev
 export async function runEventsCommand(opts: EventsCommandOptions): Promise<number> {
   const cwd = opts.rt.cwd;
   if (opts.subcommand !== "export") {
-    opts.err.write(`@runecraft/harness: subcomando desconhecido de events: ${opts.subcommand || "(vazio)"} (esperado: export)\n`);
+    opts.err.write(`@runecraft/companion: subcomando desconhecido de events: ${opts.subcommand || "(vazio)"} (esperado: export)\n`);
     return 1;
   }
 
   if (observabilityKillSwitch(opts.rt.env).active) {
-    opts.out.write("@runecraft/harness events: observability inativa — kill switch RUNECRAFT_OBSERVABILITY=0 (F20)\n");
+    opts.out.write("@runecraft/companion events: observability inativa — kill switch RUNECRAFT_OBSERVABILITY=0 (F20)\n");
     return 0;
   }
 
   const parsed = parseEventsExportFlags(opts.args);
   if (!parsed.ok) {
-    opts.err.write(`@runecraft/harness: ${parsed.error}\n`);
+    opts.err.write(`@runecraft/companion: ${parsed.error}\n`);
     return 1;
   }
   // Flags vindas do parseArgs do CLI (F11) têm precedência sobre os args
@@ -81,7 +81,7 @@ export async function runEventsCommand(opts: EventsCommandOptions): Promise<numb
   const session = opts.session ?? parsed.flags.session;
   const includeExternal = opts.includeExternal ?? parsed.flags.includeExternal;
   if (format !== "jsonl") {
-    opts.err.write(`@runecraft/harness: --format ${format} não suportado na v1 (jsonl; OTel adiado — docs/EVENTS.md)\n`);
+    opts.err.write(`@runecraft/companion: --format ${format} não suportado na v1 (jsonl; OTel adiado — docs/EVENTS.md)\n`);
     return 1;
   }
 
@@ -110,10 +110,10 @@ export async function runEventsCommand(opts: EventsCommandOptions): Promise<numb
   }
 
   for (const violation of result.hashViolations) {
-    opts.err.write(`@runecraft/harness: prevHash violation — ${violation}\n`);
+    opts.err.write(`@runecraft/companion: prevHash violation — ${violation}\n`);
   }
   if (result.skipped > 0) {
-    opts.err.write(`@runecraft/harness: ${result.skipped} linha(s) malformada(s) pulada(s) (fail-soft)\n`);
+    opts.err.write(`@runecraft/companion: ${result.skipped} linha(s) malformada(s) pulada(s) (fail-soft)\n`);
   }
   // Violações de hash chain → aviso no stderr, exit 0 (D8 — nunca bloqueia).
   return 0;

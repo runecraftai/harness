@@ -25,8 +25,8 @@ export interface LessonsCommandOptions {
 
 function renderList(records: LessonRecord[], json: boolean): string {
   if (json) return `${JSON.stringify({ lessons: records }, null, 2)}\n`;
-  if (records.length === 0) return "@runecraft/harness lessons: nenhuma lição capturada ainda\n";
-  const lines = ["@runecraft/harness lessons:"];
+  if (records.length === 0) return "@runecraft/companion lessons: nenhuma lição capturada ainda\n";
+  const lines = ["@runecraft/companion lessons:"];
   for (const r of records) {
     lines.push(
       `  ${r.status === "promoted" ? "[P]" : r.status === "archived" ? "[A]" : "[ ]"} ${r.lessonId} · gate=${r.gate} · count=${r.count} · ${r.priority} · ${r.trigger}`,
@@ -39,7 +39,7 @@ export async function runLessonsCommand(opts: LessonsCommandOptions): Promise<nu
   const cwd = opts.rt.cwd;
 
   if (observabilityKillSwitch(opts.rt.env).active) {
-    opts.out.write("@runecraft/harness lessons: observability inativa — kill switch RUNECRAFT_OBSERVABILITY=0 (F20)\n");
+    opts.out.write("@runecraft/companion lessons: observability inativa — kill switch RUNECRAFT_OBSERVABILITY=0 (F20)\n");
     return 0;
   }
 
@@ -57,7 +57,7 @@ export async function runLessonsCommand(opts: LessonsCommandOptions): Promise<nu
       } else {
         opts.out.write(renderList(records, false));
         if (promotedRecords.length > 0) {
-          opts.out.write(`@runecraft/harness lessons: memória de time (promoted.jsonl — ${promotedRecords.length} lição(ões) versionada(s))\n`);
+          opts.out.write(`@runecraft/companion lessons: memória de time (promoted.jsonl — ${promotedRecords.length} lição(ões) versionada(s))\n`);
         }
       }
       return 0;
@@ -65,40 +65,40 @@ export async function runLessonsCommand(opts: LessonsCommandOptions): Promise<nu
     case "promote": {
       const id = opts.args[0];
       if (id === undefined) {
-        opts.err.write("@runecraft/harness: `harness lessons promote <id>` — id da lição ausente\n");
+        opts.err.write("@runecraft/companion: `harness lessons promote <id>` — id da lição ausente\n");
         return 1;
       }
       const records = readLessonsFile(stateFile);
       const { records: updated, record } = applyPromote(records, id);
       if (record === null) {
-        opts.err.write(`@runecraft/harness: lição não encontrada: ${id}\n`);
+        opts.err.write(`@runecraft/companion: lição não encontrada: ${id}\n`);
         return 1;
       }
       writeLessonsFile(stateFile, updated);
       writePromotedFile(promoted, updated);
-      opts.out.write(`@runecraft/harness lessons: promovida ${id} (count=${record.count}, priority=${record.priority})\n`);
+      opts.out.write(`@runecraft/companion lessons: promovida ${id} (count=${record.count}, priority=${record.priority})\n`);
       return 0;
     }
     case "archive": {
       const id = opts.args[0];
       if (id === undefined) {
-        opts.err.write("@runecraft/harness: `harness lessons archive <id>` — id da lição ausente\n");
+        opts.err.write("@runecraft/companion: `harness lessons archive <id>` — id da lição ausente\n");
         return 1;
       }
       const records = readLessonsFile(stateFile);
       const existing = records.find((r) => r.lessonId === id);
       if (existing === undefined) {
-        opts.err.write(`@runecraft/harness: lição não encontrada: ${id}\n`);
+        opts.err.write(`@runecraft/companion: lição não encontrada: ${id}\n`);
         return 1;
       }
       const updated = records.map((r) => (r.lessonId === id ? { ...r, status: "archived" as const } : r));
       writeLessonsFile(stateFile, updated);
       writePromotedFile(promoted, updated);
-      opts.out.write(`@runecraft/harness lessons: arquivada ${id} (sai do adendo)\n`);
+      opts.out.write(`@runecraft/companion lessons: arquivada ${id} (sai do adendo)\n`);
       return 0;
     }
     default:
-      opts.err.write(`@runecraft/harness: subcomando desconhecido de lessons: ${opts.subcommand || "(vazio)"} (esperado: list|promote|archive)\n`);
+      opts.err.write(`@runecraft/companion: subcomando desconhecido de lessons: ${opts.subcommand || "(vazio)"} (esperado: list|promote|archive)\n`);
       return 1;
   }
 }

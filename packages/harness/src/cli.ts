@@ -316,8 +316,8 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
   const parsed = parseCliArgs(argv);
 
   if (!parsed.ok) {
-    err.write(`@runecraft/harness: ${parsed.error}\n`);
-    err.write("Rode `npx @runecraft/harness --help` para ver os comandos e flags.\n");
+    err.write(`@runecraft/companion: ${parsed.error}\n`);
+    err.write("Rode `npx @runecraft/companion --help` para ver os comandos e flags.\n");
     return 1;
   }
 
@@ -517,7 +517,7 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
       });
     }
     default:
-      err.write(`@runecraft/harness: comando desconhecido ${options.command}\n`);
+      err.write(`@runecraft/companion: comando desconhecido ${options.command}\n`);
       return 1;
   }
 }
