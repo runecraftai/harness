@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F29 COMPLETE (2026-08-08; 939 testes; cleric APPROVE + 1 fix) — **Próximo: F30 Pi First-Class** (plano AD-030) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F30 COMPLETE (2026-08-08; 960 testes; cleric APPROVE + 2 fixes) — **Próximo: F31 Copilot Adapter** (plano AD-031) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -219,7 +219,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ### Features
 
-**F30 — Pi First-Class & SDD Assets** — PLANNED — Prereq: F15 ✓, F17 ✓, F24
+**F30 — Pi First-Class **F30 — Pi First-Class & SDD Assets** — PLANNED — Prereq: F15 ✓, F17 ✓, F24 SDD Assets** — **COMPLETE (2026-08-08; 960 testes; cleric APPROVE + 2 fixes 0b8257b)** — Prereq: F15 ✓, F17 ✓, F24
 
 - Persona objetiva do Pi (system prompt/AGENTS.md); port de `rules-injector` (before_agent_start) e `first-message-variant`; roteamento de modelo por agente (port de `model-resolution`, per-agent models)
 - Assets SDD: templates de spec, prompt templates, chains (reuso do flow-orchestrator do familiar); `guild_archive_plan` → arquivamento de planos
