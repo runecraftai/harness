@@ -52,7 +52,9 @@ bun run eval:ratchet --update   # humano e explícito: congela o estado atual
   Bump explícito do piso quando um arquivo de teste novo com `evalTest()`
   entrar na suite (revisão como golden). **F26 (v4):** piso 13 → 14 — o
   `test/eval/framework/constraint-adherence.test.ts` (EVAL-014/EVAL-012,
-  lane do framework de evals) entrou na evidência.
+  lane do framework de evals) entrou na evidência. **F27 (v5):** piso 14 →
+  15 — o `test/eval/framework/compaction-recovery.test.ts` (EVAL-017..021,
+  lane do F27 Resilience & Continuity) entrou na evidência.
 
 ## Regras (D3, fail-only-on-worse)
 

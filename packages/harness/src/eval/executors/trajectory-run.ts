@@ -22,6 +22,7 @@
 import type { SeenRequest } from "../../../test/eval/layer2/fixture/chatServer.ts";
 import type { ScriptedScenario } from "../../../test/eval/layer2/fixture/scenarios.ts";
 import { setupEvalFixture } from "../../../test/eval/helpers/evalFixture.ts";
+import { waitForCondition } from "../../../test/eval/helpers/wait.ts";
 import { EvalConfigError, loadScenario } from "../loader.ts";
 import type {
   EvalArtifacts,
@@ -117,6 +118,27 @@ export async function executeTrajectoryRun(
 
   try {
     await fx.session.session.prompt(prompt);
+
+    // Comando-driven (ex.: `/goal start` do glla — EVAL-021 recovery-flow): o
+    // comando é tratado sincronamente e o LOOP do agente roda em seguida de
+    // forma assíncrona; o prompt() já resolveu sem consumir o script. Settle
+    // determinístico: espera o script ser consumido (contador do fixture) com
+    // timeout generoso (nunca sleep mágico — D11), depois uma janela curta de
+    // estabilidade para o diagnóstico adversarial assentar.
+    const scriptSteps = scenario.scenario.steps.length;
+    await waitForCondition(() => fx.server.seen.length >= scriptSteps, {
+      timeoutMs: 30_000,
+      intervalMs: 50,
+      label: `script consumed (${scenario.id})`,
+    });
+    const seenBefore = fx.server.seen.length;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    if (fx.server.seen.length > seenBefore + 4) {
+      // O loop continuou MUITO além do script (ex.: continuação do glla com
+      // goal ativo sem fim) — o fixture terá diagnóstico; reporta e deixa o
+      // adversarial abaixo falhar com o motivo real.
+      void fx.server.diagnosis;
+    }
 
     // F24 T7 (fails loudly): desvio induzido → o fixture acumula diagnóstico
     // (evidência fora de ordem — o reason do guard sumiu da conversa). O

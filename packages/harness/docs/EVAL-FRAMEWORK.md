@@ -83,8 +83,12 @@
 | Constraint adherence | Guards F24 (write-existing-file-guard, ranger-md-only, todo-*) | ✅ disponível | EVAL-014 (write-guard, ranger, adversarial) | AGORA |
 | Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | 🔒 bloqueada | — (outline) | após F32 |
 | Routing completeness | Agentes F32 (orquestração → papéis) | 🔒 bloqueada | — (outline) | após F32 |
-| Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | 🔒 bloqueada | — (outline) | após F27 |
+| Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
 | Model failover | F30 (port model-resolution, fallback chain) | 🔒 bloqueada | — (outline) | após F30 |
+
+**v5 (F27, AD-027):** a categoria Compaction recovery foi DESBLOQUEADA —
+EVAL-017..021 na matriz (nota datada 2026-08-07). Tool-use/routing (F32) e
+Model failover (F30) seguem sem entrada (política aditiva).
 
 **Extensibilidade (D5):** caso novo = 1 suite/case/scenario TS + 1 entrada
 aditiva na matriz. Runner/loader/evaluators NÃO mudam. As categorias

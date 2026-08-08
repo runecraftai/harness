@@ -269,20 +269,69 @@ arquivos do framework + tabela de dependência das 5 categorias).
 | Targets | prompt-render (renderRules F19) · single-turn-agent (sessão SDK) | `src/eval/targets/` |
 | Evidência | `evalTest()` → `evidence/partial/*.jsonl` → `last-run.json` (F21) | `test/eval/evidence/` |
 
-- **Constraint-adherence v1 (EVAL-014)** é a única categoria com cases hoje:
-  os guards F24 (write-existing-file-guard, ranger-md-only) como sujeitos,
-  com o trace REAL do transcript (trajectory-assertion + tool-policy) e o
-  adversarial guard-off falhando com diagnóstico (desvio induzido — nunca
-  passa em silêncio). Delta vs EVAL-006/007 documentado nos cases (D6 — sem
-  double-test).
-- **Categorias bloqueadas**: tool-use/routing (F32), compaction (F27),
-  failover (F30) — sem entrada na matriz até os sujeitos existirem (política
-  aditiva F21 D9); a tabela de dependência é o contrato (`docs/EVAL-FRAMEWORK.md` §5).
+- **Constraint-adherence v1 (EVAL-014)** e **Compaction-recovery (F27,
+  EVAL-017..021)** são as categorias com cases hoje: os guards F24
+  (write-existing-file-guard, ranger-md-only) e a resiliência do F27 como
+  sujeitos, com o trace REAL do transcript (trajectory-assertion +
+  tool-policy) e o adversarial guard-off falhando com diagnóstico (desvio
+  induzido — nunca passa em silêncio). Delta vs EVAL-006/007/014 documentado
+  nos cases (D6 — sem double-test).
+- **Categorias bloqueadas**: tool-use/routing (F32), failover (F30) — sem
+  entrada na matriz até os sujeitos existirem (política aditiva F21 D9); a
+  tabela de dependência é o contrato (`docs/EVAL-FRAMEWORK.md` §5).
 - **Judge LLM**: o llm-judge tem tier substring offline (sempre) + tier real
   SÓ com `RUNECRAFT_VERIFY_LLM_JUDGE=1` via `VerifyDeps.judgeAdapter` (F25) —
   nunca em CI (env off por construção).
 - **Rodar**: `bun test test/eval` (lane F21/F24/F25 + framework) — offline/$0;
-  o ratchet F23 (piso 14) cobre a evidência nova.
+  o ratchet F23 (piso 15) cobre a evidência nova.
+
+## 8.8 Resilience & Continuity — camada de resiliência do harness (F27)
+
+A camada de resiliência (M7, pilar 6 do doc do usuário) porta os hooks do
+arcanum (compaction-recovery / compaction-todo-preserver / work-continuation
+/ start-work-hook — supersedidos, AD-001) para MECANISMOS REAIS do Pi 0.81.0:
+
+| Mecanismo | Existe (SDK 0.81.0 / fork glla / harness) — evidência | F27 constrói |
+| --- | --- | --- |
+| Evento de compactação | SDK: `session_before_compact`/`session_compact` no union de eventos (types.d.ts linhas 432/444) + `shouldCompact` puro (compaction.d.ts) | Trigger primário (D1) + fallback honesto `session_start reason=resume|reload` |
+| Re-escrita de system prompt | SDK: `BeforeAgentStartEventResult.systemPrompt` encadeável (types.d.ts ~790; runner.js emitBeforeAgentStart re-passou currentSystemPrompt) | Continuation hook `src/extensions/resilience.ts` (D2) |
+| Estado de goal/taskList | ledger glla `.pi-glla/active.jsonl` (F24 ✓; F19 isSupervising) | Fonte de verdade da continuação + `.runecraft/continuation.json` (D2/QA-1) |
+| Tools de todos | glla `propose_task_list`/`update_task_status` (F24 ✓ — NÃO há todowrite) | Todo preserver (D3) |
+| Sinais de stall | SDK: `turn_start{turnIndex,timestamp}`/`turn_end{toolResults}`/`agent_end`/`tool_call`/`agent_settled` + `ctx.isIdle()`/`hasPendingMessages()` (types.d.ts 224/232) | Entrada do detector (D4) |
+| Maquinário de stall provado | glla: heartbeat/escalação, pending-latch watchdog, wedge alert, grace pós-compactação, extensionApiStale (loops/goal.ts) | Port puro em `src/resilience/stall.ts` (D4) |
+| Repetição/output idêntico | glla `goal-loop-repetition.ts` (fingerprint sha256, Jaccard 0.8, toolResultRepeat 3) | Detector `repetition`/`identical-output` (D4) |
+| Backoff | glla `goal-loop-backoff.ts` (stuck/error/context, hard cap 5min) | Ladder no detector/política (D4/D6) |
+| Rate-limit/quota | glla `quota-retry.ts` `isQuotaError`/`parseQuotaError` | Reuso no classificador `src/resilience/classify.ts` (D5) |
+| Política retry/skip/halt + orçamento | F25 `RETRY/SKIP/HALT` + `cost.ts` CostLedger | Política de escalação + budget (D6) |
+| Sugestão acionável | F25 `suggestions.ts` | Classificador `suggestion` (D5) |
+| Troca de modelo | F30 (model-resolution) — NÃO existe no F27 | Interface `FallbackAction.modelSwitch` NO-OP (D6 — fronteira explícita) |
+| Planos markdown / workflow | F32/F33 — NÃO existem no F27 | Outline; F27 resume do ledger apenas |
+
+**Operação**: a extensão `extensions/resilience.ts` (materializada nas sessões
+gerenciadas do harness) observa compactação (`session_before_compact` →
+snapshot do taskList; `session_compact` → grace 3min + continuação pendente),
+`session_start reason=resume|reload` (fallback honesto — QA-2) e re-injeta o
+prompt de continuação via `before_agent_start` (systemPrompt ENCADEADO —
+nunca sobrescreve outras extensões). O detector de stall observa eventos reais
+(`tool_call`/`tool_result`/`turn_end`/`agent_settled`) com limiares do fork
+glla (configuráveis via state.json `resilience` — defaults fail-closed),
+kill switch `RUNECRAFT_RESILIENCE=0`. Estado: ledger glla (goal/taskList) +
+`.runecraft/continuation.json` (metadados do harness) + `.runecraft/
+resilience-events.jsonl` (log append-only). Comando `/start-work` resume o
+goal ativo explicitamente (restart/resume — nunca automático em startup).
+
+**Fronteira F30 (travada — AD-027)**: `modelSwitch` é interface com
+implementação NO-OP; o F27 NÃO resolve modelo (settings/modelRoles são do
+runtime do Pi / F30). Invariante D7 (AD-024): a continuação re-injeta
+pendências SÓ do ledger atual — nunca re-injeta task completa (teste
+adversarial dedicado em `test/resilience/invariant.test.ts`).
+
+**Atribuição (AD-002)**: os padrões de stall/backoff/quota são portes dos
+mecanismos do fork goal-loop-audit (MIT, Copyright (c) 2026 dracon — nosso
+fork AD-001); cada port cita o arquivo-fonte no código (constantes com os
+valores exatos: HEARTBEAT_STALL_MS, WEDGE_ALERT_DEFAULT_MINUTES,
+PENDING_LATCH_STUCK_MS, COMPACTION_GRACE_MS, DEFAULT_STALL_ESCALATION_REFIRES,
+REPETITION.*, BACKOFF_HARD_CAP_MS).
 
 ## 9. Appendix: injected text (golden)
 
@@ -387,6 +436,18 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   auditor do glla reprova evidência que não cobre o contrato (approved
   genérico do fixture não serve para qualquer goal); diff do working tree
   exclui `.pi-glla/` e `.runecraft/` (bookkeeping do harness).
+- **2026-08-08**: Resilience (section 8.8) verified in the Execute F27 —
+  `session_before_compact`/`session_compact`/`before_agent_start`/
+  `session_start{reason}`/`ctx.isIdle()`/`hasPendingMessages()` no SDK
+  0.81.0 (types.d.ts); `BeforeAgentStartEventResult.systemPrompt` chained
+  (runner.js emitBeforeAgentStart); `createAgentSession` aceita
+  `sessionStartEvent` (reason=resume simula o fallback honesto QA-2);
+  glla v0.28.34 restore gate HOLDs goals ativos no session load (não
+  auto-resume por default) → F27 injeta só quando o goal segue ativo
+  (autoresume=on) ou após session_compact mid-session; limitação honesta:
+  emissão real de `session_compact` no fixture não viável (QA-5 — handler
+  exportado com eventos scriptados cobre o trigger; evals usam evento
+  sintético, sem fabricação).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

@@ -19,6 +19,8 @@ import type { GuardsConfig } from "./guards/guardKit.ts";
 import { defaultGuardsConfig } from "./guards/guardKit.ts";
 import type { VerificationConfig } from "./verify/config.ts";
 import { defaultVerificationConfig } from "./verify/config.ts";
+import type { ResilienceConfig } from "./resilience/config.ts";
+import { defaultResilienceConfig } from "./resilience/config.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -107,6 +109,9 @@ export interface HarnessState {
   /** verification cascade config (F25 D9; aditivo, schemaVersion permanece 1 —
    *  o config.ts valida em runtime; ausente = defaults fail-closed). */
   verification?: VerificationConfig;
+  /** resilience & continuity config (F27 D9; aditivo, schemaVersion permanece 1 —
+   *  o config.ts valida em runtime; ausente = defaults do fork glla). */
+  resilience?: ResilienceConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -124,6 +129,8 @@ export function emptyState(scope: Scope): HarnessState {
     guards: defaultGuardsConfig(),
     // F25: fail-closed por padrão — o estado declara a cascata de verificação LIGADA (D9).
     verification: defaultVerificationConfig(),
+    // F27: fail-closed por padrão — o estado declara a camada de resiliência LIGADA (D9).
+    resilience: defaultResilienceConfig(),
   };
 }
 

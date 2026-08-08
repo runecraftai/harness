@@ -6,6 +6,9 @@
 // nem na matriz nem como evalId de teste. Uma entrada órfã quebra este teste
 // (a política aditiva — nada sai sem AD — é o espelho reverso: entrada nova
 // SEM teste = matriz mente; teste novo SEM entrada = cobertura invisível).
+//
+// v5 (F27, AD-027): a lane do F27 (test/eval/framework/compaction-recovery
+// + test/eval/suites/compaction-recovery) entra na varredura — EVAL-017..021.
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -64,7 +67,8 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
     expect(fs.existsSync(MATRIX_PATH)).toBe(true);
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     expect(matrix).toMatch(/MATRIX_VERSION:\s*\d+/);
-    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016"]) {
+    expect(matrix).toMatch(/MATRIX_VERSION:\s*5/);
+    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016", "EVAL-017", "EVAL-018", "EVAL-019", "EVAL-020", "EVAL-021"]) {
       expect(matrix).toContain(id);
     }
   });
@@ -72,7 +76,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
   test("todo EVAL-<n> da matriz tem teste de fluxo na camada 2 que o referencia", () => {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const matrixIds = new Set([...matrix.matchAll(/EVAL-(\d{3}[a-z]?)/gi)].map((m) => m[0].toUpperCase()));
-    expect(matrixIds.size).toBeGreaterThanOrEqual(16); // EVAL-001..016 (EVAL-003 fora)
+    expect(matrixIds.size).toBeGreaterThanOrEqual(20); // EVAL-001..021 (EVAL-003 fora)
     const testTexts = layer2TestFiles().map((f) => ({ file: f, text: fs.readFileSync(f, "utf8") }));
 
     for (const id of matrixIds) {
