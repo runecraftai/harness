@@ -237,6 +237,13 @@
 **Trade-off:** TUI/model modal fora (decisão de escopo); chains builtin vazias (sem IDs de modelo inventados — chains vêm do state); geração de models.json com "validar no Execute" no caminho real de resolução do SDK.
 **Impact:** Design F30 marcado Ready for Execute; fighter implementa EVAL-039..048 (matriz v8 após F29 fechar v7); categoria failover (F26) desbloqueada; F27 intocado.
 
+### AD-031: Resolução das QAs do F31 — Copilot/VSCode Adapter (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Regras**: `.github/copilot-instructions.md` (repo-scoped, marker html `runecraft:workflow`; conteúdo = renderRules("copilot") = NON_PI_RULES do F19 — zero texto novo); AGENTS.md NÃO (superfície de conflito compartilhada). (2) **QA-2 — Host MCP**: reuso `@runecraft/taskflow-claude` via resolveMcpBin("claude") (env > dev fork > npx pin; guard anti-upstream OK) — NUNCA inventar taskflow-copilot (não existe no taskflow). (3) **QA-3 — Detecção**: bin `code`/`code-insiders` OU dirs de extensão `github.copilot*` (env.HOME — lição F15); fail-closed display-only. (4) **QA-4 — Workspace root**: cwd (gitRoot a validar no Execute). (5) **QA-5 — Escopo MCP**: `.vscode/mcp.json` (`servers.taskflow`, schema VS Code verificado; sem `${input:...}` — Agent Host repassa; nuance: o Agent Host não lê o arquivo diretamente, VS Code repassa).
+**Reason:** Usuário delegou as recomendações; fatos verificados com citações (vscode-docs custom-instructions, github.blog AGENTS.md, vscode-docs mcp-configuration); gentle-ai usa persona user-level (~/.copilot) → two-driver é semântico (user×repo), não colisão de path (owners warn + gate MXST-04).
+**Trade-off:** `.vscode/mcp.json` depende do VS Code repassar ao Agent Host (validar handshake real no Execute); regras via copilot-instructions (repo-level) não valem para requests fora do workspace.
+**Impact:** Design F31 marcado Ready for Execute; fighter implementa EVAL-049..056 (matriz v9 após F30 fechar v8); golden mcp-copilot (arquivo mcp.json completo — desvio documentado do F23 D4: nesting 2 níveis).
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
