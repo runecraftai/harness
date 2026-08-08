@@ -251,6 +251,13 @@
 **Trade-off:** Auditor ativado por default na lista mdOnlyAgents (F24 intocado — só config); propagação RUNECRAFT_AGENT_ID=auditor ao guard = risco com gate no EVAL-061 (validar no Execute).
 **Impact:** Design F32 marcado Ready for Execute; fighter implementa EVAL-057..066 (matriz v10); categorias tool-use correctness + routing completeness (F26) desbloqueadas; F33 consome os papéis.
 
+### AD-033: Resolução das QAs do F33 — Coded Routing & Pilot Coordination (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Hook**: `before_agent_start` (chaining verificado F27/F28; NENHUM evento input/message no surface do SDK — flag validar no Execute: leitura da 1ª mensagem via client API, fallback = classificar o prompt do evento). (2) **QA-2 — Delegação**: QA-5 do F32 preservado (só builder spawna in-role) + chains de piloto (5: implement/plan/research/explore/security — formato .chain.md do harness, gate de veredito [APPROVE]/[REJECT] ≤3). (3) **QA-3 — Chain assets**: sync com reuso do alvo do F30. (4) **QA-4 — Lessons × rotas**: F28 lessons informam PROMPTS, nunca rotas (fronteira explícita). (5) **QA-5 — Evals**: trajectory real via ScriptedScenario (recomendado).
+**Reason:** Usuário delegou as recomendações; determinismo (decisão 3c): classificador PURO com thresholds em constantes (ROUTE_THRESHOLD=2, high ×2, medium ×1), segurança OBRIGATÓRIA (bypassa threshold — espelho do paladin), empate com prioridade determinística, fail-closed `direct`; bard NÃO vira agente — vira classificador (código) + chains (dados); semântica de categoria portada do prompt-composer do bard (lido); a injeção ULTRAWORK MODE é dropada (tema RPG — documentado).
+**Trade-off:** Rota nunca por LLM; hook em before_agent_start depende da 1ª mensagem estar disponível via client API (validar no Execute).
+**Impact:** Design F33 marcado Ready for Execute; fighter implementa EVAL-067..078 (matriz v11); categorias do eval-coverage (F26) 100% completas — constraint adherence (F24), compaction (F27), failover (F30), tool-use + routing (F32/F33).
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
