@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F25 COMPLETE (2026-08-07; 487 testes; cleric APPROVE + 3 fixes) — **Próximo: F26 Eval Framework Port** ou F23 P1 (ratchet, AD-022) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F26 COMPLETE (2026-08-07; 626 testes; cleric APPROVE + 2 fixes) — **Próximo: F27 Resilience & Continuity** (plano pronto, AD-027) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -187,10 +187,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Port de `verification-reminder` → gate de verificação; RETRY/SKIP/HALT + cost caps; judge LLM env-gated (fora do merge gate)
 - **Verificado:** engine única sessão+CLI (D11); zona cinza min 0.35/max 0.75; distribuição embedding não degenerada; EVAL-008..011 verdes; 485→487 testes (fixes cleric AD-024); zero regressão nos 398 do F24
 
-**F26 — Eval Framework Port (evals do guild)** — PLANNED — Prereq: F21 ✓, F24
+**F26 — Eval Framework Port (evals do guild)** — **COMPLETE (2026-08-07; 626 testes; cleric APPROVE + 2 fixes bc02495)** — Prereq: F21 ✓, F24 ✓
 
 - Port do runner/loader/reporter/storage/schema/targets/executors + os 11 evaluators (`contains-all`, `contains-any`, `excludes-all`, `section-contains-all`, `ordered-contains`, `xml-sections-present`, `tool-policy`, `min-length`, `llm-judge`, `baseline-diff`, `trajectory-assertion`) + estrutura suites/cases/scenarios
 - Dona das 5 categorias do eval-coverage do arcanum: constraint adherence (sujeitos = guards F24), compaction recovery (F27), model failover (F30); tool-use correctness e routing completeness ganham casos após o F32 (agentes)
+- **Entregue**: framework `src/eval/` + dados TS + trace real do fixture + EVAL-012..016 (matriz v4); constraint-adherence v1 (EVAL-014); categorias bloqueadas em tabela de dependência (compaction desbloqueada pelo F27)
 
 **F27 — Resilience & Continuity** — PLANNED — Prereq: F21 ✓, F24
 
