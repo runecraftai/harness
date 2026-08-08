@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** M8 COMPLETO — F33 COMPLETE (2026-08-08; 1152 testes) — **Próximo: F10 Upstream Sync** (plano AD-034) → barreiras F8/F9/F22 · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F10+F22 COMPLETES (2026-08-08) — **Em execução: F8 Docs** → **F23 P2** (último item) → F9 (publish, aguardando OK) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -157,7 +157,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Roda em CI sem tokens
 - Validado: `test/eval/` 2 camadas (layer1 smoke subprocess + layer2 fluxos SDLC com fixture OpenAI-wire SSE adversarial) + EVAL-MATRIX aditivo (EVAL-001/002/004/005/005b) + evidência JSON p/ F23; 18 testes novos, zero regressão (330→348); offline/$0 por construção; devDep do SDK 0.81.0 (AD-021)
 
-**F22 — Cenários E2E versionados** — PLANNED — **aguardando aprovação explícita do usuário (custo de tokens)** — Prereq: F7, F19, F21 (spec)
+**F22 — Cenários E2E versionados** — **COMPLETE (2026-08-08; 71 testes offline; APROVADO AD-037; cleric APPROVE + 7 fixes bea2009)** — Prereq: F7 ✓, F19 ✓, F21 ✓
 
 - Evolução do `scenarios.md` do F7 em benchmark versionado com modelos reais e resultados datados
 
