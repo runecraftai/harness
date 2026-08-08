@@ -1,7 +1,7 @@
 # test/eval — ratchets de não-regressão (F23, grupo EVAL AD-010)
 
 O F23 congela os baselines da suite determinística (F21) e dos assets
-injetados (F15/F18/F19) com a filosofia do gentle-ai: *freezing today's
+injetados (F15/F18/F19) com a filosofia de ratchet: *freezing today's
 violations and refusing growth is the part that pays for itself* — ratchet,
 não gate limpo. Escopo: (a) falhas conhecidas, (b) cobertura de comandos,
 (c) goldens de assets, (d) pass-rate E2E (**P2, lançado com o F22** —
@@ -62,8 +62,8 @@ versão ANTERIOR no `baselines/e2e-passrate.txt`:
 - Variáveis de override (testes hermeticos): `RUNECRAFT_E2E_RATCHET_RESULTS_ROOT`,
   `RUNECRAFT_E2E_RATCHET_BASELINE`, `RUNECRAFT_E2E_RATCHET_VERSION`.
 
-- `--update` **recusa com `CI=true`** (nunca autocorreção em PR — padrão
-  gentle-ai). O diff completo fica na PR para revisão.
+- `--update` **recusa com `CI=true`** (nunca autocorreção em PR — humano no
+  loop). O diff completo fica na PR para revisão.
 - O `test` do package roda `bun test … ; bun run eval:ratchet` preservando o
   exit code da suite (suite vermelha = PR bloqueada — contrato F21; o ratchet
   roda MESMO assim para classificar nova vs congelada). Entry escolhido no

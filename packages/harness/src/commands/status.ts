@@ -108,7 +108,7 @@ export interface StatusReport {
   nothingManaged: boolean;
   /** F17 D3: agents × matrix columns, crossed with real configs + state. */
   agents: StatusAgent[];
-  /** F18: owners detected across managed files (gentle-ai, upstreams, MCP, usuário). */
+  /** F18: owners detected across managed files (outro installer, upstreams, MCP, usuário). */
   owners: OwnerEvidence[];
   /** owners with severity warn (install gate mirrors this list). */
   warnings: OwnerEvidence[];

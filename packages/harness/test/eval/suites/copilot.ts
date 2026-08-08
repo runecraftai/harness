@@ -5,8 +5,8 @@
 // são unit/fixture do framework (test/eval/framework/copilot.test.ts — mesmo
 // padrão EVAL-017..020 do F27 / EVAL-039..048 do F30): detecção, injeção
 // repo-scoped (rules .github/copilot-instructions.md + MCP .vscode/mcp.json),
-// remoção content-based, fail-closed, matriz/status, two-driver gentle-ai e
-// sync/state. A suite não tem case trajectory próprio (nenhum fluxo SDLC
+// remoção content-based, fail-closed, matriz/status, two-driver outro
+// installer e sync/state. A suite não tem case trajectory próprio (nenhum fluxo SDLC
 // novo — o adapter é mecanismo; a prova vive no framework). Delta vs
 // EVAL-017..048 documentado em cada case (D6 — sem double-test).
 import type { EvalSuiteManifest } from "../../../src/eval/types.ts";

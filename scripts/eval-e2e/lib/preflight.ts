@@ -20,18 +20,18 @@ export interface PreflightDeps {
 	repoRoot: string;
 }
 
-const GENTLE_AI_MARKERS = ["gentle-ai:", "GENTLE_AI_"];
+const UPSTREAM_MARKERS = ["gentle-ai:", "GENTLE_AI_"];
 
-/** Detecta confundidores de coexistência (D2/D9): marcadores gentle-ai + upstreams. */
+/** Detecta confundidores de coexistência (D2/D9): marcadores de outros installers + upstreams. */
 export function detectConfounders(repoRoot: string): string[] {
 	const confounders: string[] = [];
-	// Marcadores gentle-ai em arquivos comuns do repo (detecção F18 — grep).
+	// Marcadores de outros installers em arquivos comuns do repo (detecção F18 — grep).
 	for (const rel of ["CLAUDE.md", "AGENTS.md", ".github/copilot-instructions.md", "README.md"]) {
 		const file = path.join(repoRoot, rel);
 		if (!fs.existsSync(file)) continue;
 		const content = fs.readFileSync(file, "utf8");
-		if (GENTLE_AI_MARKERS.some((m) => content.includes(m))) {
-			confounders.push(`marcadores gentle-ai: em ${rel}`);
+		if (UPSTREAM_MARKERS.some((m) => content.includes(m))) {
+			confounders.push(`marcadores de outro installer: em ${rel}`);
 			break;
 		}
 	}

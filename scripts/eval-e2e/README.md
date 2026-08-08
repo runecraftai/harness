@@ -1,7 +1,7 @@
 # E2E Benchmark — modelos reais, resultados versionados (F22)
 
 Benchmark executável com **modelos reais (haiku-class)** dos cenários do F7
-(`COEX-01..06`), env-gated (`RUNECRAFT_E2E=1`, padrão gentle-ai) — **fora do
+(`COEX-01..06`), env-gated (`RUNECRAFT_E2E=1`, fail-closed — zero tokens em CI) — **fora do
 merge gate**: CI normal não roda E2E (zero tokens, zero rede). Cada rodada
 grava resultados **datados e versionados** em
 `.specs/features/f22-e2e-benchmark/results/<harnessVersion>/<roundId>.json` —
@@ -118,7 +118,7 @@ uma rodada futura; a flag não muda o comportamento hoje.
 - **`tokensApprox`**: usage REAL do SDK (`message_end.usage` + tool results —
   inclui o auditor in-process do glla). Indisponível → `null` + nota — nunca
   estimativa inventada.
-- **`confounders`** (round + cenário): gentle-ai instalado, upstreams
+- **`confounders`** (round + cenário): upstream installers presentes, upstreams
   detectados, `pi list` sem @runecraft (a sessão usa materialização direta das
   extensões — F21 H1), workaround BUG-2, compaction emitido (F27), repo de
   teste não deletado (token gh sem `delete_repo` — pendência F7).

@@ -3,8 +3,8 @@
 // informa, nunca bloqueia).
 //
 // Evidence sources:
-//   1. gentle-ai state file  ~/.gentle-ai/state.json (presence = installer owner)
-//   2. gentle-ai markers     `<!-- gentle-ai:` strict pairs in managed rules files
+//   1. upstream installer state file  ~/.gentle-ai/state.json (presence = installer owner)
+//   2. upstream installer markers     `<!-- gentle-ai:` strict pairs in managed rules files
 //   3. Pi upstreams          pi-subagents/pi-taskflow/pi-goal-list-loop-audit/
 //                            pi-pr-review/gentle-pi in `pi list` (scanConflicts)
 //   4. MCP upstreams         any entry in host MCP configs referencing a
@@ -114,26 +114,26 @@ export function detectOwners(rt: Runtime, pi: PiInterop): OwnersReport {
     }
   };
 
-  // 1. gentle-ai state file (presence; unreadable = present without details).
+  // 1. upstream installer state file (presence; unreadable = present without details).
   const gaState = path.join(homeDir(rt.env), ".gentle-ai", "state.json");
   if (fs.existsSync(gaState)) {
     add({
-      name: "gentle-ai",
+      name: "upstream-installer",
       kind: "installer",
       severity: "warn",
       detail: `state file presente (${gaState}) — coexiste, nunca removido`,
     });
   }
 
-  // 2. gentle-ai markers in managed rules files (strict pairs).
+  // 2. upstream installer markers in managed rules files (strict pairs).
   for (const id of SUPPORTED_AGENT_IDS) {
     const file = ADAPTERS[id].paths(rt).rulesFile;
     if (hasMarkerPrefix(file, "gentle-ai:")) {
       add({
-        name: "gentle-ai",
+        name: "upstream-installer",
         kind: "installer",
         severity: "warn",
-        detail: `marcadores gentle-ai: em ${file}`,
+        detail: `marcadores de outro installer em ${file}`,
         file,
       });
     }

@@ -10,7 +10,7 @@ import type { Runtime } from "../config.ts";
 export type AgentId = "claude-code" | "opencode" | "codex" | "copilot";
 
 /** Result of adapter.detect(). Binary on PATH = installed; config dir is
- *  informative, never blocking (F15 ADPT-02, gentle-ai pattern). */
+ *  informative, never blocking (F15 ADPT-02). */
 export interface DetectResult {
   installed: boolean;
   /** absolute path of the resolved binary (undefined when not found). */

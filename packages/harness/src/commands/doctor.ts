@@ -246,24 +246,24 @@ function checkAgentUpstreamsPi(pi: PiInterop): DoctorCheck {
 }
 
 /**
- * F18 check 14 — gentle-ai presente (independente do Pi): state file OU
- * marcadores `gentle-ai:` em arquivos gerenciados → warn (coexistência
- * suportada — F18 MXST-05). Read-only. Reusa o interop do doctor (não
- * re-executa `pi list` — o detectOwners escaneia os configs).
+ * F18 check 14 — outro installer (upstream) presente (independente do Pi):
+ * state file OU marcadores de terceiros em arquivos gerenciados → warn
+ * (coexistência suportada — F18 MXST-05). Read-only. Reusa o interop do
+ * doctor (não re-executa `pi list` — o detectOwners escaneia os configs).
  */
-function checkGentleAi(rt: Runtime, pi: PiInterop): DoctorCheck {
-  const gentleAi = detectOwners(rt, pi).owners.filter(
-    (o) => o.name === "gentle-ai",
+function checkUpstreamInstaller(rt: Runtime, pi: PiInterop): DoctorCheck {
+  const installers = detectOwners(rt, pi).owners.filter(
+    (o) => o.name === "upstream-installer",
   );
-  if (gentleAi.length === 0) {
-    return { id: 14, name: "gentle-ai", status: "pass", detail: "não detectado (state file nem marcadores gentle-ai: em arquivos gerenciados)" };
+  if (installers.length === 0) {
+    return { id: 14, name: "upstream coexistence", status: "pass", detail: "não detectado (state file nem marcadores de terceiros em arquivos gerenciados)" };
   }
   return {
     id: 14,
-    name: "gentle-ai",
+    name: "upstream coexistence",
     status: "warn",
-    detail: gentleAi.map((o) => o.detail).join("; "),
-    remedy: "coexistência suportada — o harness nunca altera seções gentle-ai: (F18 MXST-05)",
+    detail: installers.map((o) => o.detail).join("; "),
+    remedy: "coexistência suportada — o harness nunca altera seções de terceiros (F18 MXST-05)",
   };
 }
 
@@ -359,8 +359,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   } else {
     checks.push(checkComponents(rt, pi), checkForkSettings(rt), checkDisk(rt));
   }
-  // F18 D3: tabela consolidada 7–15 — checks por agente (F17), gentle-ai (14),
-  // upstreams Pi (15, absorve o check 4 do F12). Todos read-only (LIFE-01).
+  // F18 D3: tabela consolidada 7–15 — checks por agente (F17), outro installer
+  // (14), upstreams Pi (15, absorve o check 4 do F12). Todos read-only (LIFE-01).
   checks.push(
     checkAgentDetection(rt),
     checkAgentManaged(rt),
@@ -369,7 +369,7 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
     checkAgentConfigParse(rt),
     checkAgentDetectOnly(rt),
     checkAgentMatrixOrphans(rt),
-    checkGentleAi(rt, pi),
+    checkUpstreamInstaller(rt, pi),
     checkAgentUpstreamsPi(pi),
   );
   // F19 D8: check 16 (driver ativo) — informativo; dependente do Pi (goal-loop
@@ -1058,10 +1058,11 @@ function checkAgentMatrixOrphans(rt: Runtime): DoctorCheck {
  * parseáveis (rules UTF-8; mcp.json JSON válido) + estado gerenciado.
  * Read-only (LIFE-01). Nunca falha por ausência (fail-closed é domínio do
  * install — display-only; detect-only honesto). Two-driver (D10): a persona
- * user-level do gentle-ai (~/.copilot, legado ~/.github/copilot-instructions.md
- * na HOME) sobrepõe SEMANTICAMENTE o alvo repo-level do harness (VS Code
- * fornece ambos; prioridade personal > repo) — documentado, nunca removido;
- * o state file ~/.gentle-ai/state.json + marcadores são domínio do check 14.
+ * user-level de outro installer (~/.copilot, legado
+ * ~/.github/copilot-instructions.md na HOME) sobrepõe SEMANTICAMENTE o alvo
+ * repo-level do harness (VS Code fornece ambos; prioridade personal > repo)
+ * — documentado, nunca removido; o state file ~/.gentle-ai/state.json +
+ * marcadores de terceiros são domínio do check 14.
  */
 function checkRoleAgents(rt: Runtime, pi: PiInterop): DoctorCheck {
   const identity = npmIdentity("npm:@runecraft/subagents@0");

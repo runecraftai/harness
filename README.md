@@ -47,7 +47,7 @@ Full mental model — when to use which tool, the 7 objective roles, and the rou
 
 - **Do not install alongside the original upstreams** (`pi-subagents`, `pi-taskflow`, `pi-goal-list-loop-audit`, `pi-pr-review`) — commands and tools duplicate. Remove the upstreams before installing the harness.
 - **Two-driver rule**: only one supervisor may drive `agent_end` continuations per session. Installing two drivers (e.g. the goal loop plus another loop extension) produces contradictory turns — see [ROUTING.md §2](packages/harness/docs/ROUTING.md) and §7 for details.
-- Coexistence with the `gentle-ai` product is detected at runtime (doctor check) — see [ROUTING.md §7](packages/harness/docs/ROUTING.md).
+- Coexistence with other installers is detected at runtime (doctor check) — see [ROUTING.md §7](packages/harness/docs/ROUTING.md).
 
 ## Troubleshooting
 

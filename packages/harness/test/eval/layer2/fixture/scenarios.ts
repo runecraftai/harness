@@ -4,7 +4,7 @@
 // o teste de consistência matriz ↔ testes impede entrada órfã — D9).
 //
 // Contador+switch: call N → passo N; fim do script → falha com a lista de
-// calls esperadas (padrão gentle-ai). A única coisa fakeada é a ESCOLHA do
+// calls esperadas (padrão de script determinístico). A única coisa fakeada é a ESCOLHA do
 // tool call — o agente executa cada passo de verdade (bash/git reais no
 // repo de teste descartável).
 //

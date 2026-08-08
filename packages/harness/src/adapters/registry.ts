@@ -20,7 +20,7 @@ export const SUPPORTED_AGENT_IDS: readonly AgentId[] = ["claude-code", "opencode
 
 /** Aliases accepted in --agent (e.g. "claude" → "claude-code").
  *  F31 (D1): copilot + vscode/vscode-copilot/github-copilot (compat com a
- *  nomenclatura do gentle-ai — docs/agents.md id `vscode-copilot`). */
+ *  nomenclatura de outro installer — docs/agents.md id `vscode-copilot`). */
 export const AGENT_ALIASES: Record<string, AgentId> = {
   claude: "claude-code",
   "claude-code": "claude-code",

@@ -11,7 +11,7 @@ import { spawn } from "node:child_process";
 //   bun run eval:e2e --verbose | --keep              # transcript / preserva repos
 //
 // Exit codes (contrato F23): 0 tudo pass · 1 fail/fail-infra · 2 cost cap (limit).
-// Sem RUNECRAFT_E2E → skip explícito + exit 0 (padrão gentle-ai — D5): CI
+// Sem RUNECRAFT_E2E → skip explícito + exit 0 (env-gated — D5): CI
 // normal fica verde, ZERO tokens. O runner NUNCA roda em bun test/turbo/CI.
 import * as fs from "node:fs";
 import * as os from "node:os";

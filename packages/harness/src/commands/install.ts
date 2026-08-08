@@ -213,7 +213,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   const beforeIdentities = new Set(installedBefore.map(npmIdentity));
 
   // MXST-04: detecção de donos antes de qualquer escrita. Owners warn
-  // (gentle-ai, upstreams Pi, MCP upstream) viram gate de confirmação:
+  // (outro installer, upstreams Pi, MCP upstream) viram gate de confirmação:
   // TTY → listados antes do prompt (default N); --yes → prossegue com os
   // avisos no relatório; sem TTY e sem --yes → aborta (fail-closed).
   const ownerWarnings = warnOwners(rt, opts.pi);

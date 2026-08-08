@@ -1,11 +1,16 @@
 // f18-coexistence.test.ts — F18: coexistência multi-agente (MXST-01..05).
 //
 // Cobre: motor de seções com família shell (F20), detecção de donos
-// (gentle-ai, upstreams Pi, MCP upstream com QUALQUER nome de entry, conteúdo
-// do usuário), doctor consolidado 7–15 (14 gentle-ai, 15 upstreams, check 10
-// estendido), status two-driver (estado upstream/colisão + Owners), gate de
-// install (MXST-04) e lock de escrita. Sandbox F21 com PATH mínimo + HOME
-// fake (o detectOwners resolve ~/.gentle-ai via env.HOME).
+// (outro installer, upstreams Pi, MCP upstream com QUALQUER nome de entry,
+// conteúdo do usuário), doctor consolidado 7–15 (14 outro installer,
+// 15 upstreams, check 10 estendido), status two-driver (estado
+// upstream/colisão + Owners), gate de install (MXST-04) e lock de escrita.
+// Sandbox F21 com PATH mínimo + HOME fake (o detectOwners resolve o state
+// file via env.HOME).
+//
+// Literais de detecção (`~/.gentle-ai/state.json`, prefixo `gentle-ai:`) são
+// FINGERPRINTS de terceiros — dados, não branding; o nome de apresentação do
+// owner é genérico (`upstream-installer`).
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -15,7 +20,7 @@ import { detectOwners, scanMcpUpstreams } from "../src/owners.ts";
 import { createPiInterop } from "../src/pi.ts";
 import { resolveRuntime } from "../src/config.ts";
 
-/** Sandbox com HOME fake (detecção gentle-ai) + PATH mínimo + fake claude. */
+/** Sandbox com HOME fake (detecção de outro installer) + PATH mínimo + fake claude. */
 function sandboxOwners(): Sandbox & { home: string; binDir: string } {
   const sb = makeSandboxCleanPath() as Sandbox & { home: string; binDir: string };
   sb.home = path.join(sb.dir, "home");
@@ -88,23 +93,23 @@ describe("sections — motor com família shell (F18, F20 consumidor)", () => {
 });
 
 describe("owners — detecção de donos (MXST-03)", () => {
-  test("gentle-ai: state file presente → owner installer warn", () => {
+  test("outro installer: state file presente → owner installer warn", () => {
     const sb = sandboxOwners();
     try {
       fs.mkdirSync(path.join(sb.home, ".gentle-ai"), { recursive: true });
       fs.writeFileSync(path.join(sb.home, ".gentle-ai", "state.json"), "{}");
       const rt = resolveRuntime(sb.dir, sb.env);
       const report = detectOwners(rt, createPiInterop(rt));
-      const gentleAi = report.owners.filter((o) => o.name === "gentle-ai");
-      expect(gentleAi.length).toBe(1);
-      expect(gentleAi[0]?.severity).toBe("warn");
-      expect(gentleAi[0]?.kind).toBe("installer");
+      const installer = report.owners.filter((o) => o.name === "upstream-installer");
+      expect(installer.length).toBe(1);
+      expect(installer[0]?.severity).toBe("warn");
+      expect(installer[0]?.kind).toBe("installer");
     } finally {
       sb.cleanup();
     }
   });
 
-  test("gentle-ai: marcadores gentle-ai: no CLAUDE.md → owner warn por arquivo", () => {
+  test("outro installer: marcadores de terceiros no CLAUDE.md → owner warn por arquivo", () => {
     const sb = sandboxOwners();
     try {
       const claudeHome = sb.env.RUNECRAFT_CLAUDE_HOME as string;
@@ -112,9 +117,9 @@ describe("owners — detecção de donos (MXST-03)", () => {
       fs.writeFileSync(path.join(claudeHome, "CLAUDE.md"), "<!-- gentle-ai:workflow -->\nx\n<!-- /gentle-ai:workflow -->\n", "utf8");
       const rt = resolveRuntime(sb.dir, sb.env);
       const report = detectOwners(rt, createPiInterop(rt));
-      const gentleAi = report.owners.filter((o) => o.name === "gentle-ai");
-      expect(gentleAi.length).toBe(1);
-      expect(gentleAi[0]?.file).toContain("CLAUDE.md");
+      const installer = report.owners.filter((o) => o.name === "upstream-installer");
+      expect(installer.length).toBe(1);
+      expect(installer[0]?.file).toContain("CLAUDE.md");
       expect(report.byFile[path.join(claudeHome, "CLAUDE.md")]?.length).toBeGreaterThan(0);
     } finally {
       sb.cleanup();
@@ -216,14 +221,14 @@ describe("owners — detecção de donos (MXST-03)", () => {
 });
 
 describe("doctor — checks 14/15 + check 10 estendido (MXST-03)", () => {
-  test("gentle-ai presente → check 14 warn com remedy de coexistência", async () => {
+  test("outro installer presente → check 14 warn com remedy de coexistência", async () => {
     const sb = sandboxOwners();
     try {
       fs.mkdirSync(path.join(sb.home, ".gentle-ai"), { recursive: true });
       fs.writeFileSync(path.join(sb.home, ".gentle-ai", "state.json"), "{}");
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0); // warn
-      expect(result.stdout).toContain("[14] gentle-ai");
+      expect(result.stdout).toContain("[14] upstream coexistence");
       expect(result.stdout).toContain("coexistência suportada");
     } finally {
       sb.cleanup();
@@ -304,7 +309,7 @@ describe("status — two-driver + Owners (F18)", () => {
       fs.writeFileSync(path.join(sb.home, ".gentle-ai", "state.json"), "{}");
       const result = await runHarness(sb, ["status"]);
       expect(result.stdout).toContain("Owners (detecção F18)");
-      expect(result.stdout).toContain("gentle-ai");
+      expect(result.stdout).toContain("upstream-installer");
     } finally {
       sb.cleanup();
     }
@@ -312,14 +317,14 @@ describe("status — two-driver + Owners (F18)", () => {
 });
 
 describe("install — gate MXST-04", () => {
-  test("gentle-ai presente, sem TTY e sem --yes → aborta apontando --yes", async () => {
+  test("outro installer presente, sem TTY e sem --yes → aborta apontando --yes", async () => {
     const sb = sandboxOwners();
     try {
       fs.mkdirSync(path.join(sb.home, ".gentle-ai"), { recursive: true });
       fs.writeFileSync(path.join(sb.home, ".gentle-ai", "state.json"), "{}");
       const result = await runHarness(sb, ["install"]);
       expect(result.code).not.toBe(0);
-      expect(result.stderr).toContain("gentle-ai");
+      expect(result.stderr).toContain("upstream-installer");
       expect(result.stderr).toContain("--yes");
       expect(fs.existsSync(stateFile(sb))).toBe(false); // nada escrito
     } finally {
@@ -335,7 +340,7 @@ describe("install — gate MXST-04", () => {
       const result = await runHarness(sb, ["install", "--yes"]);
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("Colisões detectadas");
-      expect(result.stdout).toContain("gentle-ai");
+      expect(result.stdout).toContain("upstream-installer");
       // instalou mesmo assim
       const state = readJson(stateFile(sb));
       expect(Object.keys(state.components as Record<string, unknown>).length).toBeGreaterThan(0);

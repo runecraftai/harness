@@ -6,7 +6,8 @@ import {
 } from "../config.ts";
 // eval-e2e/lib/env.ts — env-gating (E2EV-04/D5) + resolução de config (fail-closed).
 //
-// - Sem RUNECRAFT_E2E=1 → skip explícito, exit 0, ZERO tokens (padrão gentle-ai).
+// - Sem RUNECRAFT_E2E=1 → skip explícito, exit 0, ZERO tokens (env-gated
+//   fail-closed — CI normal fica verde sem rodar modelos reais).
 // - Config da rodada vem do env: modelo (RUNECRAFT_E2E_MODEL, default haiku-class
 //   provado no F7), provider, API key (RUNECRAFT_E2E_API_KEY ou env padrão do
 //   provider) — fail-closed com mensagem clara quando a key falta.
@@ -21,7 +22,7 @@ export function isE2EEnabled(env: NodeJS.ProcessEnv): boolean {
 /** Mensagem de skip (D5 — CI fica verde sem tokens). */
 export function skipMessage(): string {
 	return [
-		"RUNECRAFT_E2E não setado — cenários E2E skipped (padrão gentle-ai).",
+		"RUNECRAFT_E2E não setado — cenários E2E skipped (env-gated, zero tokens).",
 		"CI normal não roda E2E com modelos reais: zero tokens, zero rede.",
 		"Para rodar a rodada completa: RUNECRAFT_E2E=1 bun run eval:e2e",
 		"Modos offline disponíveis sem env: --list-scenarios, --dry-run, --doctor",

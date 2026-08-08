@@ -32,8 +32,8 @@ function isStale(dir: string): boolean {
 /**
  * Runs `fn` holding a per-operation lock (`<runecraft>/.lock/<op>`). Throws
  * when another operation holds it (and it is not stale). The lock covers the
- * whole command body — including TTY prompts — so a parallel gentle-ai
- * sync/harness run cannot interleave writes (backup F13 still guarantees
+ * whole command body — including TTY prompts — so a parallel sync/harness
+ * run cannot interleave writes (backup F13 still guarantees
  * restore on conflict).
  */
 export async function withRunecraftLock<T>(

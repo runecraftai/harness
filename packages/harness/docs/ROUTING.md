@@ -143,7 +143,7 @@ never cite a tool outside the column.
 - The harness manages exactly the `runecraft:workflow` block: append on
   insert, in-place update by the stable id, nothing beyond the markers (F18
   section engine).
-- **gentle-ai**: `gentle-ai:` marker sections are other owners' content —
+- **Other installers**: `gentle-ai:` marker sections are third-party content —
   the harness never touches them (append/upsert only of the runecraft: block;
   detected in `harness status` Owners / `harness doctor` check 14).
 - **User edits**: a rules section the user edited is preserved and reported
@@ -454,7 +454,7 @@ persona só anexa); F31 independente; F32 consome o config `models`.
 
 O Copilot (VS Code) é o 5º agente do M8 (AD-022 decisão 8) com adapter no
 padrão F15 (`harness install --agent copilot`; aliases `vscode`/
-`vscode-copilot`/`github-copilot` — a nomenclatura do gentle-ai é aceita
+`vscode-copilot`/`github-copilot` — a nomenclatura de outro installer é aceita
 como alias, sem adotar o id). Alvos **repo-scoped** (workspace = cwd — QA-4):
 
 | Alvo | Arquivo | Conteúdo gerenciado |
@@ -480,9 +480,9 @@ runtimes.
 `unsupported` (subagents/goal-loop-audit/pr-review/guards — "é extensão Pi;
 use --agent pi"; guards sem enforcement em agentes não-Pi — F24).
 
-**Two-driver com o gentle-ai (D10):** o gentle-ai gerencia o Copilot em
-**user-level** (`~/.copilot/...`, legado `~/.github/copilot-instructions.md`
-na HOME — auto-removido por versões novas do gentle-ai; persona do VS Code
+**Two-driver com outro installer (D10):** outro installer gerencia o Copilot
+em **user-level** (`~/.copilot/...`, legado `~/.github/copilot-instructions.md`
+na HOME — auto-removido por versões novas dele; persona do VS Code
 via `SystemPromptFile(homeDir)`). O harness F31 é **repo-level** — **sem
 colisão de path**, mas com sobreposição SEMÂNTICA: o VS Code fornece ambos os
 conjuntos ao modelo (prioridade personal > repo). O `owners.ts` detecta o
@@ -836,7 +836,7 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   sem `${input:...}`: o Agent Host NÃO lê o arquivo — o VS Code repassa),
   host MCP reusado `@runecraft/taskflow-claude` (QA-2 — nunca inventar
   `taskflow-copilot`), detecção bin `code`/`code-insiders` OU extensão
-  `github.copilot*` (fail-closed display-only), two-driver gentle-ai
+  `github.copilot*` (fail-closed display-only), two-driver outro installer
   user-level × repo-level (sobreposição SEMÂNTICA — owners + gate MXST-04),
   coluna na matriz (mcp+rules + 4 unsupported Pi-only), doctor check 21,
   golden `mcp-copilot.golden` + EVAL-049..056 (matriz v9).

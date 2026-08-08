@@ -22,7 +22,7 @@
 //   EVAL-054 matrix/status — coluna copilot (taskflow/rules + 4 unsupported);
 //     status 3 fontes (--json agents[].components[] com reason); doctor check
 //     21 presente e honesto; consistência matriz↔suites (v9);
-//   EVAL-055 two-driver — gentle-ai state (HOME fake) → owners warn + gate
+//   EVAL-055 two-driver — outro installer state (HOME fake) → owners warn + gate
 //     MXST-04 (sem TTY sem --yes aborta); --yes prossegue com warnings; sync
 //     three-way: seção editada → "preservada (editada)";
 //   EVAL-056 sync/state — targets registrados com contentHash; sync
@@ -515,13 +515,13 @@ describe("EVAL-054 — coluna copilot na matriz + status 3 fontes + doctor check
 });
 
 // ---------------------------------------------------------------------------
-// EVAL-055 — two-driver / gentle-ai (D10)
+// EVAL-055 — two-driver / outro installer (D10)
 // ---------------------------------------------------------------------------
 
-describe("EVAL-055 — two-driver gentle-ai (owners warn + gate MXST-04; sync three-way)", () => {
-  test("gentle-ai state em HOME fake → owners warn; install sem TTY e sem --yes aborta apontando --yes", async () => {
+describe("EVAL-055 — two-driver outro installer (owners warn + gate MXST-04; sync three-way)", () => {
+  test("outro installer state em HOME fake → owners warn; install sem TTY e sem --yes aborta apontando --yes", async () => {
     await evalTest(
-      "EVAL-055: two-driver — gentle-ai state (~/.gentle-ai/state.json) → owners warn + gate MXST-04: sem TTY sem --yes aborta apontando --yes; zero writes",
+      "EVAL-055: two-driver — upstream-installer state (~/.gentle-ai/state.json) → owners warn + gate MXST-04: sem TTY sem --yes aborta apontando --yes; zero writes",
       async () => {
         const sb = sandboxWithCode();
         try {
@@ -531,19 +531,19 @@ describe("EVAL-055 — two-driver gentle-ai (owners warn + gate MXST-04; sync th
           // Sem TTY e sem --yes → fail-closed (MXST-04).
           const result = await runHarness(sb, ["install", "--agent", "copilot"], { cwd: sb.project });
           expect(result.code).not.toBe(0);
-          expect(result.stderr).toContain("gentle-ai");
+          expect(result.stderr).toContain("upstream-installer");
           expect(result.stderr).toContain("--yes");
           expect(fs.existsSync(copilotRulesFile(sb))).toBe(false);
           expect(fs.existsSync(copilotMcpFile(sb))).toBe(false);
           // --yes prossegue, registra warnings no relatório.
           const yes = await runHarness(sb, ["install", "--agent", "copilot", "--yes"], { cwd: sb.project });
           expect(yes.code).toBe(0);
-          expect(yes.stdout).toContain("gentle-ai");
+          expect(yes.stdout).toContain("upstream-installer");
           expect(fs.existsSync(copilotRulesFile(sb))).toBe(true);
-          // Status Owners reflete o gentle-ai (F18).
+          // Status Owners reflete o outro installer (F18).
           const status = await runHarness(sb, ["status", "--json"], { cwd: sb.project });
           const json = JSON.parse(status.stdout) as { warnings: Array<{ name: string; severity: string }> };
-          expect(json.warnings.some((w) => w.name === "gentle-ai")).toBe(true);
+          expect(json.warnings.some((w) => w.name === "upstream-installer")).toBe(true);
         } finally {
           sb.cleanup();
         }
@@ -552,7 +552,7 @@ describe("EVAL-055 — two-driver gentle-ai (owners warn + gate MXST-04; sync th
     );
   });
 
-  test("marcadores gentle-ai: em .github/copilot-instructions.md → owners warn (F18)", async () => {
+  test("marcadores de terceiros em .github/copilot-instructions.md → owners warn (F18)", async () => {
     await evalTest(
       "EVAL-055: two-driver — marcadores `<!-- gentle-ai:` no rules file do copilot → owners warn; install exige --yes",
       async () => {
@@ -567,12 +567,12 @@ describe("EVAL-055 — two-driver gentle-ai (owners warn + gate MXST-04; sync th
           // Sem TTY e sem --yes → gate MXST-04 aborta (fail-closed).
           const result = await runHarness(sb, ["install", "--agent", "copilot"], { cwd: sb.project });
           expect(result.code).not.toBe(0);
-          expect(result.stderr).toContain("gentle-ai");
+          expect(result.stderr).toContain("upstream-installer");
           expect(result.stderr).toContain("--yes");
           // Status Owners: marcador detectado (F18 — estrito, por arquivo).
           const status = await runHarness(sb, ["status", "--json"], { cwd: sb.project });
           const json = JSON.parse(status.stdout) as { warnings: Array<{ name: string; detail: string }> };
-          expect(json.warnings.some((w) => w.name === "gentle-ai" && w.detail.includes("copilot-instructions.md"))).toBe(true);
+          expect(json.warnings.some((w) => w.name === "upstream-installer" && w.detail.includes("copilot-instructions.md"))).toBe(true);
         } finally {
           sb.cleanup();
         }

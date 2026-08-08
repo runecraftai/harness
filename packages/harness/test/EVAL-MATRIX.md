@@ -6,7 +6,7 @@ Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010)
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
 (loopback, porta efêmera, apiKey literal `"fixture"`): o agente REAL executa
 cada passo (bash/git reais em repo descartável); **só a escolha do tool call é
-fakeada** (contador+switch — padrão gentle-ai).
+fakeada** (contador+switch — script determinístico).
 
 **Política aditiva (D9):** entradas só são ACRESCENTADAS (novo `EVAL-<n>` +
 bump de `MATRIX_VERSION`); **nada sai sem AD**. Correção in-place do script
@@ -233,7 +233,7 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-078 | chain selection + contrato F30 (F33 RTE-04/06 — D4/D7) | eval (framework/routing) | 1. chain ausente em .pi/chains/ → direct + warn (fail-closed — nunca inventa); 2. render do directive 2 runs byte-idênticos; 3. passo da chain (papel F32) → `models.agents.<id>` resolve (resolveAgentModel); 4. fim-de-chain → null + warn (F30 D4) | contrato F30 D5/D11 (F33 consome, não implementa); delta vs EVAL-066 |
 
 
-**Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
+**Limitações declaradas** (espelho do padrão de ratchets): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é
 executado de verdade; NÃO prova que um modelo vivo produziria os mesmos tool
 calls (fora do merge gate — F22 cobre E2E real).

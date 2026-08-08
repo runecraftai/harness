@@ -1,6 +1,6 @@
 // eval/update.ts — `--update`: grava baselines + regenera goldens (F23 D6).
 //
-// Explícito e humano (padrão gentle-ai): NUNCA roda em CI (recusa com
+// Explícito e humano (human-in-the-loop): NUNCA roda em CI (recusa com
 // CI=true) e nunca autocorrige em PR — o fluxo canônico é
 // `bun run eval:ratchet` (vermelho com instrução) → decisão humana →
 // `bun run eval:ratchet --update` → PR com código + baseline (diff revisado).

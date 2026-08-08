@@ -142,7 +142,7 @@ describe("rules.ts (D3/G1): seção com marcadores", () => {
     expect(text).toContain("<!-- runecraft:workflow -->\r\n");
   });
 
-  test("coexistência com gentle-ai: seções de outro owner intactas", () => {
+  test("coexistência com outro installer: seções de terceiros intactas", () => {
     const file = path.join(root, "CLAUDE.md");
     writeFileSync(file, "<!-- gentle-ai:workflow -->\ngentle\n<!-- /gentle-ai:workflow -->\n", "utf8");
     upsertSection(file, RULES_SECTION, "runecraft");
@@ -242,7 +242,7 @@ describe("claudeAdapter.inject/remove (ADPT-05/06/07)", () => {
     await claudeAdapter.inject(ctxFor(r));
     expect(fs.readFileSync(path.join(home, ".claude", "CLAUDE.md"), "utf8")).toBe(before);
 
-    // usuário adiciona conteúdo + seção gentle-ai
+    // usuário adiciona conteúdo + seção de outro installer
     fs.appendFileSync(path.join(home, ".claude", "CLAUDE.md"), "<!-- gentle-ai:x -->\ng\n<!-- /gentle-ai:x -->\n");
 
     const remove = await claudeAdapter.remove({
