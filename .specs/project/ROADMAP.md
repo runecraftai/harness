@@ -145,7 +145,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ---
 
-## M5 — Evals & Guarantees
+## M5 — Evals ## M5 — Evals & Guarantees Guarantees — ✅ COMPLETE (2026-08-08)
 
 **Goal:** Nossos evals garantem o harness: suite determinística sem modelos reais + cenários E2E versionados + ratchet de não-regressão (pegada `bench/` + baselines do gentle-ai).
 
@@ -161,7 +161,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 - Evolução do `scenarios.md` do F7 em benchmark versionado com modelos reais e resultados datados
 
-**F23 — Ratchet baselines** — **P1 COMPLETE (2026-08-07; 542 testes; cleric APPROVE + 2 fixes 71d4500)** — **P2 (pass-rate E2E) GATED no F22** — Prereq: F21 ✓, F22 (só P2)
+**F23 — Ratchet baselines** — **COMPLETE (2026-08-08; P1 2026-08-07 + P2 04b9072; 1193 testes)** — Prereq: F21 ✓, F22 ✓
 
 - Baselines de não-regressão (estilo `.refusal-ratchet-baseline` / `.guard-population-baseline`)
 - **P1 entregue**: known-failures (may only shrink, identidade estável normalizada), command-coverage (só cresce), 5 goldens de assets (seções workflow + MCPs), `--update` humano (recusa CI=true), piso de completude da evidência (MIN_EVIDENCE_FILES=13); P2 (e2e-passrate.txt) entra com o F22
@@ -240,7 +240,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ---
 
-## M6 — Public Release
+## M6 — Public Release — 🔶 PARCIAL (F8 ✅ docs; F9 pendente: publish aguardando OK do usuário)
 
 **Goal:** Publicável no npm com docs estilo gentle-ai e pipeline. **Paralelo ao M7/M8** — não depende das garantias.
 
