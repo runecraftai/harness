@@ -48,10 +48,10 @@
 
 ## T6 — skill-forge copiada + wired (D7, SKL-01/03)
 
-- [ ] `cp -r /home/rehem/Projects/arcanum/packages/spells/skills/skill-forge packages/harness/skills/` — manter SKILL.md (291 ln), README.md, `assets/SKILL.template.md`, `references/` (5), `scripts/validate.py` — **frontmatter `license: CC-BY-4.0` intacto (as-is)**
-- [ ] `packages/harness/package.json`: `pi.skills` += `"./skills/skill-forge"` (layout using-runes — dir com SKILL.md; sem colisão: forks = pi-subagents/taskflow)
-- [ ] `scripts/validate.py` **não** wire em CI (asset opcional — python3 stdlib ≥3.10; documentar no CODEBASE-GUIDE como opcional)
-- [ ] **Verificar:** `diff -r packages/harness/skills/skill-forge /home/rehem/Projects/arcanum/packages/spells/skills/skill-forge` **vazio**; frontmatter com license intacto; `pi.skills` com a entrada; `bun test` verde; (smoke manual opcional) sessão Pi headless lista a skill
+- [x] `cp -r /home/rehem/Projects/arcanum/packages/spells/skills/skill-forge packages/harness/skills/` — manter SKILL.md (291 ln), README.md, `assets/SKILL.template.md`, `references/` (5), `scripts/validate.py` — **frontmatter `license: CC-BY-4.0` intacto (as-is)**
+- [x] `packages/harness/package.json`: `pi.skills` += `"./skills/skill-forge"` (layout using-runes — dir com SKILL.md; sem colisão: forks = pi-subagents/taskflow)
+- [x] `scripts/validate.py` **não** wire em CI (asset opcional — python3 stdlib ≥3.10; documentar no CODEBASE-GUIDE como opcional)
+- [x] **Verificar:** `diff -r packages/harness/skills/skill-forge /home/rehem/Projects/arcanum/packages/spells/skills/skill-forge` **vazio**; frontmatter com license intacto; `pi.skills` com a entrada; `bun test` verde; (smoke manual opcional) sessão Pi headless lista a skill
 
 ## T7 — Skills propostas (D7, SKL-02) — GATED na escolha do usuário (QA-5)
 

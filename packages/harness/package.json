@@ -126,7 +126,8 @@
     "skills": [
       "node_modules/@runecraft/subagents/skills",
       "node_modules/@runecraft/taskflow/skills",
-      "./skills/using-runes"
+      "./skills/using-runes",
+      "./skills/skill-forge"
     ],
     "prompts": [
       "node_modules/@runecraft/subagents/prompts",
