@@ -161,9 +161,10 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 - Evolução do `scenarios.md` do F7 em benchmark versionado com modelos reais e resultados datados
 
-**F23 — Ratchet baselines** — PLANNED — Prereq: F21, F22
+**F23 — Ratchet baselines** — **P1 COMPLETE (2026-08-07; 542 testes; cleric APPROVE + 2 fixes 71d4500)** — **P2 (pass-rate E2E) GATED no F22** — Prereq: F21 ✓, F22 (só P2)
 
 - Baselines de não-regressão (estilo `.refusal-ratchet-baseline` / `.guard-population-baseline`)
+- **P1 entregue**: known-failures (may only shrink, identidade estável normalizada), command-coverage (só cresce), 5 goldens de assets (seções workflow + MCPs), `--update` humano (recusa CI=true), piso de completude da evidência (MIN_EVIDENCE_FILES=13); P2 (e2e-passrate.txt) entra com o F22
 
 ---
 
