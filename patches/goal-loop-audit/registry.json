@@ -1,0 +1,30 @@
+{
+	"fork": "goal-loop-audit",
+	"comment": "Known divergences of the @runecraft/goal-loop-audit fork (upstream DraconDev/pi-goal-list-loop-audit, SHA-pinned — no git tags). Documental registry (F10 D2) — patches are never applied; the engine is three-way.",
+	"entries": [
+		{
+			"id": "GLA-01",
+			"title": "Rename pi-goal-list-loop-audit → @runecraft/goal-loop-audit",
+			"type": "renamed",
+			"files": ["package.json", "extensions/", "lib/", "schemas/"],
+			"commits": ["d0633c5"],
+			"status": "applied — re-applied mechanically by the sync rename pass (config renameMap)"
+		},
+		{
+			"id": "GLA-02",
+			"title": "package-lock.json removed (workspace-managed deps)",
+			"type": "deleted",
+			"files": ["package-lock.json"],
+			"commits": ["d0633c5"],
+			"status": "applied"
+		},
+		{
+			"id": "GLA-03",
+			"title": "Upstream has no git tags — pins are explicit SHAs (status compares package.json of default-branch HEAD)",
+			"type": "fixed",
+			"files": ["vendor.json"],
+			"commits": ["d0633c5"],
+			"status": "documented — --to accepts SHA; --status uses the package.json comparison path"
+		}
+	]
+}

@@ -1,0 +1,30 @@
+{
+	"fork": "pr-review",
+	"comment": "Known divergences of the @runecraft/pr-review fork (upstream 10ego/pi-pr-review). Documental registry (F10 D2) — patches are never applied; the engine is three-way.",
+	"entries": [
+		{
+			"id": "PRR-01",
+			"title": "Rename pi-pr-review → @runecraft/pr-review",
+			"type": "renamed",
+			"files": ["package.json", "extensions/", "lib/"],
+			"commits": ["b1ba279"],
+			"status": "applied — re-applied mechanically by the sync rename pass (config renameMap)"
+		},
+		{
+			"id": "PRR-02",
+			"title": "Hardcoded pi-pr-review/10ego refs fixed in release tooling",
+			"type": "fixed",
+			"files": ["scripts/verify-package-contents.mjs", "tests/tooling/package-contents.node.mjs"],
+			"commits": ["b1ba279"],
+			"status": "applied — tooling pins @runecraft/pr-review + runecraft-ai/harness canonical URLs; sync must preserve"
+		},
+		{
+			"id": "PRR-03",
+			"title": "package-lock.json removed (workspace-managed deps)",
+			"type": "deleted",
+			"files": ["package-lock.json"],
+			"commits": ["b1ba279"],
+			"status": "applied"
+		}
+	]
+}

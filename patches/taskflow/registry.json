@@ -1,0 +1,58 @@
+{
+	"fork": "taskflow",
+	"comment": "Known divergences of the 9 @runecraft/taskflow-* forks (upstream heggria/taskflow, core/pi/dsl + F16 MCP layer). Documental registry (F10 D2) — patches are never applied; the engine is three-way.",
+	"entries": [
+		{
+			"id": "TF-01",
+			"title": "Renames pi-taskflow/taskflow-core/taskflow-dsl → @runecraft/* (F3)",
+			"type": "renamed",
+			"files": [
+				"packages/taskflow/core/package.json",
+				"packages/taskflow/pi/package.json",
+				"packages/taskflow/dsl/package.json",
+				"packages/taskflow/*/src/"
+			],
+			"commits": ["0bba9e0"],
+			"status": "applied — re-applied mechanically by the sync rename pass (config renameMap)"
+		},
+		{
+			"id": "TF-02",
+			"title": "MCP layer (6 packages) vendored into packages/taskflow/mcp-* (F16)",
+			"type": "renamed",
+			"files": [
+				"packages/taskflow/mcp-core/",
+				"packages/taskflow/hosts/",
+				"packages/taskflow/codex/",
+				"packages/taskflow/claude/",
+				"packages/taskflow/opencode/",
+				"packages/taskflow/grok/"
+			],
+			"commits": ["6823ec5"],
+			"status": "applied — group sync taskflow re-applies renames + build order (core→mcp-core→hosts→dsl→pi→adapters)"
+		},
+		{
+			"id": "BUG-1",
+			"title": "Dynamic import()/import.meta.resolve not renamed (Unknown taskflow-core at runtime in published pi-taskflow)",
+			"type": "pending",
+			"files": ["packages/taskflow/pi/src/index.ts"],
+			"commits": [],
+			"status": "pending — resolved in the 1st taskflow sync cycle via the rename pass (config renameMap covers import() + import.meta.resolve)"
+		},
+		{
+			"id": "BUG-2",
+			"title": "dist/agents/ built-in agent definitions not packaged (Unknown agent: default)",
+			"type": "pending",
+			"files": ["packages/taskflow/core/package.json", "packages/taskflow/core/src/agents/"],
+			"commits": [],
+			"status": "pending — resolved in the 1st taskflow sync cycle via files/export + build copy step (config.ts adaptations, docs/SYNC.md)"
+		},
+		{
+			"id": "TF-03",
+			"title": "package-lock.json removed from all 9 forks (workspace-managed deps)",
+			"type": "deleted",
+			"files": ["packages/taskflow/*/package-lock.json"],
+			"commits": ["0bba9e0", "6823ec5"],
+			"status": "applied"
+		}
+	]
+}

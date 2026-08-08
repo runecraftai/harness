@@ -10,7 +10,9 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"test": "turbo test",
-		"vendor": "bun scripts/vendor.ts"
+		"vendor": "bun scripts/vendor.ts",
+		"sync:upstream": "bun scripts/sync-upstream.ts",
+		"test:sync-upstream": "bun test scripts/sync-upstream"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",

@@ -1,0 +1,30 @@
+{
+	"fork": "subagents",
+	"comment": "Known divergences of the @runecraft/subagents fork (upstream nicobailon/pi-subagents). Documental registry (F10 D2) — patches are never applied; the engine is three-way.",
+	"entries": [
+		{
+			"id": "SUBA-01",
+			"title": "Rename pi-subagents → @runecraft/subagents",
+			"type": "renamed",
+			"files": ["package.json", "index.ts", "src/"],
+			"commits": ["efdd9da"],
+			"status": "applied — re-applied mechanically by the sync rename pass (config renameMap)"
+		},
+		{
+			"id": "SUBA-02",
+			"title": "install.mjs removed (upstream installer conflicts with harness install)",
+			"type": "deleted",
+			"files": ["install.mjs"],
+			"commits": ["efdd9da"],
+			"status": "applied — three-way preserves the deletion while upstream leaves it unchanged"
+		},
+		{
+			"id": "SUBA-03",
+			"title": "package-lock.json removed (workspace-managed deps)",
+			"type": "deleted",
+			"files": ["package-lock.json"],
+			"commits": ["efdd9da"],
+			"status": "applied"
+		}
+	]
+}
