@@ -38,6 +38,10 @@ import type { AgentRecord, HarnessState } from "../state.ts";
 import { GUARD_IDS, effectiveGuards, killSwitchState, type GuardRuntime } from "../guards/guardKit.ts";
 import { effectiveVerification, verifyKillSwitch } from "../verify/config.ts";
 import { judgeEnvEnabled } from "../verify/stages/judge.ts";
+import { effectiveModels, modelsKillSwitch, modelOverrideEnv } from "../models/config.ts";
+import { resolveAvailableModels } from "../models/registry.ts";
+import { agentsForList, chainForAgent } from "../models/cli.ts";
+import { resolveAgentModel } from "../models/resolution.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
 
@@ -109,6 +113,8 @@ export interface StatusReport {
   guards: GuardsStatus;
   /** F25: verification cascade (config efetiva do scope + kill switch + judge env). */
   verification: VerificationStatus;
+  /** F30: model routing (config efetiva + kill switch + resolução por agente). */
+  models: ModelsStatus;
 }
 
 /** F24: seção guards do status (D9 — Pi-only honesto: guards são extensão Pi). */
@@ -135,6 +141,27 @@ export interface VerificationStatus {
   error?: string;
   source: "workspace" | "global" | "default";
   thresholds: { embedding: { min: number; max: number }; sufficiency: { minRatio: number; maxRatio: number; scopePaths: string[] } };
+}
+
+/** F30: seção models do status (D7 — config efetiva + kill switch + override
+ *  + resolução por agente com a chain atual). */
+export interface ModelsStatus {
+  killSwitch: boolean;
+  killSwitchValue: string | null;
+  enabled: boolean;
+  valid: boolean;
+  error?: string;
+  source: "workspace" | "global" | "default";
+  override: string | null;
+  default: string | null;
+  /** resolução por agente (hosts + chains configuradas). */
+  agents: Array<{
+    agent: string;
+    chain: Array<{ providers: string[]; model: string }>;
+    resolved: string | null;
+    via: string;
+    warning?: string;
+  }>;
 }
 
 export interface StatusAgent {
@@ -254,6 +281,53 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     guards: computeGuardsStatus(rt, scope, state),
     // F25: verification do SCOPE (workspace > global > default) + kill switch + judge.
     verification: computeVerificationStatus(rt, scope, state),
+    // F30: models do SCOPE (workspace > global > default) + kill switch + resolução.
+    models: computeModelsStatus(rt, scope, state),
+  };
+}
+
+/** F30: estado efetivo do roteamento de modelos para o scope (mesmo merge do
+ *  models/config.ts — workspace > global > default; resolução por agente via
+ *  src/models/ — D4/D7). */
+export function computeModelsStatus(rt: Runtime, scope: Scope, state: HarnessState): ModelsStatus {
+  const globalFile = statePath(rt, "global");
+  const globalRaw = (() => {
+    const loaded = loadStateReadonly(globalFile, "global");
+    return loaded.ok ? loaded.state.models : undefined;
+  })();
+  const scopeLayer = scope === "workspace" ? state.models : undefined;
+  const globalLayer = scope === "global" ? state.models : globalRaw;
+  const merged = effectiveModels(scopeLayer, globalLayer, rt.env);
+  const kill = modelsKillSwitch(rt.env);
+  const cfg = merged.config;
+  const override = modelOverrideEnv(rt.env) ?? cfg.override;
+  const available = resolveAvailableModels(rt.env).models;
+  const agents = agentsForList(cfg).map((agent) => {
+    const chain = chainForAgent(cfg, agent);
+    const outcome = resolveAgentModel(agent, {
+      availableModels: available,
+      overrideModel: override ?? undefined,
+      systemDefaultModel: cfg.default ?? undefined,
+      customFallbackChain: chain,
+    });
+    return {
+      agent,
+      chain: chain.map((e) => ({ providers: e.providers, model: e.model })),
+      resolved: outcome.model,
+      via: outcome.via,
+      ...(outcome.model === null ? { warning: outcome.warning } : {}),
+    };
+  });
+  return {
+    killSwitch: kill.active,
+    killSwitchValue: kill.value,
+    enabled: cfg?.enabled ?? false,
+    valid: cfg !== undefined,
+    ...(cfg === undefined ? { error: merged.problems.join("; ") } : {}),
+    source: merged.source,
+    override,
+    default: cfg?.default ?? null,
+    agents,
   };
 }
 
@@ -565,6 +639,24 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
     lines.push(`  thresholds: embedding [${v.thresholds.embedding.min}, ${v.thresholds.embedding.max}] · sufficiency ${v.thresholds.sufficiency.minRatio}..${v.thresholds.sufficiency.maxRatio}${v.thresholds.sufficiency.scopePaths.length > 0 ? ` · scopePaths [${v.thresholds.sufficiency.scopePaths.join(", ")}]` : ""}`);
   }
   lines.push(v.judgeEnabled ? "  judge LLM: ATIVO (RUNECRAFT_VERIFY_LLM_JUDGE=1)" : "  judge LLM: off (env nao definido — CI offline)");
+  // F30: seção Models (config efetiva + kill switch + resolução por agente).
+  lines.push("");
+  lines.push("Models (F30):");
+  const m = report.models;
+  if (m.killSwitch) {
+    lines.push(`  kill switch: RUNECRAFT_MODELS=${m.killSwitchValue} ATIVO — roteamento inativo`);
+  } else {
+    lines.push("  kill switch: RUNECRAFT_MODELS off");
+  }
+  const mState = m.enabled ? "enabled" : "disabled";
+  const mValid = m.valid ? "" : ` · config inválida (fail-closed: ${m.error ?? "?"})`;
+  lines.push(`  routing: ${mState} (fonte ${m.source})${mValid}`);
+  lines.push(`  override: ${m.override ?? "—"} · default: ${m.default ?? "null (nada inventado — fim = null + warn)"}`);
+  for (const agent of m.agents) {
+    const chainText = agent.chain.length === 0 ? "—" : agent.chain.map((e) => `${e.providers.join("/")}:${e.model}`).join(" → ");
+    const resolved = agent.resolved ?? `null${agent.warning !== undefined ? " + warn" : ""}`;
+    lines.push(`  ${agent.agent.padEnd(10)}chain: ${chainText} · resolvido: ${resolved} (via ${agent.via})`);
+  }
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -636,6 +728,17 @@ export function renderStatusJson(report: StatusReport): string {
         guards: report.guards.guards,
       },
       verification: report.verification,
+      models: {
+        killSwitch: report.models.killSwitch,
+        killSwitchValue: report.models.killSwitchValue,
+        enabled: report.models.enabled,
+        valid: report.models.valid,
+        ...(report.models.error !== undefined ? { error: report.models.error } : {}),
+        source: report.models.source,
+        override: report.models.override,
+        default: report.models.default,
+        agents: report.models.agents,
+      },
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

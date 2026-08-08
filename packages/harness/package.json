@@ -29,6 +29,7 @@
     "extensions/",
     "docs/",
     "skills/",
+    "assets/",
     "README.md"
   ],
   "engines": {
@@ -111,6 +112,7 @@
       "./extensions/resilience.ts",
       "./extensions/observability.ts",
       "./extensions/memory.ts",
+      "./extensions/persona.ts",
       "node_modules/@runecraft/subagents/index.ts",
       "node_modules/@runecraft/taskflow/dist/index.js",
       "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",
@@ -124,6 +126,11 @@
     "prompts": [
       "node_modules/@runecraft/subagents/prompts",
       "node_modules/@runecraft/pr-review/prompts"
-    ]
+    ],
+    "subagents": {
+      "chains": [
+        "./assets/sdd/chains"
+      ]
+    }
   }
 }

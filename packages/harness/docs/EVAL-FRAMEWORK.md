@@ -84,16 +84,24 @@
 | Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | 🔒 bloqueada | — (outline) | após F32 |
 | Routing completeness | Agentes F32 (orquestração → papéis) | 🔒 bloqueada | — (outline) | após F32 |
 | Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
-| Model failover | F30 (port model-resolution, fallback chain) | 🔒 bloqueada | — (outline) | após F30 |
+| Model failover | F30 (port model-resolution, fallback chain) | ✅ disponível (v8) | EVAL-042..043 (resolução por agente via models.json fixture; modelSwitch leve→forte→halt+humano) | AGORA (F30) |
 | Memory | F29 (port runes — tools `rune_*` + runes.db) | ✅ disponível (v7) | EVAL-030..038 (round-trip, 10 tools no fixture, cross-session, semântica search/context, compaction, bridge F28, config/kill switch, determinismo, privacidade) | AGORA (F29) |
 
+**v8 (F30, AD-030):** a categoria **Model failover foi DESBLOQUEADA** —
+EVAL-042..043 na matriz (nota datada 2026-08-10): model-resolution portado
+(precedência override → custom chain > builtin → systemDefault → null + warn)
++ modelSwitch F27 implementado (leve→forte via getNextFallbackModel; chain
+esgotada → halt + escalação humana) com a prova da categoria via models.json
+fixture (F21). Tool-use/routing (F32) seguem bloqueadas (política aditiva).
+
 **v7 (F29, AD-029):** a categoria Memory foi ADICIONADA — EVAL-030..038 na
-matriz (nota datada 2026-08-09). Tool-use/routing (F32) e Model failover (F30)
-seguem sem entrada (política aditiva).
+matriz (nota datada 2026-08-09). Tool-use/routing (F32) seguem sem entrada
+(política aditiva).
 
 **v5 (F27, AD-027):** a categoria Compaction recovery foi DESBLOQUEADA —
 EVAL-017..021 na matriz (nota datada 2026-08-07). Tool-use/routing (F32) e
-Model failover (F30) seguem sem entrada (política aditiva).
+Model failover (F30) seguem sem entrada (política aditiva — F30 desbloqueou a
+failover na v8).
 
 **Extensibilidade (D5):** caso novo = 1 suite/case/scenario TS + 1 entrada
 aditiva na matriz. Runner/loader/evaluators NÃO mudam. As categorias

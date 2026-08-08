@@ -362,6 +362,24 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     // State é bookkeeping — a instalação ocorreu; reporta o erro mas não falseia o exit.
   }
 
+  // 7b. F30 — materialização das chains SDD em .pi/chains/ (workspace — o fork
+  //     subagents descobre chains de <root>/.pi/chains/; D8). Best-effort:
+  //     nunca falha o install; asset ausente → nota informativa. No global o
+  //     materializar não faz sentido (chains são por projeto).
+  if (scope === "workspace") {
+    try {
+      const { materializeChains } = await import("../sdd/index.ts");
+      const materialized = materializeChains({ cwd: rt.cwd });
+      if (materialized.copied.length > 0) {
+        notes.push(`chains SDD materializadas em .pi/chains/: ${materialized.copied.join(", ")} (F30)`);
+      } else if (materialized.skipped.length > 0) {
+        notes.push(`chains SDD já presentes em .pi/chains/ (${materialized.skipped.length} — F30)`);
+      }
+    } catch {
+      // best-effort — a materialização nunca quebra o install
+    }
+  }
+
   // 8. Relatório (SETM-06 shape; TTY ou --json).
   const report: InstallReport = {
     preset: plan?.preset ?? opts.preset,

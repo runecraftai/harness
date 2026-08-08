@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 7
+MATRIX_VERSION: 8
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -23,6 +23,21 @@ Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-dete
 **v4 (F26, AD-026):** entradas aditivas EVAL-012..016 (eval framework portado do arcanum) — política aditiva D9; o teste de consistência agora também varre `test/eval/suites` (dados TS do framework) e `test/eval/framework` (lane do framework). Categorias bloqueadas do eval-coverage (tool-use/routing → F32, compaction → F27, failover → F30) NÃO têm entrada — política aditiva (nada sai sem AD); a tabela de dependência está no docs/EVAL-FRAMEWORK.md (D5, outline — sem inventar design de F27/F30/F32).
 
 **v5 (F27, AD-027):** entradas aditivas EVAL-017..021 (Resilience & Continuity — port do compaction-recovery/work-continuation/start-work do arcanum para MECANISMOS REAIS do Pi) — política aditiva D9. A categoria compaction-recovery do eval-coverage (bloqueada no F26 — "após F27") agora tem entradas; tool-use/routing (F32) e failover (F30) seguem SEM entradas. Nota datada 2026-08-07: os cases puros (EVAL-017/018/019/020) são unit do framework (o executor trajectory-run exige sessão — o F26 não tem executor "unit"); o case trajectory da suite é o recovery-flow (EVAL-021). Limitação honesta (QA-5/Execute): a EMISSÃO real de `session_compact` no fixture não é viável (limiar de contexto + sumarização LLM do SDK) — o trigger é exercitado via handler exportado com eventos scriptados (wiring) e a observação real é o trigger primário em produção (D1).
+
+**v8 (F30, AD-030):** entradas aditivas EVAL-039..048 (Pi First-Class —
+persona + rules injection via before_agent_start, first-message variant,
+model resolution por agente, modelSwitch F27 implementado, models generate
+determinístico, archive de planos, SDD scope+chains+templates, config/kill
+switches) — política aditiva D9; a categoria **failover** do eval-coverage do
+F26 foi DESBLOQUEADA (EVAL-042/043 — ver docs/EVAL-FRAMEWORK.md); o teste de
+consistência agora também varre `test/eval/suites/pi` +
+`test/eval/framework/pi` (lane do Pi). Nota datada 2026-08-10: os cases
+puros (EVAL-039..048) são unit/fixture do framework (mesmo padrão
+EVAL-017..020 do F27); tool-use/routing (F32) segue SEM entradas. Limitações
+honestas (Execute F30): o SDK 0.81.0 NÃO tem API de troca de modelo em
+runtime — modelSwitch resolve + o mecanismo de APLICAÇÃO é a geração do
+models.json (D7); a emissão real de `before_agent_start` com múltiplas
+extensões é exercitada via sessão fixture real (EVAL-039/040/041).
 
 **v7 (F29, AD-029):** entradas aditivas EVAL-030..038 (Memory — port do pacote
 runes do arcanum: round-trip db/repository, 10 tools rune_* no fixture Pi,
@@ -96,6 +111,19 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-036 | config/kill switch (F29 MEM-05 — D5) | eval (framework/memory) | 1. defaults fail-closed; 2. freeze por sessão (D12); 3. `RUNECRAFT_MEMORY=0` → zero tools + zero arquivos; 4. CLI recusa (fail-visible, exit 0) | padrão F24/F25/F27/F28 (F20) |
 | EVAL-037 | determinismo (F29 MEM-02 — D6) | eval (framework/memory) | 1. ops scriptadas com clock/idGen injetados → 2 runs resultado JSON IDÊNTICO (inclui created_at injetado; tie-breaks) | F21 D10 (D6); FTS5 rank determinístico no mesmo runtime |
 | EVAL-038 | privacidade (F29 MEM-09 — D10) | eval (framework/memory) + fixture | 1. `rune_save` com sentinel numa sessão REAL (extensões memory + observability) → `events/*.jsonl` sem o sentinel (só argsHash — F28 D2); 2. conteúdo presente SÓ no DB; 3. nenhum outro sink do repo contém o sentinel cru | argsHash = sha256 prefixo 16 hex (F28); memória é dado privado (nunca logada crua) |
+
+| ID | Fluxo (evidência F30) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-039 | persona Pi (F30 PFC-01 — D1) | eval (framework/pi) | 1. sessão fixture (extensões persona + resilience + observability) → systemPrompt do before_agent_start contém `<!-- runecraft:persona -->` + PERSONA_VERSION=1 + texto objetivo; 2. 2 runs → texto idêntico (determinismo); 3. golden do texto (F23) | chaining sem clobber; persona objetiva (deny-list RPG ausente — assert no case) |
+| EVAL-040 | rules + chaining (F30 PFC-02 — D2) | eval (framework/pi) | 1. systemPrompt contém `<!-- runecraft:rules -->` + PI_RULES (renderRules("pi") — reuso F19) + markers continuation/lessons TODOS presentes (persona + resilience + observability); 2. ordem de append preservada (persona → rules → continuation → lessons); 3. 2 runs idênticos | delta vs EVAL-021/028 (chaining já provado — F30 prova a ADIÇÃO da persona ao chain, não o chain em si) |
+| EVAL-041 | first-message variant (F30 PFC-03 — D3) | eval (framework/pi) | 1. sessão initial → variante aplicada 1× (markApplied); 2. 2ª sessão reason=resume → variante NÃO aplicada; 3. 2 runs idênticos | port fiel (Sets created/applied em memória); determinismo por reason |
+| EVAL-042 | model resolution (F30 PFC-04 — D4) | eval (framework/pi) | 1. models.json fixture (renderModelsJson com N modelos — F21) → availableModels real via ModelRuntime; 2. precedência: override → custom chain > builtin → systemDefault → null + warn; 3. fim-de-chain → null (nada inventado); 4. 2 runs idênticos | categoria **failover desbloqueada** (F26); chain custom > builtin |
+| EVAL-043 | modelSwitch F27 (F30 PFC-06 — D6) | eval (framework/pi) | 1. trigger sintético (handlers exportados — AD-027 QA-5) → resolveModelSwitch retorna o próximo modelo (leve→forte); 2. chain esgotada → halt + escalação humana (reason "model-chain exhausted"); 3. assert de diff: arquivos do F27 (fallback.ts/types.ts) byte-idênticos | implementação da interface NO-OP do F27; ZERO mudanças nos arquivos do F27 |
+| EVAL-044 | models generate (F30 PFC-07 — D7) | eval (framework/pi) | 1. renderModelsJsonFromConfig 2 runs → byte-idêntico (merge do state models; canonicalJson F23); 2. kill switch RUNECRAFT_MODELS=0 → CLI recusa sem escrever; 3. list/doctor shapes estáveis | determinismo (sem timestamps/paths); merge aditivo preserva providers existentes |
+| EVAL-045 | archive de planos (F30 PFC-09 — D9) | eval (framework/pi) | 1. plans fixture (.runecraft/plans/<slug>) → archive move + {ok,warnings}; 2. 2º run do mesmo slug → ok:false (plano ausente — nunca move nada alheio); 3. slug inválido → recusa antes de IO | port createArchivePlanTool; DI rename p/ teste |
+| EVAL-046 | sdd scope + chains (F30 PFC-08 — D8) | eval (framework/pi) | 1. scope.ts limiares (quick/medium/large — casos tabelados); 2. chains sdd-*.chain.md existem e parseiam no formato do fork (parseChain real — chain-serializer.ts:101: front-matter name+description + seções `## <agente>` worker/reviewer); 3. 2 runs idênticos | formato validado contra o parser REAL do fork (não o f3-taskflow histórico) |
+| EVAL-047 | templates SDD (F30 PFC-08 — D8) | eval (framework/pi) | 1. sdd new → scaffold .specs/features/x/ no shape da casa (confere vs templates); 2. goldens dos templates (F23); 3. deny-list de termos RPG ausente do conteúdo renderizado (persona/templates/chains) | decisão 2 verificável (objetivo, sem lore) |
+| EVAL-048 | config/kill switches (F30 PFC-05 — D5) | eval (framework/pi) | 1. state `models`+`persona` defaults/freeze (fail-closed); 2. `RUNECRAFT_MODELS=0`/`RUNECRAFT_PERSONA=0` → camadas inertes + CLI recusa (exit 0, nada criado); 3. 2 runs idênticos | padrão F24/F25/F27/F28/F29 (F20) |
 
 **Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é

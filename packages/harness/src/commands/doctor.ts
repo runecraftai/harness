@@ -48,6 +48,8 @@ import { scanReceipts } from "../receipt/store.ts";
 import { effectiveGuards, killSwitchState, readStateGuards } from "../guards/guardKit.ts";
 import { effectiveVerification, readStateVerification, verifyKillSwitch } from "../verify/config.ts";
 import { judgeEnvEnabled } from "../verify/stages/judge.ts";
+import { effectiveModels, modelsKillSwitch, modelOverrideEnv, readStateModels } from "../models/config.ts";
+import { modelsJsonPath, resolveAvailableModels } from "../models/registry.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -375,6 +377,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   checks.push(checkGuards(rt));
   // F25: check 19 (verification) — independente do Pi (só lê state.json + env).
   checks.push(checkVerification(rt));
+  // F30: check 20 (models) — independente do Pi (só lê state.json + models.json + env).
+  checks.push(checkModels(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -524,6 +528,95 @@ function checkGuards(rt: Runtime): DoctorCheck {
     status: "pass",
     detail: `${lines}${killNote}`,
   };
+}
+
+/**
+ * F30 check 20 — Models (roteamento de modelo por agente; AD-014: 19 é do
+ * F25, 20 é do F30). Read-only (LIFE-01). Regras (design D5/D7):
+ *   - config por state.json (F13) dos DOIS scopes; ausente = defaults (ligada)
+ *   - kill switch RUNECRAFT_MODELS=0 → pass informativo (desligado de propósito)
+ *   - config inválida → fail apontando os campos (fail-closed — D5)
+ *   - paridade estado↔arquivo (models.json contém os modelos das chains?) →
+ *     warn com remedy `harness models generate` (D7); models.json ausente →
+ *     warn (availableModels = [] — fail-closed sem crash)
+ */
+function checkModels(rt: Runtime): DoctorCheck {
+  const kill = modelsKillSwitch(rt.env);
+  const scopes = ["workspace", "global"] as const;
+  const reads = scopes.map((scope) => ({ scope, ...readStateModels(statePath(rt, scope), scope) }));
+  const corrupt = reads.filter((r) => r.corrupt);
+  if (corrupt.length > 0) {
+    return {
+      id: 20,
+      name: "Models",
+      status: "fail",
+      detail: `state.json corrompido em ${corrupt.map((c) => statePath(rt, c.scope)).join(", ")} — roteamento opera fail-closed (defaults) até o repair`,
+      remedy: "rode `harness restore` ou remova o arquivo manualmente",
+    };
+  }
+
+  const merged = effectiveModels(reads[0]!.models, reads[1]!.models, rt.env);
+  const file = modelsJsonPath(rt.env);
+  const existingContent = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
+  const available = resolveAvailableModels(rt.env);
+  const override = modelOverrideEnv(rt.env) ?? merged.config?.override;
+  const killNote = kill.active
+    ? ` — kill switch RUNECRAFT_MODELS=${kill.value} ATIVO (roteamento inativo)`
+    : " · kill switch RUNECRAFT_MODELS off";
+
+  if (merged.config === undefined) {
+    return {
+      id: 20,
+      name: "Models",
+      status: "fail",
+      detail: `config de models inválida — ${merged.problems.join("; ")} (fail-closed: defaults seguros até o repair)`,
+      remedy: "corrija a seção `models` do state.json apontada (ou restaure de um backup do harness)",
+    };
+  }
+
+  const cfg = merged.config;
+  const parityProblems: string[] = [];
+  if (!fs.existsSync(file)) {
+    parityProblems.push(`models.json ausente (${file}) — availableModels = [] (fail-closed)`);
+  } else {
+    const chainModels = new Set<string>();
+    for (const agent of Object.keys(cfg.agents)) {
+      for (const entry of cfg.agents[agent]?.fallbackChain ?? []) {
+        for (const provider of entry.providers) chainModels.add(`${provider}/${entry.model}`);
+      }
+    }
+    if (chainModels.size > 0) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as { providers?: Record<string, { models?: Array<{ id?: string }> }> };
+        const providers = parsed.providers ?? {};
+        const missing = [...chainModels].filter((qualified) => {
+          const [provider, model] = qualified.split("/");
+          const list = provider !== undefined ? providers[provider]?.models ?? [] : [];
+          return !list.some((m) => m.id === model);
+        });
+        if (missing.length > 0) {
+          parityProblems.push(`paridade estado↔arquivo: ${missing.join(", ")} ausentes do models.json`);
+        }
+      } catch {
+        parityProblems.push(`models.json ilegível (${file}) — paridade não avaliada`);
+      }
+    }
+  }
+
+  const detail =
+    `routing ${cfg.enabled ? "enabled" : "disabled"} (fonte ${merged.source}) · override ${override ?? "—"} · default ${cfg.default ?? "null"}` +
+    ` · agents ${Object.keys(cfg.agents).length} · availableModels ${available.models.size}` +
+    `${killNote}`;
+  if (parityProblems.length > 0) {
+    return {
+      id: 20,
+      name: "Models",
+      status: "warn",
+      detail: `${detail} — ${parityProblems.join("; ")}`,
+      remedy: "`harness models generate` (merge determinístico do state → models.json)",
+    };
+  }
+  return { id: 20, name: "Models", status: "pass", detail };
 }
 
 /**

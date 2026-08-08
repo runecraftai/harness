@@ -27,7 +27,8 @@ const EVIDENCE_MISSING_MSG = "evidência não encontrada — suite F21 não rodo
 // F27 (v5): +1 arquivo — test/eval/framework/compaction-recovery.test.ts (EVAL-017..021).
 // F28 (v6): +1 arquivo — test/eval/framework/observability.test.ts (EVAL-022..029).
 // F29 (v7): +1 arquivo — test/eval/framework/memory.test.ts (EVAL-030..038).
-const MIN_EVIDENCE_FILES = 17;
+// F30 (v8): +1 arquivo — test/eval/framework/pi.test.ts (EVAL-039..048).
+const MIN_EVIDENCE_FILES = 18;
 
 function print(lines: string[]): void {
   for (const line of lines) process.stdout.write(`${line}\n`);

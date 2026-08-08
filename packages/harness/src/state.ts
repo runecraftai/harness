@@ -25,6 +25,10 @@ import type { ObservabilityConfig } from "./observability/config.ts";
 import { defaultObservabilityConfig } from "./observability/config.ts";
 import type { MemoryConfig } from "./memory/config.ts";
 import { defaultMemoryConfig } from "./memory/config.ts";
+import type { ModelsConfig } from "./models/config.ts";
+import { defaultModelsConfig } from "./models/config.ts";
+import type { PersonaConfig } from "./persona/config.ts";
+import { defaultPersonaConfig } from "./persona/config.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -122,6 +126,12 @@ export interface HarnessState {
   /** memory config (F29 D5; aditivo, schemaVersion permanece 1 — o config.ts
    *  valida em runtime; ausente = defaults). */
   memory?: MemoryConfig;
+  /** model routing config (F30 D5; aditivo, schemaVersion permanece 1 — o
+   *  config.ts valida em runtime; ausente = defaults). */
+  models?: ModelsConfig;
+  /** persona config (F30 D5; aditivo, schemaVersion permanece 1 — o
+   *  config.ts valida em runtime; ausente = defaults). */
+  persona?: PersonaConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -145,6 +155,10 @@ export function emptyState(scope: Scope): HarnessState {
     observability: defaultObservabilityConfig(),
     // F29: fail-closed por padrão — o estado declara a camada de memória LIGADA (D5).
     memory: defaultMemoryConfig(),
+    // F30: fail-closed por padrão — o estado declara o roteamento de modelos LIGADO (D5).
+    models: defaultModelsConfig(),
+    // F30: fail-closed por padrão — o estado declara a camada de persona LIGADA (D5).
+    persona: defaultPersonaConfig(),
   };
 }
 

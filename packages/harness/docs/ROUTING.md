@@ -409,6 +409,48 @@ events/; F29 importa read-only e idempotente (nunca reescreve a fonte, nunca
 sobrescreve memória do usuário). F30 (model routing) e F33 (routing) NÃO são
 tocados por F29.
 
+## 8.11 Pi First-Class — persona, rules, model routing & SDD (F30)
+
+O Pi agora é cidadão de primeira classe (M8, F30): persona + rules injetadas
+na sessão via `before_agent_start` encadeado, roteamento de modelo por agente
+(pi/opencode/claude/codex), modelSwitch do F27 implementado, geração de
+models.json e assets SDD versionados. Referência completa: `docs/PI.md`.
+
+| Mecanismo | Existe (SDK 0.81.0 / harness) — evidência | F30 constrói |
+| --- | --- | --- |
+| before_agent_start chaining | resilience.ts:216 + observability.ts:359 (append + markers) ✓ | `extensions/persona.ts` (D1) |
+| Regras do Pi | `renderRules("pi")` = PI_RULES (rulesContent.ts:26, golden F19) ✓ | `src/persona/rules.ts` (reuso read-only) |
+| Variante por sessão | SDK session_start reason (F27: resume/reload) ✓ | `src/persona/first-message.ts` (port) |
+| Model resolution | NENHUM no harness (só no guild) | `src/models/resolution.ts` (D4) |
+| Model switch | F27 FallbackActionKind.modelSwitch NO-OP (types.ts:115) ✓ | `src/models/switch.ts` (D6) |
+| Registry de modelos | `ModelRuntime.create({modelsPath})` + getModel (F21/AD-021) ✓ | `src/models/registry.ts` (path real validado) |
+| models.json fixture | `renderModelsJson(port)` (test/eval/layer2/fixture) ✓ | evals EVAL-042/043 (D10) |
+| Estado aditivo + kill switch | state.ts schemaVersion 1 (AD-013); RUNECRAFT_*_0 ✓ | seções `models`+`persona` (D5) |
+| Chains | `.pi/chains/*.chain.md` + discoverAgentsAll (fork subagents) ✓ | `assets/sdd/chains/sdd-*.chain.md` (D8) |
+| CLI subcomando | dispatch F11 (install/verify/lessons/memory...) ✓ | `harness models|sdd|plans` (D7/D8/D9) |
+| Eval framework | F26 runner/evaluators + EVAL-MATRIX ✓ | suite pi.ts EVAL-039..048 (D10) |
+
+**Operação**: a extensão `extensions/persona.ts` (materializada nas sessões
+gerenciadas — manifest do package) injeta persona + PI_RULES (markers
+`<!-- runecraft:persona -->` / `<!-- runecraft:rules -->`) no
+`before_agent_start` ENCADEADO (append — ordem de registro = ordem de
+append; EVAL-040) e aplica a variante de primeira mensagem UMA vez por
+sessão inicial (reason resume|reload → sem variante — F27 dono da
+continuação). Kill switches `RUNECRAFT_PERSONA=0` / `RUNECRAFT_MODELS=0`
+(F20). Config `persona`/`models` aditivas no state (freeze por sessão — F24
+D12; inválida → defaults + reporte — fail-closed F24 D10). Resolução de
+modelo por agente com precedência override → custom chain > builtin →
+systemDefault → null + warn (nada inventado — D4). `harness models
+generate` (determinístico, 2 runs byte-idênticos) + `harness models
+list|doctor` + seção Models no status + check 20 no doctor. SDD:
+`harness sdd new|chains` + `harness plans archive` (`.runecraft/plans/`).
+Evals: EVAL-039..048 (matriz v8 — categoria failover desbloqueada no F26).
+
+**Fronteiras (D11)**: F27 dono da interface modelSwitch (F30 implementa em
+`src/models/switch.ts` — zero mudanças em src/resilience/); F19 dono de
+PI_RULES (F30 reusa read-only); F28/F27 donos de continuation/lessons (a
+persona só anexa); F31 independente; F32 consome o config `models`.
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design

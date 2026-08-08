@@ -22,6 +22,8 @@ import { runVerifyCommand } from "./commands/verify.ts";
 import { runEventsCommand } from "./commands/events.ts";
 import { runLessonsCommand } from "./commands/lessons.ts";
 import { runMemoryCommand } from "./commands/memory.ts";
+import { runModelsCommand } from "./commands/models.ts";
+import { runPlansCommand, runSddCommand } from "./commands/sdd.ts";
 
 export interface DispatchContext {
   cwd?: string;
@@ -52,6 +54,9 @@ export const COMMANDS = [
   "events",
   "lessons",
   "memory",
+  "models",
+  "sdd",
+  "plans",
 ] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
@@ -88,6 +93,9 @@ export interface CliOptions {
   includeExternal?: boolean;
   /** memory doctor: hard-deleta soft-deleted + rebuild FTS (--purge). */
   purge?: boolean;
+  /** sdd: escopo do scaffold (--scope quick|medium|large — extraído ANTES do
+   *  parseArgs global; o --scope global continua global|workspace). */
+  sddScope?: string;
   help: boolean;
   version: boolean;
 }
@@ -157,9 +165,12 @@ export function parseCliArgs(argv: string[]): ParseResult {
     "include-external"?: boolean;
     purge?: boolean;
   };
+  // sdd: `--scope quick|medium|large` é o escopo do scaffold (não o scope
+  // global global|workspace) — extrai ANTES do parseArgs e remove os tokens.
+  const { argv: scopeStripped, sddScope } = extractSddScope(argv);
   try {
     const parsed = parseArgs({
-      args: argv,
+      args: scopeStripped,
       options: {
         component: { type: "string", multiple: true },
         preset: { type: "string" },
@@ -249,6 +260,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
       purge: values.purge,
       help: false,
       version: false,
+      sddScope,
     },
   };
 }
@@ -267,7 +279,32 @@ function unsetOptions(): CliOptions {
     cwd: undefined,
     help: false,
     version: false,
+    sddScope: undefined,
   };
+}
+
+/** Extrai `--scope <v>` (ou `--scope=<v>`) dos args do comando `sdd` — o
+ *  valor é o escopo do scaffold (quick|medium|large) e NÃO pode passar pelo
+ *  parseArgs global (que valida global|workspace). Sem `sdd` no argv → passthrough. */
+function extractSddScope(argv: string[]): { argv: string[]; sddScope?: string } {
+  if (argv[0] !== "sdd") return { argv };
+  const out: string[] = [];
+  let sddScope: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === undefined) continue;
+    if (arg === "--scope") {
+      sddScope = argv[i + 1] ?? undefined;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--scope=")) {
+      sddScope = arg.slice("--scope=".length);
+      continue;
+    }
+    out.push(arg);
+  }
+  return { argv: out, ...(sddScope !== undefined ? { sddScope } : {}) };
 }
 
 /**
@@ -446,6 +483,37 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         args: options.args.slice(1),
         purge: options.purge,
         dryRun: options.dryRun,
+      });
+    }
+    case "models": {
+      return runModelsCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+      });
+    }
+    case "sdd": {
+      return runSddCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+        sddScope: options.sddScope,
+      });
+    }
+    case "plans": {
+      return runPlansCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
       });
     }
     default:

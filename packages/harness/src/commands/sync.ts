@@ -437,6 +437,23 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     }
   }
 
+  // F30: materialização das chains SDD em .pi/chains/ (workspace — o fork
+  // subagents descobre chains de <root>/.pi/chains/; D8). Só no caminho de
+  // ESCRITA (status synced — ações foram tomadas); o caminho in-sync mantém
+  // o contrato zero writes (LIFE 3.2). Best-effort — nunca falha o sync.
+  const sddChainsNote: string[] = [];
+  if (scope === "workspace" && (installed.length > 0 || agentsChanged)) {
+    try {
+      const { materializeChains } = await import("../sdd/index.ts");
+      const materialized = materializeChains({ cwd: rt.cwd });
+      if (materialized.copied.length > 0) {
+        sddChainsNote.push(`chains SDD materializadas em .pi/chains/: ${materialized.copied.join(", ")} (F30)`);
+      }
+    } catch {
+      // best-effort — a materialização nunca quebra o sync
+    }
+  }
+
   const report: SyncReport = {
     scope,
     status: "synced",
@@ -447,7 +464,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     conflicts: plan.conflicts,
     failed,
     backup: backupFile,
-    notes: [...plan.notes, ...agentNotes, ...(guardsNote ? [guardsNote] : [])],
+    notes: [...plan.notes, ...agentNotes, ...(guardsNote ? [guardsNote] : []), ...sddChainsNote],
   };
   if (opts.json) out.write(renderSyncJson(report));
   else out.write(renderSync(report, { tty: false }));

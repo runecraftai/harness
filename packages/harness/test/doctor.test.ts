@@ -65,8 +65,8 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(18); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates) + 18 (F24 guards) + 19 (F25 verification)
-      expect(json.summary.pass + json.summary.warn).toBe(13);
+      expect(json.checks).toHaveLength(19); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates) + 18 (F24 guards) + 19 (F25 verification) + 20 (F30 models)
+      expect(json.summary.pass + json.summary.warn).toBe(14); // check 20 (Models) = warn (models.json ausente no sandbox)
       expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
@@ -153,7 +153,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
       expect(result.stdout).toContain("corrompido");
       expect(result.stdout).toContain(stateFile(sb));
       expect(result.stdout).toContain("harness restore");
-      expect(summaryLine(result.stdout)).toContain("fail 3"); // check 3 (Components) + check 18 (Guards — fail-closed reportado) + check 19 (Verification — state corrompido)
+      expect(summaryLine(result.stdout)).toContain("fail 4"); // check 3 (Components) + check 18 (Guards — fail-closed reportado) + check 19 (Verification — state corrompido) + check 20 (Models — state corrompido)
 
       // read-only: hash original preservado e nenhum state.json.corrupt-* criado
       expect(fileHash(stateFile(sb))).toBe(stateHashBefore);
