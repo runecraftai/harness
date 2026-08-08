@@ -255,7 +255,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 - Changesets/versioning, npm publish sob org @runecraft; lane CI dos evals (F21)
 
-**F10 — Upstream Sync Workflow** — PLANNED — Prereq: F7
+**F10 — Upstream Sync Workflow** — **COMPLETE (2026-08-08; 58 sync + 1152 harness testes; cleric APPROVE + 3 fixes 1c1056d)** — Prereq: F7
 
 - Processo documentado: diff upstream → aplicar → re-testar (script `sync-upstream`), incluindo camada MCP (F16)
 
