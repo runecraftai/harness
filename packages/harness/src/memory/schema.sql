@@ -1,7 +1,5 @@
 -- Runes schema v1. Idempotent (use IF NOT EXISTS everywhere).
 --
--- Port AS-IS do schema v1 do pacote runes do arcanum (org própria, MIT —
--- AD-002; fonte: /home/rehem/Projects/arcanum/packages/runes/src/db/schema.sql).
 -- F29 (harness memory) não altera o schema: FTS5 + triggers + índices são o
 -- contrato verificado empiricamente em bun:sqlite (D12). Migrações futuras
 -- são ADITIVAS (novas tabelas/colunas + bump de SCHEMA_VERSION — política F13).
