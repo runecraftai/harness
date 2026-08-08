@@ -8,3 +8,7 @@ tmp/
 
 # F22 — log de rodada do E2E (D8): runtime, não evidência (o JSON dos resultados é versionado).
 .runecraft/eval-e2e/
+
+# F34 — diretórios locais de sessão (untracked; biome varria e o lint full falhava neles).
+.guild/
+.pi/
