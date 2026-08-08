@@ -607,6 +607,23 @@ describe("--update (D5/D6 — aditivo, histórico preservado)", () => {
 		}
 	});
 
+	test("rodada parcial é ignorada no baseline (fix cleric F23 P2 — partial nunca vira referência)", () => {
+		const dir = tmpRoot();
+		try {
+			const baseline = writeBaseline(dir, []);
+			// Rodada válida (sanity pass) PORÉM interrompida (partial: true —
+			// Ctrl-C do F22): cenários ausentes distorceriam o pass rate.
+			writeRound(dir, "0.2.0", "2026-08-09T10-00-00Z", fullRound(), { partial: true });
+			const result = runE2ERatchet({ resultsRoot: dir, baselinePath: baseline, version: "0.2.0", wantUpdate: true });
+			expect(result.exitCode).toBe(2);
+			expect(result.lines.join("\n")).toContain("PARCIAL (interrompida) — ignorada no baseline");
+			expect(result.lines.join("\n")).toContain("nada gravado");
+			expect(fs.readFileSync(baseline, "utf8")).toBe(`${E2E_PASSRATE_HEADER}\n`); // intocado
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("--update recusa com CI=true (D6) → exit 2", () => {
 		const dir = tmpRoot();
 		const previous = process.env.CI;

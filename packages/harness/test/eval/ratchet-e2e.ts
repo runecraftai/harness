@@ -481,6 +481,15 @@ function updateE2EBaseline(opts: E2ERatchetOpts): E2ERatchetResult {
 			skipped++;
 			continue;
 		}
+		// Fix cleric F23 P2: rodada INTERROMPIDA (partial: true — Ctrl-C/SIGTERM
+		// do F22) NUNCA vira baseline — cenários ausentes distorcem o pass rate
+		// da versão seguinte (infla/desinfla e gera "novos cenários" falsos).
+		// F22 design (tabela de riscos): "F23 ignora rodadas marcadas".
+		if (round.partial === true) {
+			lines.push(`ⓘ aviso: rodada ${version}/${roundId} PARCIAL (interrompida) — ignorada no baseline (F22 design: rodadas marcadas não entram)`);
+			skipped++;
+			continue;
+		}
 		const scenarios = Array.isArray(round.scenarios) ? (round.scenarios as E2EScenarioLike[]) : [];
 		const entryLines: string[] = [];
 		for (const s of scenarios) {
