@@ -137,6 +137,43 @@ describe("load/save — round-trip do schema (F13)", () => {
 });
 
 describe("migração aditiva (AD-013: schemaVersion 1, sem bump)", () => {
+  test("seção `guards` (F24) sobrevive a load→save e o schema não bumpa", () => {
+    const sb = makeSandbox();
+    try {
+      const file = stateFile(sb);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const guards = { writeExistingFile: { enabled: false }, rangerMdOnly: { enabled: true, options: { mdOnlyAgents: ["auditor"] } } };
+      fs.writeFileSync(file, `${JSON.stringify({ ...validState(), guards }, null, 2)}\n`);
+
+      const loaded = loadState(file, "global");
+      expect(loaded.state.schemaVersion).toBe(1);
+      expect((loaded.state as unknown as { guards: unknown }).guards).toEqual(guards);
+
+      // Round-trip: a seção sobrevive à escrita (aditiva — nada é dropado).
+      saveState(file, loaded.state);
+      const onDisk = readJson(file);
+      expect(onDisk.schemaVersion).toBe(1);
+      expect(onDisk.guards).toEqual(guards);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("estado vazio (F24) já declara os guards ligados (fail-closed por padrão — D10)", () => {
+    const sb = makeSandbox();
+    try {
+      const result = loadState(stateFile(sb), "global");
+      expect(result.created).toBe(true);
+      const guards = (result.state as unknown as { guards: Record<string, unknown> }).guards;
+      expect(guards.writeExistingFile).toEqual({ enabled: true });
+      expect(guards.rangerMdOnly).toEqual({ enabled: true, options: { mdOnlyAgents: [] } });
+      expect(guards.todoDescriptionOverride).toEqual({ enabled: true });
+      expect(guards.todoContinuationEnforcer).toEqual({ enabled: true });
+    } finally {
+      sb.cleanup();
+    }
+  });
+
   test("seção futura `agents` (F17) sobrevive a load→save e o schema não bumpa", () => {
     const sb = makeSandbox();
     try {

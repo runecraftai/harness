@@ -230,9 +230,90 @@ export const EVAL_005: ScriptedScenario = {
   ]),
 };
 
+/**
+ * EVAL-006 — write sobre arquivo existente BLOQUEADO (F24 write-existing-file-guard).
+ * O passo 2 exige o reason do guard na conversa (D7c — evidência na ordem): se o
+ * guard regredir (parar de bloquear), o marcador some e o fixture falha com
+ * diagnóstico. O alvo (README.md do repo) permanece intacto — a integridade é
+ * a prova do bloqueio REAL no loop do Pi (não sugestão).
+ */
+export const EVAL_006: ScriptedScenario = {
+  id: "EVAL-006",
+  description: "write sobre arquivo existente bloqueado com reason estável; write em path novo passa; alvo intacto",
+  ...script([
+    {
+      expect: { toolsSubset: ["write"] },
+      reply: { kind: "tool", name: "write", args: { path: "README.md", content: "overwrite attempt" } },
+    },
+    {
+      expect: { toolsSubset: ["write"], conversationContains: ["write-existing-file-guard"] },
+      reply: { kind: "tool", name: "write", args: { path: "notes.txt", content: "fresh content" } },
+    },
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "done" },
+    },
+  ]),
+};
+
+/**
+ * EVAL-007 — todo guards (F24): `propose_task_list` com input reescrito para o
+ * formato canônico "Done when" + `complete_goal` BLOQUEADO com pendências
+ * (todo-continuation-enforcer) + conclusão após completar tudo. O passo 3 exige
+ * o reason do enforcer na conversa (o complete_goal do passo 2 foi bloqueado —
+ * evidência na ordem); o ledger guarda os títulos canônicos (a reescrita é
+ * REAL: o tool executou com o input reescrito).
+ */
+export const EVAL_007: ScriptedScenario = {
+  id: "EVAL-007",
+  description: "todo override reescreve input (Done when) + enforcer bloqueia complete_goal com pendências; tudo done → conclui",
+  ...script([
+    {
+      expect: { toolsSubset: ["propose_task_list"] },
+      reply: {
+        kind: "tool",
+        name: "propose_task_list",
+        args: { tasks: [{ title: "Create notes.txt" }, { title: "Update README" }] },
+      },
+    },
+    {
+      expect: { toolsSubset: ["write"] },
+      reply: { kind: "tool", name: "write", args: { path: "notes.txt", content: "hello todo" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: { kind: "tool", name: "complete_goal", args: { completionSummary: "all tasks done" } },
+    },
+    {
+      expect: { toolsSubset: ["update_task_status"], conversationContains: ["todo-continuation-enforcer"] },
+      reply: { kind: "tool", name: "update_task_status", args: { id: "1", status: "complete" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_task"] },
+      reply: { kind: "tool", name: "complete_task", args: { id: "2" } },
+    },
+    {
+      expect: { toolsSubset: ["complete_goal"] },
+      reply: { kind: "tool", name: "complete_goal", args: { completionSummary: "all tasks done", verificationSummary: "<evidence>notes.txt exists with content hello todo</evidence>" } },
+    },
+    {
+      expect: { auditor: true },
+      reply: { kind: "tool", name: "read", args: { path: "notes.txt" } },
+    },
+    AUDITOR_APPROVED,
+    // Continuação pós-aprovação do glla (tolerante quando não dispara).
+    {
+      expect: { toolsSubset: ["read"] },
+      reply: { kind: "text", text: "The goal is complete. No further action needed." },
+    },
+  ]),
+};
+
 export const SCENARIOS: Record<string, ScriptedScenario> = {
   "EVAL-001": EVAL_001,
   "EVAL-002": EVAL_002,
   "EVAL-004": EVAL_004,
   "EVAL-005": EVAL_005,
+  "EVAL-006": EVAL_006,
+  "EVAL-007": EVAL_007,
 };

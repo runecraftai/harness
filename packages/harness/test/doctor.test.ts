@@ -44,9 +44,9 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
       // 1–6 (F12) + 7 (detecção, informativo) + 12 (detect-only, informativo)
-      expect(summaryLine(result.stdout)).toContain("pass 11"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates, fora de repo git)
+      expect(summaryLine(result.stdout)).toContain("pass 12"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates, fora de repo git) + 18 (guards)
       expect(summaryLine(result.stdout)).toContain("fail 0");
-      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]) expect(result.stdout).toContain(`[${id}]`);
+      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]) expect(result.stdout).toContain(`[${id}]`);
 
       // read-only: nenhum arquivo foi tocado
       expect(fileHash(settingsFile(sb))).toBe(settingsBefore);
@@ -65,8 +65,8 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(16); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates)
-      expect(json.summary.pass + json.summary.warn).toBe(11);
+      expect(json.checks).toHaveLength(17); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates) + 18 (F24 guards)
+      expect(json.summary.pass + json.summary.warn).toBe(12);
       expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
@@ -153,7 +153,7 @@ describe("doctor — checks de falha (LIFE-02)", () => {
       expect(result.stdout).toContain("corrompido");
       expect(result.stdout).toContain(stateFile(sb));
       expect(result.stdout).toContain("harness restore");
-      expect(summaryLine(result.stdout)).toContain("fail 1");
+      expect(summaryLine(result.stdout)).toContain("fail 2"); // check 3 (Components) + check 18 (Guards — fail-closed reportado)
 
       // read-only: hash original preservado e nenhum state.json.corrupt-* criado
       expect(fileHash(stateFile(sb))).toBe(stateHashBefore);
@@ -245,7 +245,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       // check 3 vê o state do workspace e o pi list (global + project do fake pi)
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("pass");
-      expect(summaryLine(result.stdout)).toContain("pass 11"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates)
+      expect(summaryLine(result.stdout)).toContain("pass 12"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates) + 18 (guards)
     } finally {
       sb.cleanup();
     }

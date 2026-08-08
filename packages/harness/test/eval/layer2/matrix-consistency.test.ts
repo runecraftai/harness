@@ -14,12 +14,20 @@ import { fileURLToPath } from "node:url";
 const TEST_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const MATRIX_PATH = path.join(TEST_ROOT, "EVAL-MATRIX.md");
 const LAYER2_DIR = path.join(TEST_ROOT, "eval", "layer2");
+const GUARDS_DIR = path.join(TEST_ROOT, "guards");
 
+/** Camada 2 + lane dos guards (F24): os fluxos EVAL-006/007 vivem em test/guards/. */
 function layer2TestFiles(): string[] {
-  return fs
+  const layer2 = fs
     .readdirSync(LAYER2_DIR)
     .filter((f) => f.endsWith(".test.ts"))
     .map((f) => path.join(LAYER2_DIR, f));
+  if (!fs.existsSync(GUARDS_DIR)) return layer2;
+  const guards = fs
+    .readdirSync(GUARDS_DIR)
+    .filter((f) => f.endsWith(".test.ts"))
+    .map((f) => path.join(GUARDS_DIR, f));
+  return [...layer2, ...guards];
 }
 
 describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
@@ -27,7 +35,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
     expect(fs.existsSync(MATRIX_PATH)).toBe(true);
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     expect(matrix).toMatch(/MATRIX_VERSION:\s*\d+/);
-    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b"]) {
+    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007"]) {
       expect(matrix).toContain(id);
     }
   });
@@ -35,7 +43,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
   test("todo EVAL-<n> da matriz tem teste de fluxo na camada 2 que o referencia", () => {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const matrixIds = new Set([...matrix.matchAll(/EVAL-(\d{3}[a-z]?)/gi)].map((m) => m[0].toUpperCase()));
-    expect(matrixIds.size).toBeGreaterThanOrEqual(5);
+    expect(matrixIds.size).toBeGreaterThanOrEqual(7); // EVAL-001..007 (EVAL-003 fora)
     const testTexts = layer2TestFiles().map((f) => ({ file: f, text: fs.readFileSync(f, "utf8") }));
 
     for (const id of matrixIds) {
@@ -57,13 +65,16 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
       const unique = [...new Set(ids)];
       if (unique.length === 0) {
         // adversarial.test.ts (teste do fixture, F5), matrix-consistency (espelho)
-        // e hermetic-env (guard D3) não são fluxos da matriz; os demais arquivos
-        // DEVM referenciar um EVAL-<n>.
+        // e hermetic-env (guard D3) não são fluxos da matriz; config-status e
+        // ranger-md-only (F24) são testes de CLI/unit sem EVAL-id — os demais
+        // arquivos DEVM referenciar um EVAL-<n>.
         const basename = path.basename(file);
         if (
           basename.startsWith("adversarial") ||
           basename.startsWith("matrix-consistency") ||
-          basename.startsWith("hermetic-env")
+          basename.startsWith("hermetic-env") ||
+          basename.startsWith("config-status") ||
+          basename.startsWith("ranger-md-only")
         ) {
           continue;
         }

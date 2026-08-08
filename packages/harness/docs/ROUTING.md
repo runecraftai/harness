@@ -164,6 +164,41 @@ of the spec (ROUT-01).
 | Close a task with a verifiable contract + isolated auditor | goal-loop (`/goal`) |
 | Review a diff before merge | pr-review |
 
+## 8.5 Guards — execution guards do harness (F24)
+
+Os guards são extensões Pi do harness que BLOQUEIAM/REESCREVEM tool calls de
+verdade no loop do agente (`pi.on("tool_call")` + `{ block: true, reason }`)
+— diferente do OpenCode/guild, onde o mesmo guard era um aviso no prompt que
+a LLM podia ignorar. Só rodam em sessões gerenciadas pelo harness (agentDir
+materializado pelo install); agentes não-Pi (Claude Code/OpenCode/Codex) NÃO
+têm enforcement — a coluna deles na matriz é detect-only com guia (ADPT-03).
+
+| Guard (config `guards.<id>` no state.json) | O que bloqueia/reescreve | Config |
+| --- | --- | --- |
+| `write-existing-file-guard` (`writeExistingFile`) | `write` sobre arquivo JÁ EXISTENTE → `{ block: true, reason: "write-existing-file-guard: ..." }` (path relativo ao cwd — nunca absoluto). Arquivo novo passa. `edit` NÃO é bloqueado (é mutation de arquivo existente — validado no Execute). | `options.allow: string[]` (paths relativos) · `options.force: boolean` (libera tudo) |
+| `ranger-md-only` (`rangerMdOnly`) | `write`/`edit` de não-`.md` (case-insensitive: `.MD`/`.Markdown` contam) para agentes da lista `mdOnlyAgents` → block. v1: lista VAZIA por default (guarda ativo, inerte — F32 registra o papel auditor). | `options.mdOnlyAgents: string[]` · agente atual = `RUNECRAFT_AGENT_ID` (default `main`) |
+| `todo-description-override` (`todoDescriptionOverride`) | Reescreve o input de `propose_task_list` do glla para o formato canônico `"<título> — Done when: ..."` (nunca bloqueia — a reescrita É a política). | `enabled` |
+| `todo-continuation-enforcer` (`todoContinuationEnforcer`) | `complete_goal` com tarefas pendentes no ledger do glla (`.pi-glla/active.jsonl`) → block listando os itens (id + título). | `enabled` |
+
+**Operação:**
+
+- **Fail-closed por padrão**: guards LIGADOS em sessões gerenciadas; desligar é
+  config explícita (`guards.<id>.enabled: false`). Config inválida de UM guard
+  → ele opera fail-closed (bloqueia, não libera) e os demais seguem (D10); o
+  doctor reporta.
+- **Kill switch**: `RUNECRAFT_GUARDS=0` (env) → todos os guards inativos.
+- **Congelado por sessão**: a config é lida no `session_start` e vale durante
+  a sessão (sem drift mid-turn).
+- **Config**: seção aditiva `guards` do state.json (F13, schemaVersion 1) —
+  sem arquivo novo; `harness status` mostra o estado por guard, `harness
+  doctor` check 18 valida, `harness sync` re-aplica os defaults quando a
+  seção está ausente.
+- **Tool names do glla (validado no Execute F24)**: NÃO existe
+  `todowrite`/`todoresolve` no fork goal-loop-audit — a task list é
+  `propose_task_list`, o status é `update_task_status`/`complete_task` e a
+  conclusão é `complete_goal`. O enforcer usa `tool_call` de `complete_goal`
+  (turn_end/agent_end NÃO bloqueiam no Pi 0.81.0 — runner.js).
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -250,6 +285,13 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
 - **2026-08-07**: driver detection validated against the goal-loop-audit
   source — state ledger `.pi-glla/active.jsonl` and the supervision predicate
   `isSupervising` (goal `active` + autoContinue, or loop active).
+- **2026-08-07**: Guards (section 8.5) verified against the pi SDK 0.81.0
+  source — `tool_call` blocks via `{ block: true, reason }` (runner.js
+  emitToolCall short-circuits); `turn_end`/`agent_end`/`agent_settled` handler
+  results are IGNORED (only `session_before_*` cancels) → the todo enforcer
+  hooks `complete_goal` (tool_call). glla tool names validated in the fork:
+  no `todowrite`/`todoresolve` — `propose_task_list`/`update_task_status`/
+  `complete_task`/`complete_goal`; ledger `.pi-glla/active.jsonl` (F24).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

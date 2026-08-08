@@ -23,7 +23,7 @@ import type { AgentId } from "./adapters/types.ts";
 
 export type MatrixAgentId = "pi" | AgentId;
 
-export type ComponentId = "subagents" | "taskflow" | "goal-loop-audit" | "pr-review" | "rules";
+export type ComponentId = "subagents" | "taskflow" | "goal-loop-audit" | "pr-review" | "rules" | "guards";
 
 export interface AgentDef {
   /** binary name resolved on PATH (install fail-closed, doctor detection). */
@@ -54,6 +54,9 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
     "goal-loop-audit": { kind: "pi-packages", group: "goal-loop-audit" },
     "pr-review": { kind: "pi-packages", group: "pr-review" },
     rules: { kind: "native" },
+    // F24 D9: guards são extensão Pi do harness (envio junto com o package) —
+    // coluna Pi-only, sem ação de CLI (native).
+    guards: { kind: "native" },
   },
   "claude-code": {
     taskflow: { kind: "mcp", entry: "taskflow" },
@@ -61,6 +64,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
     subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi" },
+    guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi (F24: sem enforcement em agentes não-Pi — detect-only)" },
   },
   opencode: {
     taskflow: { kind: "mcp", entry: "taskflow" },
@@ -68,6 +72,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
     subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi" },
+    guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi (F24: sem enforcement em agentes não-Pi — detect-only)" },
   },
   codex: {
     taskflow: { kind: "mcp", entry: "taskflow" },
@@ -75,6 +80,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
     subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi" },
+    guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi (F24: sem enforcement em agentes não-Pi — detect-only)" },
   },
 };
 

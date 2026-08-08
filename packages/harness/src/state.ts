@@ -15,6 +15,8 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Scope } from "./config.ts";
+import type { GuardsConfig } from "./guards/guardKit.ts";
+import { defaultGuardsConfig } from "./guards/guardKit.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -97,6 +99,9 @@ export interface HarnessState {
   preInstall: PreInstallRecord[];
   /** managed non-Pi agents (F15/F17 D2; aditivo, schemaVersion permanece 1). */
   agents: Record<string, AgentRecord>;
+  /** execution guards config (F24 D2; aditivo, schemaVersion permanece 1 — o
+   *  guardKit valida em runtime; ausente = defaults fail-closed). */
+  guards?: GuardsConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -110,6 +115,8 @@ export function emptyState(scope: Scope): HarnessState {
     settingsChanges: [],
     preInstall: [],
     agents: {},
+    // F24: fail-closed por padrão — o estado declara os guards LIGADOS (D10).
+    guards: defaultGuardsConfig(),
   };
 }
 

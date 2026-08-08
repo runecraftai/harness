@@ -45,6 +45,7 @@ import { hooksDirFor, hasGatesSection } from "../gates/hook.ts";
 import { repoRoot } from "../gates/git.ts";
 import { resolveGates } from "../gates/config.ts";
 import { scanReceipts } from "../receipt/store.ts";
+import { effectiveGuards, killSwitchState, readStateGuards } from "../guards/guardKit.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -368,6 +369,8 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   if (piOk) checks.push(checkDriverActive(rt));
   // F20: check 17 (gates) — independente do Pi (só lê .runecraft do repo + git).
   checks.push(checkGates(rt));
+  // F24: check 18 (guards) — independente do Pi (só lê state.json + env kill switch).
+  checks.push(checkGuards(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -418,6 +421,58 @@ export async function runDoctorCommand(opts: DoctorCommandOptions): Promise<numb
  * F17 D3 check 7 — detecção por agente (informativo, nunca falha).
  * Binary on PATH = installed; the config dir is informative only (F15 ADPT-02).
  */
+/**
+ * F24 check 18 — Guards (execution guards, AD-022; AD-014: 18 é do F24).
+ * Read-only (LIFE-01). Regras (design D2/D9/D10):
+ *   - config por state.json (F13) dos DOIS scopes; ausente = defaults (ligados)
+ *   - kill switch RUNECRAFT_GUARDS=0 → pass informativo (desligado de propósito)
+ *   - config inválida de UM guard → fail apontando o guard (isolamento — D10:
+ *     os demais seguem operando; o afetado opera fail-closed)
+ *   - state.json corrompido → fail apontando o arquivo (fail-closed por padrão)
+ */
+function checkGuards(rt: Runtime): DoctorCheck {
+  const kill = killSwitchState(rt.env);
+  const scopes = ["workspace", "global"] as const;
+  const reads = scopes.map((scope) => ({ scope, ...readStateGuards(statePath(rt, scope), scope) }));
+  const corrupt = reads.filter((r) => r.corrupt);
+  if (corrupt.length > 0) {
+    return {
+      id: 18,
+      name: "Guards",
+      status: "fail",
+      detail: `state.json corrompido em ${corrupt.map((c) => statePath(rt, c.scope)).join(", ")} — guards operam fail-closed (defaults) até o repair`,
+      remedy: "rode `harness restore` ou remova o arquivo manualmente",
+    };
+  }
+
+  const merged = effectiveGuards(reads[0]!.guards, reads[1]!.guards, rt.env);
+  const invalid = merged.problems;
+  const lines = Object.values(merged.guards)
+    .map((g) => {
+      const state = g.enabled ? "enabled" : "disabled";
+      const agentList = g.id === "rangerMdOnly" ? ` · mdOnlyAgents: [${(g.options as { mdOnlyAgents: string[] }).mdOnlyAgents.join(", ")}]` : "";
+      return `${g.id} (${state}, fonte ${g.source})${agentList}`;
+    })
+    .join("; ");
+  const killNote = kill.active ? ` — kill switch RUNECRAFT_GUARDS=${kill.value} ATIVO (guards inativos)` : " · kill switch RUNECRAFT_GUARDS off";
+
+  if (invalid.length > 0) {
+    return {
+      id: 18,
+      name: "Guards",
+      status: "fail",
+      detail: `config de guards inválida — ${invalid.join("; ")} (o guard afetado opera fail-closed; os demais seguem ligados)`,
+      remedy: "corrija a seção `guards` do state.json apontada (ou restaure de um backup do harness)",
+    };
+  }
+  return {
+    id: 18,
+    name: "Guards",
+    status: "pass",
+    detail: `${lines}${killNote}`,
+  };
+}
+
 function checkAgentDetection(rt: Runtime): DoctorCheck {
   const detected = detectedAgentIds(rt);
   if (detected.length === 0) {

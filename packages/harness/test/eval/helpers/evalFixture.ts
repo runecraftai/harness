@@ -28,6 +28,11 @@ export interface EvalFixtureOptions {
   bindExtensions?: boolean;
   /** hooks do fixtureHome (ex.: settings do glla). */
   homeOptions?: Omit<FixtureHomeOptions, "port">;
+  /** roda APÓS repo/agentDir materializados e ANTES do createFixtureSession —
+   *  usado pelos testes de guards para gravar o state.json do workspace
+   *  (config de guards lida no session_start — F24 D12) e o settings do glla
+   *  (autoAcceptDrafts) no repo antes da sessão abrir. Aditivo (default undefined). */
+  beforeSession?: (ctx: { base: string; repoDir: string; agentDir: string; env: NodeJS.ProcessEnv }) => void;
 }
 
 export interface EvalFixture {
@@ -67,15 +72,18 @@ export async function setupEvalFixture(opts: EvalFixtureOptions): Promise<EvalFi
       installPiWrapper(base, env);
     }
 
+    const repoDir = repo?.dir ?? path.join(base, "repo-nogit");
+    fs.mkdirSync(repoDir, { recursive: true });
+    opts.beforeSession?.({ base, repoDir, agentDir: home.agentDir, env });
+
     const session = await createFixtureSession({
-      cwd: repo?.dir ?? path.join(base, "repo-nogit"),
+      cwd: repoDir,
       agentDir: home.agentDir,
       modelsPath: home.modelsJsonPath,
       authPath: home.authJsonPath,
       tools: opts.tools,
       bindExtensions: opts.bindExtensions,
     });
-    fs.mkdirSync(path.join(base, "repo-nogit"), { recursive: true });
 
     return {
       base,

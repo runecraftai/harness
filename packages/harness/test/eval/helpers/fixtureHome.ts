@@ -21,6 +21,7 @@ const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 export function harnessExtensionPaths(): string[] {
   return [
     path.join(PACKAGE_ROOT, "extensions", "harness-status.ts"),
+    path.join(PACKAGE_ROOT, "extensions", "guards.ts"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "subagents", "index.ts"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "taskflow", "dist", "index.js"),
     path.join(PACKAGE_ROOT, "node_modules", "@runecraft", "goal-loop-audit", "extensions", "loops", "goal.ts"),

@@ -20,7 +20,7 @@ import {
   type TextSink,
 } from "../config.ts";
 import { createPiInterop, npmIdentity, type PiInterop } from "../pi.ts";
-import { loadState, type InstalledEntry } from "../state.ts";
+import { loadState, loadStateReadonly, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { execFileSync } from "node:child_process";
@@ -35,6 +35,7 @@ import { computeGatesStatus, type GatesStatusReport } from "./gates.ts";
 import { repoRoot } from "../gates/git.ts";
 import type { AgentId } from "../adapters/types.ts";
 import type { AgentRecord, HarnessState } from "../state.ts";
+import { GUARD_IDS, effectiveGuards, killSwitchState, type GuardRuntime } from "../guards/guardKit.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
 
@@ -102,6 +103,22 @@ export interface StatusReport {
   session: { driver: DriverState };
   /** F20: delivery gates status (config repo/global + hooks + receipts + .gitignore). */
   gates: GatesStatusReport | null;
+  /** F24: execution guards (estado por guard do scope + kill switch). */
+  guards: GuardsStatus;
+}
+
+/** F24: seção guards do status (D9 — Pi-only honesto: guards são extensão Pi). */
+export interface GuardsStatus {
+  killSwitch: boolean;
+  killSwitchValue: string | null;
+  guards: Array<{
+    id: GuardRuntime["id"];
+    enabled: boolean;
+    valid: boolean;
+    error?: string;
+    mdOnlyAgents?: string[];
+    source: GuardRuntime["source"];
+  }>;
 }
 
 export interface StatusAgent {
@@ -217,6 +234,37 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     session: { driver: detectActiveDriver(rt.cwd) },
     // F20: seção gates (null fora de repo git).
     gates: root !== null ? computeGatesStatus(rt, root) : null,
+    // F24: guards do SCOPE (state deste scope × global do env) + kill switch.
+    guards: computeGuardsStatus(rt, scope, state),
+  };
+}
+
+/** F24: estado efetivo dos guards para o scope (o state do scope é a camada
+ *  de maior prioridade; o global entra como fallback — D2 workspace > global). */
+export function computeGuardsStatus(rt: Runtime, scope: Scope, state: HarnessState): GuardsStatus {
+  const globalFile = statePath(rt, "global");
+  const globalRaw = (() => {
+    const loaded = loadStateReadonly(globalFile, "global");
+    return loaded.ok ? loaded.state.guards : undefined;
+  })();
+  const scopeLayer = scope === "workspace" ? state.guards : undefined;
+  const globalLayer = scope === "global" ? state.guards : globalRaw;
+  const merged = effectiveGuards(scopeLayer, globalLayer, rt.env);
+  const kill = killSwitchState(rt.env);
+  return {
+    killSwitch: kill.active,
+    killSwitchValue: kill.value,
+    guards: GUARD_IDS.map((id) => {
+      const g = merged.guards[id];
+      return {
+        id,
+        enabled: g.enabled,
+        valid: g.valid,
+        ...(g.error ? { error: g.error } : {}),
+        ...(id === "rangerMdOnly" ? { mdOnlyAgents: (g.options as { mdOnlyAgents: string[] }).mdOnlyAgents } : {}),
+        source: g.source,
+      };
+    }),
   };
 }
 
@@ -435,6 +483,21 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
       lines.push(`  .gitignore: linhas de gates ausentes (${g.gitignore.file})`);
     }
   }
+  // F24: seção Guards (estado por guard + kill switch).
+  lines.push("");
+  lines.push("Guards (F24):");
+  if (report.guards.killSwitch) {
+    lines.push(`  kill switch: RUNECRAFT_GUARDS=${report.guards.killSwitchValue} ATIVO — todos os guards inativos`);
+  } else {
+    lines.push("  kill switch: RUNECRAFT_GUARDS off");
+  }
+  for (const guard of report.guards.guards) {
+    const state = guard.enabled ? "enabled" : "disabled";
+    const valid = guard.valid ? "" : ` · config inválida (fail-closed: ${guard.error ?? "?"})`;
+    const agents = guard.mdOnlyAgents ? ` · mdOnlyAgents: [${guard.mdOnlyAgents.join(", ")}]` : "";
+    lines.push(`  ${guard.id.padEnd(26)}${state} (fonte ${guard.source})${agents}${valid}`);
+  }
+  lines.push("  (guards são extensão Pi — agentes não-Pi não têm enforcement; ver ROUTING.md seção Guards)");
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -500,6 +563,11 @@ export function renderStatusJson(report: StatusReport): string {
       owners: report.owners,
       warnings: report.warnings,
       ...(report.gates !== null ? { gates: report.gates } : {}),
+      guards: {
+        killSwitch: report.guards.killSwitch,
+        killSwitchValue: report.guards.killSwitchValue,
+        guards: report.guards.guards,
+      },
       suggestion: report.nothingManaged ? "npx @runecraft/harness install" : null,
     },
     null,

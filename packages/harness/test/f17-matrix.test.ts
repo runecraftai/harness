@@ -36,22 +36,23 @@ function sandboxWithAgents(fakeBins: string[] = ["claude"]): Sandbox & { binDir:
 }
 
 describe("matrix — declarativa (F17 D1)", () => {
-  test("Pi = coluna completa: 4 grupos pi-packages + rules native", () => {
+  test("Pi = coluna completa: 4 grupos pi-packages + rules/guards native", () => {
     expect(MATRIX.pi.subagents?.kind).toBe("pi-packages");
     expect(MATRIX.pi.taskflow?.kind).toBe("pi-packages");
     expect(MATRIX.pi["goal-loop-audit"]?.kind).toBe("pi-packages");
     expect(MATRIX.pi["pr-review"]?.kind).toBe("pi-packages");
     expect(MATRIX.pi.rules?.kind).toBe("native");
+    expect(MATRIX.pi.guards?.kind).toBe("native"); // F24 D9: guards Pi-only
     expect(AGENTS.pi.display).toBe("Pi");
   });
 
-  test("não-Pi = taskflow mcp + rules + 3 células unsupported com motivo", () => {
+  test("não-Pi = taskflow mcp + rules + 4 células unsupported com motivo", () => {
     for (const agent of ["claude-code", "opencode", "codex"] as const) {
       const column = MATRIX[agent];
       expect(column.taskflow?.kind).toBe("mcp");
       expect(column.rules?.kind).toBe("rules");
       expect((column.rules as { section: string }).section).toBe("runecraft:workflow");
-      for (const component of ["subagents", "goal-loop-audit", "pr-review"] as const) {
+      for (const component of ["subagents", "goal-loop-audit", "pr-review", "guards"] as const) {
         const cell = column[component];
         expect(cell?.kind).toBe("unsupported");
         expect((cell as { reason: string }).reason).toContain("é extensão Pi; use --agent pi");
@@ -60,8 +61,8 @@ describe("matrix — declarativa (F17 D1)", () => {
   });
 
   test("columnComponents = coluna inteira (sem native); fora da matriz não tem célula", () => {
-    // unsupported são células da coluna — incluídas; `native` (rules no Pi) é no-op
-    expect(columnComponents("claude-code")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review"]);
+    // unsupported são células da coluna — incluídas; `native` (rules/guards no Pi) é no-op
+    expect(columnComponents("claude-code")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
     expect(columnComponents("pi")).toEqual(["subagents", "taskflow", "goal-loop-audit", "pr-review"]);
     // detect-only (fora da matriz): sem célula → firstUnsupported nunca recusa
     expect((MATRIX as Record<string, unknown>).cursor).toBeUndefined();

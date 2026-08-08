@@ -36,6 +36,7 @@ import type { AgentAdapter, AgentContext } from "../adapters/types.ts";
 import { MATRIX, columnComponents, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { withRunecraftLock } from "../lock.ts";
+import { defaultGuardsConfig } from "../guards/guardKit.ts";
 
 export interface SyncCommandOptions {
   json: boolean;
@@ -259,8 +260,15 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   const editedNotes = agentPlan.edited.map(
     (e) => `${e.agentId}: rules preservada (editada — usuário editou; sync nunca sobrescreve)`,
   );
+  // F24 (GUARD-06 AC 4.4): re-aplica o config de guards ao state — quando a
+  // seção `guards` está AUSENTE (state da era pré-F24 ou removida à mão) o
+  // sync grava os defaults fail-closed. Config presente (mesmo inválida) NUNCA
+  // é reescrita aqui (D10: o doctor reporta + o guard opera fail-closed).
+  const guardsDefaultsApplied = loaded.state.guards === undefined;
+  if (guardsDefaultsApplied) loaded.state.guards = defaultGuardsConfig();
+  const guardsNote = guardsDefaultsApplied ? "guards: defaults fail-closed re-aplicados ao state (F24)" : "";
   const hasChanges =
-    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0;
+    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0 || guardsDefaultsApplied;
 
   if (!hasChanges) {
     const report: SyncReport = {
@@ -272,7 +280,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       preserved: plan.preserved,
       conflicts: plan.conflicts,
       failed: [],
-      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes],
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes, ...(guardsNote ? [guardsNote] : [])],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -299,6 +307,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
         ...pendingNotes.map((n) => `(dry-run) ${n}`),
         ...templateChangedNotes.map((n) => `(dry-run) ${n}`),
         ...editedNotes,
+        ...(guardsNote ? [`(dry-run) ${guardsNote}`] : []),
       ],
     };
     if (opts.json) out.write(renderSyncJson(report));
@@ -438,7 +447,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     conflicts: plan.conflicts,
     failed,
     backup: backupFile,
-    notes: [...plan.notes, ...agentNotes],
+    notes: [...plan.notes, ...agentNotes, ...(guardsNote ? [guardsNote] : [])],
   };
   if (opts.json) out.write(renderSyncJson(report));
   else out.write(renderSync(report, { tty: false }));
