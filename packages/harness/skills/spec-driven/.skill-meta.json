@@ -1,0 +1,14 @@
+{
+  "name": "spec-driven",
+  "version": "5.0.0",
+  "type": "skill",
+  "description": "Feature planning with 4 adaptive phases (Specify, Design, Tasks, Execute) + Verifier (author != verifier) + self-improving lessons layer",
+  "phases": ["specify", "design", "tasks", "execute", "validate", "memory", "lessons"],
+  "trigger": ["/spec", "/explore", "/plan", "/apply"],
+  "scope": "public",
+  "audience": "development-teams",
+  "dependencies": {
+    "required": [],
+    "optional": ["mermaid-studio", "codenavi"]
+  }
+}

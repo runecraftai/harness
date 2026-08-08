@@ -55,9 +55,9 @@
 
 ## T7 — Skills propostas (D7, SKL-02) — GATED na escolha do usuário (QA-5)
 
-- [ ] **Default recomendado (4)**: `test-driven-development` (390 ln), `using-agent-skills` (200 ln), `memory-management` (198 ln), `spec-driven` (176 ln) — copiar byte-a-byte para `packages/harness/skills/<name>/` (frontmatter as-is); `pi.skills` += `"./skills/<name>"` por skill
-- [ ] Se o usuário escolher `loop-*` (loop-contract/judge/learn/roadmap/run): copiar com nota de two-driver (overlap com a mecânica de loop do fork glla) — não recomendado por default
-- [ ] **Verificar:** `diff -r` por skill copiada vazio; `pi.skills` com as entradas; zero nome duplicado no array; `bun test` verde; `bun run lint` verde (biome cobre scripts/ — skills são markdown, sem lint)
+- [x] **Default recomendado (4)**: `test-driven-development` (390 ln), `using-agent-skills` (200 ln), `memory-management` (198 ln), `spec-driven` (176 ln) — copiar byte-a-byte para `packages/harness/skills/<name>/` (frontmatter as-is); `pi.skills` += `"./skills/<name>"` por skill
+- [x] Se o usuário escolher `loop-*` (loop-contract/judge/learn/roadmap/run): copiar com nota de two-driver (overlap com a mecânica de loop do fork glla) — não recomendado por default
+- [x] **Verificar:** `diff -r` por skill copiada vazio; `pi.skills` com as entradas; zero nome duplicado no array; `bun test` verde; `bun run lint` verde (biome cobre scripts/ — skills são markdown, sem lint)
 
 ## T8 — Docs páginas 1/3: intended-usage + usage (D3/D4, DOC-01/02) — após Front 1+2
 

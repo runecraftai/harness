@@ -127,7 +127,11 @@
       "node_modules/@runecraft/subagents/skills",
       "node_modules/@runecraft/taskflow/skills",
       "./skills/using-runes",
-      "./skills/skill-forge"
+      "./skills/skill-forge",
+      "./skills/test-driven-development",
+      "./skills/using-agent-skills",
+      "./skills/memory-management",
+      "./skills/spec-driven"
     ],
     "prompts": [
       "node_modules/@runecraft/subagents/prompts",
