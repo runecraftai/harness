@@ -370,6 +370,45 @@ lessons list|promote <id>|archive <id>`. Kill switch
 mapeamento OTel/Langfuse) vive em `docs/EVENTS.md` (OBS-09 — schema É o
 contrato de F24/F25/F27).
 
+## 8.10 Memory — memória persistente cross-session (F29)
+
+A camada de memória (M7, pilar 7 do doc do usuário — "memória durável
+consultável por tool") porta o pacote `runes` do arcanum (supersedido,
+AD-001/AD-002) para MECANISMOS REAIS do Pi 0.81.0:
+
+| Mecanismo | Existe (SDK 0.81.0 / runes / harness) — evidência | F29 constrói |
+| --- | --- | --- |
+| SQLite + FTS5 + WAL em Bun | `bun:sqlite` builtin (Bun 1.3.14) ✓ — probes: WAL `"wal"`, FTS5 diacríticos, schema real executa | `src/memory/client.ts` + `schema.sql` AS-IS (D1/D4) |
+| Registro de tools Pi | `pi.registerTool(defineTool(...))` ✓ (fork glla goal.ts:2621+) | `src/memory/tools.ts` — 10 × `rune_*` (D3) |
+| Extensão Pi do harness | `extensions/{guards,resilience,observability}.ts` + manifest `pi.extensions` ✓ | `extensions/memory.ts` (D3) |
+| Config aditiva + freeze + kill switch | state.ts `guards`/`verification`/`resilience`/`observability` ✓ (F24 D12) | `src/memory/config.ts` seção `memory` (D5) |
+| Fixture determinística | F21 ScriptedScenario + materialização de extensões ✓ | evals EVAL-030..038 (D11) |
+| Memória de time versionada | F28 `lessons/promoted.jsonl` ✓ | bridge import-lessons (D7) |
+| DRY relógio/id (determinismo) | F28 monitor injetável ✓ (F21 D10) | DI clock/idGen no Repository (D6) |
+| CLI subcomando | dispatch F11 (install/verify/lessons...) ✓ | `harness memory` (D8) |
+| Drift check FTS | `bin/runes.ts` doctor ✓ | `src/memory/cli.ts` doctor [--purge] (D8) |
+| argsHash (privacidade) | F28 D2 (tool:call/result hashed) ✓ | garantia MEM-09 + EVAL-038 (D10) |
+
+**Operação**: a extensão `extensions/memory.ts` (materializada nas sessões
+gerenciadas — manifest do package) registra os 10 tools `rune_*` no
+`session_start` (mesmo padrão do glla), com o DB local `.runecraft/memory/
+runes.db` (WAL — o arquivo É a memória cross-session; D2 honesto:
+`appendEntry` é log de sessão e não persiste). A skill `using-runes`
+(manifest `pi.skills`) instrui o agente a chamar `rune_context` no início,
+`rune_save` em decisão/correção, `rune_search` antes de agir, curadoria
+top-10 por categoria e "não salvar secrets" (QA-2 — tool-driven, zero rewrite
+de prompt). Bridge F28: `harness memory import-lessons` (idempotente,
+`where_ref="lesson:<id>"`; fonte read-only — F28 dono; default
+`importLessonsOnStart: false`). CLI: `harness memory search|stats|doctor
+[--purge]|import-lessons`. Kill switch `RUNECRAFT_MEMORY=0` (F20 — camada
+inerte, zero tools/arquivos). Config no state `memory` (freeze por sessão).
+Referência completa: `docs/MEMORY.md`. Evals: EVAL-030..038 (matriz v7).
+
+**Fronteira F28 (travada — D7)**: F28 é dono de `lessons/promoted.jsonl` e
+events/; F29 importa read-only e idempotente (nunca reescreve a fonte, nunca
+sobrescreve memória do usuário). F30 (model routing) e F33 (routing) NÃO são
+tocados por F29.
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -498,6 +537,16 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   `before_agent_start` é por prompt do usuário (o adendo execution entra no
   próximo before_agent_start); `session_end` não existe no SDK 0.81.0 — o
   fechamento usa `agent_end` + `session_shutdown` (idempotente).
+- **2026-08-09**: Memory (section 8.10) verified in the Execute F29 —
+  `defineTool` usa `parameters` TypeBox (`TParams extends TSchema` — types.d.ts
+  do pi-coding-agent; TypeBox já é peerDep do harness e usado pelo fork glla:
+  zero deps novas); `ExtensionContext.cwd` é a fonte do diretório do repo
+  (registro das tools no `session_start` — síncrono, padrão glla, sem race no
+  primeiro request); bun:sqlite (Bun 1.3.14) executa o schema.sql REAL do runes
+  (WAL, FTS5 diacríticos, triggers real-table→FTS5); o argsHash do F28 é
+  sha256 prefixo 16 hex (nunca args crus — EVAL-038 asserta o sentinel ausente
+  do event store); `PRAGMA busy_timeout` do bun:sqlite expõe a coluna
+  `timeout` (não `busy_timeout`).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

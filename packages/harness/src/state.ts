@@ -23,6 +23,8 @@ import type { ResilienceConfig } from "./resilience/config.ts";
 import { defaultResilienceConfig } from "./resilience/config.ts";
 import type { ObservabilityConfig } from "./observability/config.ts";
 import { defaultObservabilityConfig } from "./observability/config.ts";
+import type { MemoryConfig } from "./memory/config.ts";
+import { defaultMemoryConfig } from "./memory/config.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -117,6 +119,9 @@ export interface HarnessState {
   /** observability & lessons config (F28 D9; aditivo, schemaVersion permanece 1 —
    *  o config.ts valida em runtime; ausente = defaults). */
   observability?: ObservabilityConfig;
+  /** memory config (F29 D5; aditivo, schemaVersion permanece 1 — o config.ts
+   *  valida em runtime; ausente = defaults). */
+  memory?: MemoryConfig;
 }
 
 export const STATE_SCHEMA_VERSION = 1 as const;
@@ -138,6 +143,8 @@ export function emptyState(scope: Scope): HarnessState {
     resilience: defaultResilienceConfig(),
     // F28: fail-closed por padrão — o estado declara a camada de observabilidade LIGADA (D9).
     observability: defaultObservabilityConfig(),
+    // F29: fail-closed por padrão — o estado declara a camada de memória LIGADA (D5).
+    memory: defaultMemoryConfig(),
   };
 }
 

@@ -244,6 +244,13 @@
 **Trade-off:** `.vscode/mcp.json` depende do VS Code repassar ao Agent Host (validar handshake real no Execute); regras via copilot-instructions (repo-level) não valem para requests fora do workspace.
 **Impact:** Design F31 marcado Ready for Execute; fighter implementa EVAL-049..056 (matriz v9 após F30 fechar v8); golden mcp-copilot (arquivo mcp.json completo — desvio documentado do F23 D4: nesting 2 níveis).
 
+### AD-032: Resolução das QAs do F32 — Objective Role Agents (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Shadowing**: shadow dos 4 homônimos (planner/reviewer/scout/researcher — compatível+endurecido via allowlist) + novos builder/auditor/security; worker/oracle/advisor/context-builder/delegate preservados. (2) **QA-2 — Escopo de instalação**: projeto `<cwd>/.pi/agents/` via install/sync (three-way F19 + contentHash F13). (3) **QA-3 — Review**: reviewer = agente read-only in-loop (NÃO wrapper do /pr-review — gating do loop verificado em AD-021); variantes = dados F30 (`review_models`). (4) **QA-4 — Defaults de modelo**: nenhum chain no código (zero IDs inventados — F30 D4). (5) **QA-5 — Delegação v1**: só builder spawna (scout + reviewer via template de delegação — o guild_spawn_wizard real é src/tools/spawn-wizard.ts).
+**Reason:** Usuário delegou as recomendações; achados honestos do recon: ranger arcanum é "trabalhador de domínio" (o papel auditor ancora no guard ranger-md-only do F24, não em comportamento inventado); rogue É o recon (sem scout no arcanum); builtins reviewer/scout/researcher NÃO são read-only — shadow endurece por allowlist o que o fork pede por instrução.
+**Trade-off:** Auditor ativado por default na lista mdOnlyAgents (F24 intocado — só config); propagação RUNECRAFT_AGENT_ID=auditor ao guard = risco com gate no EVAL-061 (validar no Execute).
+**Impact:** Design F32 marcado Ready for Execute; fighter implementa EVAL-057..066 (matriz v10); categorias tool-use correctness + routing completeness (F26) desbloqueadas; F33 consome os papéis.
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):

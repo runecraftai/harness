@@ -13,6 +13,10 @@
 // v6 (F28, AD-028): a lane do F28 (test/eval/framework/observability
 // + test/eval/suites/observability + test/eval/cases/observability-block)
 // entra na varredura — EVAL-022..029.
+//
+// v7 (F29, AD-029): a lane do F29 (test/eval/framework/memory
+// + test/eval/suites/memory + test/eval/cases/memory-roundtrip
+// + test/eval/scenarios/memory-roundtrip) entra na varredura — EVAL-030..038.
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -71,8 +75,8 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
     expect(fs.existsSync(MATRIX_PATH)).toBe(true);
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     expect(matrix).toMatch(/MATRIX_VERSION:\s*\d+/);
-    expect(matrix).toMatch(/MATRIX_VERSION:\s*6/);
-    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016", "EVAL-017", "EVAL-018", "EVAL-019", "EVAL-020", "EVAL-021", "EVAL-022", "EVAL-023", "EVAL-024", "EVAL-025", "EVAL-026", "EVAL-027", "EVAL-028", "EVAL-029"]) {
+    expect(matrix).toMatch(/MATRIX_VERSION:\s*7/);
+    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016", "EVAL-017", "EVAL-018", "EVAL-019", "EVAL-020", "EVAL-021", "EVAL-022", "EVAL-023", "EVAL-024", "EVAL-025", "EVAL-026", "EVAL-027", "EVAL-028", "EVAL-029", "EVAL-030", "EVAL-031", "EVAL-032", "EVAL-033", "EVAL-034", "EVAL-035", "EVAL-036", "EVAL-037", "EVAL-038"]) {
       expect(matrix).toContain(id);
     }
   });
@@ -80,7 +84,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
   test("todo EVAL-<n> da matriz tem teste de fluxo na camada 2 que o referencia", () => {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const matrixIds = new Set([...matrix.matchAll(/EVAL-(\d{3}[a-z]?)/gi)].map((m) => m[0].toUpperCase()));
-    expect(matrixIds.size).toBeGreaterThanOrEqual(28); // EVAL-001..029 (EVAL-003 fora)
+    expect(matrixIds.size).toBeGreaterThanOrEqual(38); // EVAL-001..038 (EVAL-003 fora)
     const testTexts = layer2TestFiles().map((f) => ({ file: f, text: fs.readFileSync(f, "utf8") }));
 
     for (const id of matrixIds) {

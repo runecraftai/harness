@@ -109,6 +109,7 @@
       "./extensions/guards.ts",
       "./extensions/resilience.ts",
       "./extensions/observability.ts",
+      "./extensions/memory.ts",
       "node_modules/@runecraft/subagents/index.ts",
       "node_modules/@runecraft/taskflow/dist/index.js",
       "node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts",
@@ -116,7 +117,8 @@
     ],
     "skills": [
       "node_modules/@runecraft/subagents/skills",
-      "node_modules/@runecraft/taskflow/skills"
+      "node_modules/@runecraft/taskflow/skills",
+      "./skills/using-runes"
     ],
     "prompts": [
       "node_modules/@runecraft/subagents/prompts",

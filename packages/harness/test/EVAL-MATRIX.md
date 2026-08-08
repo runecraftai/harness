@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 6
+MATRIX_VERSION: 7
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -24,7 +24,20 @@ Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-dete
 
 **v5 (F27, AD-027):** entradas aditivas EVAL-017..021 (Resilience & Continuity — port do compaction-recovery/work-continuation/start-work do arcanum para MECANISMOS REAIS do Pi) — política aditiva D9. A categoria compaction-recovery do eval-coverage (bloqueada no F26 — "após F27") agora tem entradas; tool-use/routing (F32) e failover (F30) seguem SEM entradas. Nota datada 2026-08-07: os cases puros (EVAL-017/018/019/020) são unit do framework (o executor trajectory-run exige sessão — o F26 não tem executor "unit"); o case trajectory da suite é o recovery-flow (EVAL-021). Limitação honesta (QA-5/Execute): a EMISSÃO real de `session_compact` no fixture não é viável (limiar de contexto + sumarização LLM do SDK) — o trigger é exercitado via handler exportado com eventos scriptados (wiring) e a observação real é o trigger primário em produção (D1).
 
-**v6 (F28, AD-028):** entradas aditivas EVAL-022..029 (Observability & Lessons — event store tipado, harness bundles, cognition lessons com reincidência/promoção/adendo, context monitor + token state, export jsonl determinístico) — política aditiva D9; o teste de consistência agora também varre `test/eval/suites/observability` + `test/eval/framework/observability` (lane da observabilidade). Nota datada 2026-08-08: os cases puros (EVAL-022..025/027/028/029) são unit/fixture do framework (mesmo padrão EVAL-017..020 do F27); o case trajectory da suite é o observability-block (EVAL-026/029 — bloqueio F24 observado numa sessão REAL com a extensão do F28 → guard:blocked no store tipado). Limitação honesta (Execute F28): o resultado do `tool_call` NÃO expõe o block (runner.js short-circuit no primeiro `{block:true}` — extensões posteriores não rodam) e a chamada bloqueada NÃO emite `tool_result` (agent-loop.js pula o afterToolCall para resultados imediatos) — a observação real é o `tool_execution_end` (isError + reason `<guardId>: msg` no result.content — agent-loop.js createErrorToolResult); `tool:call` de chamadas bloqueadas não é gravado (args indisponíveis no tool_execution_end — documentado em docs/EVENTS.md). memory (F29), tool-use/routing (F32) e failover (F30) seguem SEM entradas.
+**v7 (F29, AD-029):** entradas aditivas EVAL-030..038 (Memory — port do pacote
+runes do arcanum: round-trip db/repository, 10 tools rune_* no fixture Pi,
+cross-session, semântica search/context, compaction, bridge F28,
+config/kill switch, determinismo, privacidade) — política aditiva D9; o teste
+de consistência agora também varre `test/eval/suites/memory` +
+`test/eval/framework/memory` (lane da memória). Nota datada 2026-08-09: os
+cases puros (EVAL-030/032..037) são unit do framework (mesmo padrão
+EVAL-017..020 do F27); os cases de fixture são EVAL-031 (tools rune_* reais
+no loop do Pi com round-trip no runes.db) e EVAL-038 (privacidade — sentinel
+ausente do event store, argsHash F28). Limitação honesta (Execute F29): o
+conteúdo de memória retornado ao agente (transcript) é inerente à função de
+memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
+
+**v6 (F28, AD-028):** entradas aditivas EVAL-022..029 (Observability & Lessons — event store tipado, harness bundles, cognition lessons com reincidência/promoção/adendo, context monitor + token state, export jsonl determinístico) — política aditiva D9; o teste de consistência agora também varre `test/eval/suites/observability` + `test/eval/framework/observability` (lane da observabilidade). Nota datada 2026-08-08: os cases puros (EVAL-022..025/027/028/029) são unit/fixture do framework (mesmo padrão EVAL-017..020 do F27); o case trajectory da suite é o observability-block (EVAL-026/029 — bloqueio F24 observado numa sessão REAL com a extensão do F28 → guard:blocked no store tipado). Limitação honesta (Execute F28): o resultado do `tool_call` NÃO expõe o block (runner.js short-circuit no primeiro `{block:true}` — extensões posteriores não rodam) e a chamada bloqueada NÃO emite `tool_result` (agent-loop.js pula o afterToolCall para resultados imediatos) — a observação real é o `tool_execution_end` (isError + reason `<guardId>: msg` no result.content — agent-loop.js createErrorToolResult); `tool:call` de chamadas bloqueadas não é gravado (args indisponíveis no tool_execution_end — documentado em docs/EVENTS.md). *(revisado 2026-08-09 na v7: "memory (F29) seguem SEM entradas" → memory agora com EVAL-030..038; tool-use/routing (F32) e failover (F30) seguem sem.)*
 
 | ID | Fluxo (evidência F7) | Ferramentas | Script esperado (tool calls por turno) | Notas |
 | --- | --- | --- | --- | --- |
@@ -71,6 +84,18 @@ Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-dete
 | EVAL-027 | reincidência + promoção (F28 OBS-07 — D5) | eval (framework/observability) | 1. 3 captures → count=3 → promoted.jsonl + evento lesson:promoted; 2. priority=high + 2 → promove antes (threshold reduzido); 3. `promote <id>` força (CLI) | thresholds configuráveis (promotion 3 / high 2) |
 | EVAL-028 | adendo (F28 OBS-08 — D6) | eval (framework/observability) | 1. gate X → adendo SÓ com lessons do gate X, ≤3, ordenado (priority, count); 2. marker `<!-- runecraft:lessons -->`; 3. 2 runs idênticos (sem $TMP/$TS); 4. sem lessons → null (sem ruído); 5. planning track = só promovidas | duas trilhas (planning/execution); injeção via before_agent_start (chaining — NÃO sobrescreve) |
 | EVAL-029 | export round-trip (F28 OBS-09/10 — D7/D8) | eval (framework/observability) + fixture | 1. store seedado + verify-verdicts/ledger/continuation seedados → export com source:"bridge"; 2. 2 runs byte-idênticos; 3. prevHash verificado (violação → aviso, exit 0); 4. linha malformada pulada (fail-soft); 5. suite observability verde (guard:blocked REAL no store tipado em sessão glla fixture) | zero deps; ordenação (sessionId, seq); OTel/Langfuse mapeado em docs/EVENTS.md (implementação adiada — nota datada) |
+
+| ID | Fluxo (evidência F29) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-030 | port round-trip db+repository (F29 MEM-01/02 — D1/D4/D12) | eval (framework/memory) | 1. openDatabase → WAL + migrate; 2. save → get → search (FTS) → stats → soft-delete → get NOT_FOUND; 3. schema_meta version=1; 4. migrate 2× idempotente | schema.sql REAL executa em bun:sqlite (D12 — espelho do probe); zero deps novas |
+| EVAL-031 | 10 tools no fixture Pi (F29 MEM-03 — D3) | eval (framework/memory) + fixture | 1. sessão F21 com a extensão memory materializada lista as 10 `rune_*` no request (nomes + inputSchema via TypeBox); 2. `rune_save` → `rune_search` round-trip REAL no loop (runes.db persistido); 3. suite memory verde (trajectory-assertion + tool-policy) | defineTool/registerTool (SDK 0.81.0 — glla goal.ts:2621+); delta vs EVAL-006/007/014 (sem double-test) |
+| EVAL-032 | cross-session (F29 MEM-04 — D2) | eval (framework/memory) | 1. instância A salva + fecha; 2. instância B (novo Repository, mesmo arquivo) busca → acha; 3. 2 runs idênticos | DB é a memória (D2); worktrees do mesmo git root compartilham |
+| EVAL-033 | semântica search/context (F29 MEM-02 — D3/D6) | eval (framework/memory) | 1. FTS5 match com/sem diacríticos ("cafe"→"café"); 2. filtro de categoria; 3. soft-deleted excluído; 4. ordem rank; 5. rune_context recent+relevant; 6. session_start idempotente | port fiel (mesmos shapes do source) |
+| EVAL-034 | compaction (F29 MEM-02 — D2/D6) | eval (framework/memory) | 1. > hardCap poda os mais antigos de menor importância (importance ASC, created_at ASC — tie-break rowid); 2. sinal candidatos ≤5; 3. transação (BEGIN/COMMIT); 4. categoryCap do config na tool rune_save | semântica source (D6 — tie-break aditivo documentado) |
+| EVAL-035 | bridge F28 (F29 MEM-06 — D7) | eval (framework/memory) | 1. promoted.jsonl fixture (2 lessons) → import → 2 memórias learnings com `where_ref=lesson:<id>`; 2. 2º import → 0 novas (skipped=2); 3. fonte byte-idêntica (hash sha256); 4. dry-run → zero writes | F28 é dono da fonte (read-only); colisão where_ref → skip (nunca sobrescreve memória do usuário) |
+| EVAL-036 | config/kill switch (F29 MEM-05 — D5) | eval (framework/memory) | 1. defaults fail-closed; 2. freeze por sessão (D12); 3. `RUNECRAFT_MEMORY=0` → zero tools + zero arquivos; 4. CLI recusa (fail-visible, exit 0) | padrão F24/F25/F27/F28 (F20) |
+| EVAL-037 | determinismo (F29 MEM-02 — D6) | eval (framework/memory) | 1. ops scriptadas com clock/idGen injetados → 2 runs resultado JSON IDÊNTICO (inclui created_at injetado; tie-breaks) | F21 D10 (D6); FTS5 rank determinístico no mesmo runtime |
+| EVAL-038 | privacidade (F29 MEM-09 — D10) | eval (framework/memory) + fixture | 1. `rune_save` com sentinel numa sessão REAL (extensões memory + observability) → `events/*.jsonl` sem o sentinel (só argsHash — F28 D2); 2. conteúdo presente SÓ no DB; 3. nenhum outro sink do repo contém o sentinel cru | argsHash = sha256 prefixo 16 hex (F28); memória é dado privado (nunca logada crua) |
 
 **Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é

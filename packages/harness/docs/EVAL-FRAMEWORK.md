@@ -85,6 +85,11 @@
 | Routing completeness | Agentes F32 (orquestração → papéis) | 🔒 bloqueada | — (outline) | após F32 |
 | Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
 | Model failover | F30 (port model-resolution, fallback chain) | 🔒 bloqueada | — (outline) | após F30 |
+| Memory | F29 (port runes — tools `rune_*` + runes.db) | ✅ disponível (v7) | EVAL-030..038 (round-trip, 10 tools no fixture, cross-session, semântica search/context, compaction, bridge F28, config/kill switch, determinismo, privacidade) | AGORA (F29) |
+
+**v7 (F29, AD-029):** a categoria Memory foi ADICIONADA — EVAL-030..038 na
+matriz (nota datada 2026-08-09). Tool-use/routing (F32) e Model failover (F30)
+seguem sem entrada (política aditiva).
 
 **v5 (F27, AD-027):** a categoria Compaction recovery foi DESBLOQUEADA —
 EVAL-017..021 na matriz (nota datada 2026-08-07). Tool-use/routing (F32) e

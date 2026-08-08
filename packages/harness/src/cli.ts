@@ -21,6 +21,7 @@ import { runReceiptCommand } from "./commands/receipt.ts";
 import { runVerifyCommand } from "./commands/verify.ts";
 import { runEventsCommand } from "./commands/events.ts";
 import { runLessonsCommand } from "./commands/lessons.ts";
+import { runMemoryCommand } from "./commands/memory.ts";
 
 export interface DispatchContext {
   cwd?: string;
@@ -50,6 +51,7 @@ export const COMMANDS = [
   "verify",
   "events",
   "lessons",
+  "memory",
 ] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
@@ -84,6 +86,8 @@ export interface CliOptions {
   session?: string;
   /** events: inclui bridges externos no export. */
   includeExternal?: boolean;
+  /** memory doctor: hard-deleta soft-deleted + rebuild FTS (--purge). */
+  purge?: boolean;
   help: boolean;
   version: boolean;
 }
@@ -151,6 +155,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
     format?: string;
     session?: string;
     "include-external"?: boolean;
+    purge?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -171,6 +176,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
         format: { type: "string" },
         session: { type: "string" },
         "include-external": { type: "boolean" },
+        purge: { type: "boolean" },
       },
       allowPositionals: true,
       strict: true,
@@ -240,6 +246,7 @@ export function parseCliArgs(argv: string[]): ParseResult {
       format: values.format,
       session: values.session,
       includeExternal: values["include-external"],
+      purge: values.purge,
       help: false,
       version: false,
     },
@@ -427,6 +434,18 @@ export async function dispatch(argv: string[], ctx: DispatchContext = {}): Promi
         rt,
         subcommand: options.args[0] ?? "",
         args: options.args.slice(1),
+      });
+    }
+    case "memory": {
+      return runMemoryCommand({
+        json: options.json,
+        out,
+        err,
+        rt,
+        subcommand: options.args[0] ?? "",
+        args: options.args.slice(1),
+        purge: options.purge,
+        dryRun: options.dryRun,
       });
     }
     default:
