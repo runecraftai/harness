@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F27 COMPLETE (2026-08-08; 753 testes; cleric APPROVE após 2 rodadas) — **Próximo: F28 Observability** (fighter em execução) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F28 COMPLETE (2026-08-08; 823 testes; cleric approve + fixes) — **Próximo: F29 Memory** (fighter em execução) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -199,10 +199,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Stall detection (não só timeout/rate-limit), fallback chains multi-trigger, classificação de falha agente-vs-infra, política de escalação (pilar 6)
 - **Entregue**: continuation via before_agent_start (chaining SDK) + triggers nativos session_compact; /start-work explícito (sem auto-start — gate do glla); stall = port dos padrões do fork com constantes verificadas; fallback engine com modelSwitch NO-OP (F30); EVAL-017..021 (matriz v5)
 
-**F28 — Observability & Lessons** — PLANNED — Prereq: F13 ✓, F21 ✓
+**F28 — Observability & Lessons** — **COMPLETE (2026-08-08; 823 testes; cleric approve-with-fixes de2bb26)** — Prereq: F13 ✓, F21 ✓
 
 - Typed event store + harness bundles (fingerprint hash de config/prompts) + cognition lessons (trigger/anti-pattern/pattern preferido/prioridade, promoção a memória de time)
 - Port: `context-window-monitor`, `session-token-state`, recorder de analytics do guild (`.guild/analytics` → event store)
+- **Entregue**: event store por sessão com prevHash chain; bundles sha256 canônico (gitHead fora); lessons com reincidência/promoção (promoted.jsonl versionado) + adendo before_agent_start; ports via getContextUsage + token-budget read-only; export jsonl + bridges; EVAL-022..029 (matriz v6)
 
 **F29 — Memory (runes → Pi)** — PLANNED — Prereq: F13 ✓, F21 ✓
 
