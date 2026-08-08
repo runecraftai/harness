@@ -28,6 +28,13 @@
 **Trade-off (risco documentado, aceito pelo usuário):** MIT exige preservar o copyright notice em cópias/porções substanciais — remover atribuição de código MIT republicado no npm é violação com risco real (DMCA takedown, dano reputacional). Decisão registrada para rastreabilidade; o risco recai sobre o owner.
 **Impact:** F8 (docs) executa SEM atribuições; os comentários de atribuição existentes são removidos no escopo do F8.
 
+### AD-038: Resolução das QAs do F8 — Docs (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Idioma**: docs SHIPPED (READMEs/docs) em **EN** (recon corrige a suposição: root README + ROUTING.md já são EN); .specs permanecem PT-BR (convenção). (2) **QA-2 — Taskflow**: **1 README pointer** para o grupo de 9 packages (não 9 pointers). (3) **QA-3 — claude-auth**: grep-only (não é componente do F6 bundle — sinalizado, sem rewrite).
+**Reason:** Usuário delegou as recomendações; docs shipped em EN alinhados ao público npm; inventário de atribuições (13 arquivos/16 pontos) e nome-consistency (2 hits: extensions/harness-status.ts:7, sdd-spec.chain.md:11) fechados por grep.
+**Trade-off:** Remoção de atribuições = risco documentado AD-035 aceito pelo usuário; docs EN vs código PT-BR (ROUTING.md já EN).
+**Impact:** Design F8 marcado Ready for Execute; fighter executa T1..T7 (docs-only, zero mudança funcional; golden chain F19 D9 + 1152/58 testes verdes como gate).
+
 ### AD-036: Decisão do usuário — F9 publishing sob @runecraft com nome novo (2026-08-08)
 
 **Decision:** **CONFIRMADO 2026-08-08** — pacote `@runecraft/companion` (org @runecraft), bin `companion` com alias `harness` mantido; diretório interno packages/harness permanece (detalhe de implementação); .runecraft/ e RUNECRAFT_* intactos. Rename executado (commit 072204b; 1152 testes verdes).
