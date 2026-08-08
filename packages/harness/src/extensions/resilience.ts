@@ -155,10 +155,18 @@ export function installResilience(pi: ExtensionAPI, deps: ResilienceDeps = {}): 
     const state = deriveContinuationState(goalRead.goal, readMeta(ctx.cwd));
     if (state === null || !isSupervisedGoal(state)) return;
 
-    // Ownership de sessão (scoping D2): a sessão que vê o goal ativo registra-se.
+    // Ownership de sessão (scoping D2): PRIMEIRA sessão que vê o goal ativo
+    // registra-se (first-owner-wins — fix cleric F27 B1). Uma child (subagent)
+    // compartilha o agentDir e dispara session_start também; se ela
+    // sobrescrevesse lastSessionId, a sessão principal (dona do goal) seria
+    // excluída da continuação (isSessionScoped falha contra o id da child) —
+    // o fork guarda o mesmo vetor com isForeignCtx (loops/goal.ts:5039).
     const sessionId = sessionIdOf(ctx);
     if (sessionId === null) return;
-    writeContinuationMeta(ctx.cwd, { ...readMeta(ctx.cwd), lastSessionId: sessionId });
+    const meta = readMeta(ctx.cwd);
+    if (meta.lastSessionId === null || meta.lastSessionId === sessionId) {
+      writeContinuationMeta(ctx.cwd, { ...meta, lastSessionId: sessionId });
+    }
 
     // Trigger fallback honesto (QA-2): `session_start reason=resume|reload` —
     // a recarga pós-compactação é documentada no módulo compaction do SDK

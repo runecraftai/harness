@@ -47,7 +47,8 @@ describe("resilience config — defaults do fork glla (atribuição D4)", () => 
     expect(DEFAULT_IDENTICAL_OUTPUT_SIMILARITY).toBe(0.8);
     expect(cfg.backoff.hardCapMs).toBe(DEFAULT_BACKOFF_HARD_CAP_MS); // BACKOFF_HARD_CAP_MS = 5min
     expect(DEFAULT_BACKOFF_HARD_CAP_MS).toBe(5 * 60_000);
-    expect(cfg.backoff.errorRetryLadderMs).toEqual([5_000, 15_000, 45_000, 90_000, 180_000]); // ERROR_RETRY_LADDER_MS
+    // Fix cleric F27: errorRetryLadderMs removida (superfície morta — o backoff
+    // de erro segue a fórmula do fork 5s·2^(n-1) cap 60s).
     // Política de escalação fail-closed: default stop-all (parar é o lado seguro).
     expect(cfg.escalation.policy).toBe("stop-all");
     expect(cfg.escalation.maxEscalations).toBe(3);

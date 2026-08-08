@@ -162,7 +162,7 @@ export function shouldFirePendingLatchWatchdog(input: PendingLatchInput): boolea
  *  Modos: "stuck" (escada [0,30s,60s,120s,240s,5min]), "error" (5s→60s
  *  exponencial — separado do cap de stuck) e "context" (30s × n, cap 5min).
  *  Cap duro: 5min (BACKOFF_HARD_CAP_MS). */
-export function backoffMs(stuckCount: number, mode: "stuck" | "error" | "context" = "stuck", backoff: BackoffConfig = { hardCapMs: 300_000, errorRetryLadderMs: [5_000, 15_000, 45_000, 90_000, 180_000] }): number {
+export function backoffMs(stuckCount: number, mode: "stuck" | "error" | "context" = "stuck", backoff: BackoffConfig = { hardCapMs: 300_000 }): number {
   if (mode === "error") {
     // Fork (goal-loop-backoff.ts): BACKOFF_ERROR_BASE_MS * 2^(n-1), cap no
     // BACKOFF_ERROR_MAX_MS (60s) — separado do cap de stuck (5min).

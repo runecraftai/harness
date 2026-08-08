@@ -17,8 +17,15 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { installResilience } from "../../src/extensions/resilience.ts";
+import { readContinuationMeta } from "../../src/resilience/continuation.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ContinuationTask } from "../../src/resilience/types.ts";
+
+/** Meta do continuation.json (read.ok já validado pelo caller). */
+function meta(cwd: string): { lastSessionId: string | null } {
+  const read = readContinuationMeta(cwd);
+  return read.ok ? read.meta : { lastSessionId: null };
+}
 
 function makeTmp(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "resilience-extension-"));
@@ -224,6 +231,31 @@ describe("wiring — scoping de sessão (D2 — AC4)", () => {
       const child = makeFakePi("sess-child");
       const result = await emit(pi, "before_agent_start", { type: "before_agent_start", prompt: "x", systemPrompt: "BASE", systemPromptOptions: {} }, makeCtx(repo, "sess-child"));
       expect(result).toBeUndefined();
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  test("child session_start NÃO sobrescreve o dono (first-owner-wins — fix cleric F27 B1)", async () => {
+    const base = makeTmp();
+    try {
+      const repo = path.join(base, "repo");
+      fs.mkdirSync(repo, { recursive: true });
+      writeLedger(repo, activeGoal([task("1", "T1", "pending")]));
+      const pi = makeFakePi("sess-owner");
+      installResilience(pi.api, { env: process.env });
+      // Owner registra-se primeiro.
+      await emit(pi, "session_start", { type: "session_start", reason: "resume" }, makeCtx(repo, "sess-owner"));
+      expect(meta(repo).lastSessionId).toBe("sess-owner");
+      // Child (subagent) dispara session_start com o MESMO agentDir — NÃO pode
+      // sequestrar a ownership (senão a sessão principal perde a continuação).
+      const child = makeFakePi("sess-child");
+      await emit(child, "session_start", { type: "session_start", reason: "resume" }, makeCtx(repo, "sess-child"));
+      expect(meta(repo).lastSessionId).toBe("sess-owner"); // inalterado
+      // E a injeção continua funcionando para o dono.
+      const result = (await emit(pi, "before_agent_start", { type: "before_agent_start", prompt: "x", systemPrompt: "BASE", systemPromptOptions: {} }, makeCtx(repo, "sess-owner"))) as { systemPrompt?: string } | undefined;
+      expect(result).toBeDefined();
+      expect(result!.systemPrompt).toContain("runecraft:continuation");
     } finally {
       fs.rmSync(base, { recursive: true, force: true });
     }

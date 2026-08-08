@@ -48,9 +48,8 @@ export const DEFAULT_COMPACTION_GRACE_MS = 3 * 60_000;
 export const DEFAULT_STALL_ESCALATION_REFIRES = 5;
 /** goal-loop-backoff.ts: BACKOFF_HARD_CAP_MS — teto duro do backoff. */
 export const DEFAULT_BACKOFF_HARD_CAP_MS = 5 * 60_000;
-/** goal-loop-backoff.ts: ERROR_RETRY_LADDER_MS (v0.28.25) — cadência de
- *  retry entre erros de provider (5s→3m; orçamento de 5 retries ~5.5m). */
-export const DEFAULT_ERROR_RETRY_LADDER_MS = [5_000, 15_000, 45_000, 90_000, 180_000] as const;
+// (fix cleric F27: DEFAULT_ERROR_RETRY_LADDER_MS removida — superfície morta;
+// o backoff de erro segue a fórmula do fork 5s·2^(n-1) cap 60s.)
 /** goal-loop-repetition.ts: REPETITION.toolResultRepeat — últimos N resultados
  *  idênticos de tool (mesma tool + output igual) = sem informação nova. */
 export const DEFAULT_REPETITION_THRESHOLD = 3;
@@ -90,8 +89,12 @@ export interface StallThresholdsConfig {
 
 export interface BackoffConfig {
   hardCapMs: number;
-  errorRetryLadderMs: number[];
 }
+
+// Nota (fix cleric F27): o backoff de erro segue a fórmula do fork
+// (goal-loop-backoff.ts — 5s·2^(n-1), cap 60s separado do cap de stuck); a
+// escada configurável `errorRetryLadderMs` era superfície MORTA (nunca
+// consumida — backoffMs usa a fórmula do fork) e foi removida.
 
 export interface EscalationConfig {
   /** política de escalação quando a cadeia esgota (D6). */
@@ -128,7 +131,6 @@ export function defaultResilienceConfig(): ResilienceConfig {
     },
     backoff: {
       hardCapMs: DEFAULT_BACKOFF_HARD_CAP_MS,
-      errorRetryLadderMs: [...DEFAULT_ERROR_RETRY_LADDER_MS],
     },
     escalation: {
       policy: "stop-all",
@@ -249,9 +251,7 @@ export function validateResilienceConfig(raw: unknown): ConfigValidation {
       errors.push("resilience.backoff: esperado objeto");
     } else {
       const hardCapMs = numberField(backoff.hardCapMs, "resilience.backoff.hardCapMs", errors, { min: 1, int: true });
-      const errorRetryLadderMs = numberArrayField(backoff.errorRetryLadderMs, "resilience.backoff.errorRetryLadderMs", errors);
       if (hardCapMs !== undefined) cfg.backoff.hardCapMs = hardCapMs;
-      if (errorRetryLadderMs !== undefined) cfg.backoff.errorRetryLadderMs = errorRetryLadderMs;
     }
   }
 

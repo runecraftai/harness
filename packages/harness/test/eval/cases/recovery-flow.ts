@@ -11,6 +11,11 @@
 // do enforcer (pendências bloqueiam conclusão); este case valida o INVARIANTE
 // de recuperação pós-compactação (3/5 → completa o resto → verde) — o reason
 // NÃO é re-assertado (marcador do fixture cobre — D7c).
+//
+// Nota honesta (fix cleric F27): o fluxo termina na aprovação do auditor do
+// fixture (`<approved/>`) — o ARQUIVAMENTO do goal (goal_archived no ledger)
+// NÃO é assertado neste case; o invariante provado é o complete_goal verde
+// sem phantom-block.
 import type { EvalCase } from "../../../src/eval/types.ts";
 
 export default {
