@@ -9,5 +9,5 @@
 		"allowImportingTsExtensions": true,
 		"noUncheckedIndexedAccess": true
 	},
-	"include": ["sync-upstream.ts", "sync-upstream/**/*.ts"]
+	"include": ["sync-upstream.ts", "sync-upstream/**/*.ts", "eval-e2e/**/*.ts"]
 }

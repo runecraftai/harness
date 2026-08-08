@@ -12,7 +12,9 @@
 		"test": "turbo test",
 		"vendor": "bun scripts/vendor.ts",
 		"sync:upstream": "bun scripts/sync-upstream.ts",
-		"test:sync-upstream": "bun test scripts/sync-upstream"
+		"test:sync-upstream": "bun test scripts/sync-upstream",
+		"eval:e2e": "bun scripts/eval-e2e/run.ts",
+		"test:eval-e2e": "bun test scripts/eval-e2e"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
