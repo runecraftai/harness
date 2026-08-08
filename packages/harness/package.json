@@ -28,6 +28,7 @@
     "src/",
     "extensions/",
     "docs/",
+    "skills/",
     "README.md"
   ],
   "engines": {
