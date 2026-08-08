@@ -30,7 +30,7 @@
 
 ### AD-036: Decisão do usuário — F9 publishing sob @runecraft com nome novo (2026-08-08)
 
-**Decision:** Publicar sob a org `@runecraft`; o pacote umbrella recebe nome melhor que "harness" — direção do usuário: "algo como companion". Nome exato + escopo do rename (pacote/bin/CLI) aguardando confirmação (proposta: `@runecraft/companion`, bin `companion`, alias `harness`).
+**Decision:** **CONFIRMADO 2026-08-08** — pacote `@runecraft/companion` (org @runecraft), bin `companion` com alias `harness` mantido; diretório interno packages/harness permanece (detalhe de implementação); .runecraft/ e RUNECRAFT_* intactos. Rename executado (commit 072204b; 1152 testes verdes).
 **Reason:** Nome de produto para npm (o nome do pacote É o produto); org permanece @runecraft.
 **Impact:** Renome afeta package.json, bin, imports internos, docs e testes — executado ANTES do F8 (docs usam o nome final) e do F9 (publish).
 
