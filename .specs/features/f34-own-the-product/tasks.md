@@ -67,9 +67,9 @@
 
 ## T9 — Docs páginas 2/3: agents + components (D4, DOC-02)
 
-- [ ] `packages/harness/docs/agents.md` (EN) ← umbrella README (tabela 7 papéis F32 — planner/builder/reviewer/auditor/scout/researcher/security + allowlist/delegação) + ROUTING §8.13 + matriz não-Pi (F17/F31: claude-code/opencode/codex/copilot + colunas mcp/rules/unsupported)
-- [ ] `packages/harness/docs/components.md` (EN) ← ROUTING §8.5-8.14 (guards F24, verification F25, evals F26, resilience F27, observability F28, memory F29, persona/models F30, copilot F31, agents F32, routing F33) + F6/F17 (4 forks + camada MCP + pin npx `@runecraft/taskflow-*`) — tabela de componentes × o que faz × onde configurar
-- [ ] **Verificar:** links resolvem; tabelas consistentes com src (checklist por componente); EN; sem duplicação integral de ROUTING (links); `bun test` verde
+- [x] `packages/harness/docs/agents.md` (EN) ← umbrella README (tabela 7 papéis F32 — planner/builder/reviewer/auditor/scout/researcher/security + allowlist/delegação) + ROUTING §8.13 + matriz não-Pi (F17/F31: claude-code/opencode/codex/copilot + colunas mcp/rules/unsupported)
+- [x] `packages/harness/docs/components.md` (EN) ← ROUTING §8.5-8.14 (guards F24, verification F25, evals F26, resilience F27, observability F28, memory F29, persona/models F30, copilot F31, agents F32, routing F33) + F6/F17 (4 forks + camada MCP + pin npx `@runecraft/taskflow-*`) — tabela de componentes × o que faz × onde configurar
+- [x] **Verificar:** links resolvem; tabelas consistentes com src (checklist por componente); EN; sem duplicação integral de ROUTING (links); `bun test` verde
 
 ## T10 — Docs páginas 3/3: CODEBASE-GUIDE + testing (D4, DOC-02)
 
