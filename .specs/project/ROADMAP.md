@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F28 COMPLETE (2026-08-08; 823 testes; cleric approve + fixes) — **Próximo: F29 Memory** (fighter em execução) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F29 COMPLETE (2026-08-08; 939 testes; cleric APPROVE + 1 fix) — **Próximo: F30 Pi First-Class** (plano AD-030) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -205,10 +205,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Port: `context-window-monitor`, `session-token-state`, recorder de analytics do guild (`.guild/analytics` → event store)
 - **Entregue**: event store por sessão com prevHash chain; bundles sha256 canônico (gitHead fora); lessons com reincidência/promoção (promoted.jsonl versionado) + adendo before_agent_start; ports via getContextUsage + token-budget read-only; export jsonl + bridges; EVAL-022..029 (matriz v6)
 
-**F29 — Memory (runes → Pi)** — PLANNED — Prereq: F13 ✓, F21 ✓
+**F29 — Memory (runes → Pi)** — **COMPLETE (2026-08-08; 939 testes; cleric APPROVE + 1 fix 0b9ea9b)** — Prereq: F13 ✓, F21 ✓
 
 - Port de `packages/runes` (SQLite via `bun:sqlite`; db/lib/plugin/tools/config/bin) com os 10 agent tools como tools Pi; memória cross-session via mecanismos do Pi (appendEntry) + state do F13
 - Engram é fallback **somente** se runes for inviável (decisão 6)
+- **Entregue**: runes VIÁVEL (schema.sql real no bun:sqlite — FTS5/WAL); 10 tools rune_* (TypeBox, zero deps); storage .runecraft/memory/ (gitignored); bridge F28 idempotente; skill using-runes; EVAL-030..038 (matriz v7)
 
 ---
 
