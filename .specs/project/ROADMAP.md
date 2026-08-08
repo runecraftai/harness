@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F26 COMPLETE (2026-08-07; 626 testes; cleric APPROVE + 2 fixes) — **Próximo: F27 Resilience & Continuity** (plano pronto, AD-027) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** F27 COMPLETE (2026-08-08; 753 testes; cleric APPROVE após 2 rodadas) — **Próximo: F28 Observability** (fighter em execução) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -193,10 +193,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Dona das 5 categorias do eval-coverage do arcanum: constraint adherence (sujeitos = guards F24), compaction recovery (F27), model failover (F30); tool-use correctness e routing completeness ganham casos após o F32 (agentes)
 - **Entregue**: framework `src/eval/` + dados TS + trace real do fixture + EVAL-012..016 (matriz v4); constraint-adherence v1 (EVAL-014); categorias bloqueadas em tabela de dependência (compaction desbloqueada pelo F27)
 
-**F27 — Resilience & Continuity** — PLANNED — Prereq: F21 ✓, F24
+**F27 — Resilience & Continuity** — **COMPLETE (2026-08-08; 753 testes; cleric APPROVE após REQUEST_CHANGES + re-review — commits 7daef5c..68c6a61)** — Prereq: F21 ✓, F24 ✓
 
 - Port: `compaction-recovery`, `compaction-todo-preserver`, `work-continuation`, `start-work-hook` (continuação pós-compaction, re-injeção de tarefa pendente)
 - Stall detection (não só timeout/rate-limit), fallback chains multi-trigger, classificação de falha agente-vs-infra, política de escalação (pilar 6)
+- **Entregue**: continuation via before_agent_start (chaining SDK) + triggers nativos session_compact; /start-work explícito (sem auto-start — gate do glla); stall = port dos padrões do fork com constantes verificadas; fallback engine com modelSwitch NO-OP (F30); EVAL-017..021 (matriz v5)
 
 **F28 — Observability & Lessons** — PLANNED — Prereq: F13 ✓, F21 ✓
 
