@@ -1,9 +1,9 @@
 # Roadmap
 
-**Current Milestone:** M5 — Evals & Guarantees
-**Status:** M5 em andamento (F21 ✅) — next: F22 E2E (**exige aprovação explícita do usuário — custo de tokens**)
+**Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
+**Status:** F24 COMPLETE (2026-08-07; 398 testes; cleric APPROVE + 1 fix) — **Próximo: F25 Verification Cascade** (P1 desbloqueada por AD-022; judge LLM env-gated) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)** · F23 P1 desbloqueada (AD-022)
 
-Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7
+Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
 ---
 
@@ -40,7 +40,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 **F4 — Fork @runecraft/goal-loop-audit** — COMPLETE
 
 - Copiar pi-goal-list-loop-audit 0.28.34; rename para `@runecraft/goal-loop-audit`
-- 545 testes do upstream passando; `/goal`, `/list`, `/loop` funcionais; auditor isolado spawna
+- 545 testes do upstream passando; `/goal`, `/list`, `/loop` funcional; auditor isolado spawna
 - Validado 2026-08-05: 604/607 pass (2 falhas: pré-existente upstream + ambiente git-untracked)
 - **Prereq:** F1
 
@@ -48,7 +48,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 - Copiar pi-pr-review 1.11.4; rename para `@runecraft/pr-review`
 - Testes passando; review paralelo dispara contra um PR de teste
-- Validado 2026-08-06: bun test 243/245 (2 falhas pré-existentes upstream em pi-tui/matchesKey); fix REAL do fork aplicado (verify-package-contents + package-contents — hardcodes pi-pr-review/10ego eliminados, test:tooling 20/20)
+- Validado 2026-08-05: bun test 243/245 (2 falhas pré-existentes upstream em pi-tui/matchesKey); fix REAL do fork aplicado (verify-package-contents + package-contents — hardcodes pi-pr-review/10ego eliminados, test:tooling 20/20)
 - **Prereq:** F1
 
 ---
@@ -157,7 +157,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Roda em CI sem tokens
 - Validado: `test/eval/` 2 camadas (layer1 smoke subprocess + layer2 fluxos SDLC com fixture OpenAI-wire SSE adversarial) + EVAL-MATRIX aditivo (EVAL-001/002/004/005/005b) + evidência JSON p/ F23; 18 testes novos, zero regressão (330→348); offline/$0 por construção; devDep do SDK 0.81.0 (AD-021)
 
-**F22 — Cenários E2E versionados** — PLANNED — Prereq: F7, F19
+**F22 — Cenários E2E versionados** — PLANNED — **aguardando aprovação explícita do usuário (custo de tokens)** — Prereq: F7, F19, F21 (spec)
 
 - Evolução do `scenarios.md` do F7 em benchmark versionado com modelos reais e resultados datados
 
@@ -167,9 +167,76 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ---
 
+## M7 — Garantias (Guarantee Pillars)
+
+**Goal:** Determinismo de execução e saída como camadas do harness (pilares 3–7 das referências): guards do guild portados como extensões Pi com **bloqueio real de tool_call** (`{ block: true }`), cascata de verificação com limiares em código, evals do guild portados (offline/$0), resiliência, observabilidade e memória persistente. Prioridade do usuário (decisão 4): M5 fecha (F23) → pilares de garantia → expansão multi-agente (M8). Offline/$0 por construção; custo de tokens só onde env-gated explícito (padrão F22).
+
+### Features
+
+**F24 — Execution Guards (tool_call blocking)** — **COMPLETE (2026-08-07; 398 testes; cleric APPROVE + 1 fix a161e10)** — Prereq: F15 ✓, F20 ✓, F21 ✓
+
+- Port dos guards determinísticos do guild como extensões Pi: `write-existing-file-guard`, `ranger-md-only`, `todo-description-override`, `todo-continuation-enforcer` (+ helper `todo-writer`) — o que no OpenCode era sugestão de prompt vira **bloqueio real** (`tool_call` → `{ block: true, reason }`)
+- Denial gates + kill switch (padrão F20), config via state/settings (F13/F14), fail-closed por padrão; guards Pi-only (matriz honesta F17)
+- Testes determinísticos offline/$0 na infra do F21 (fixture + materialização de extensões) + EVAL-006/007 na matriz; evidência JSON alimenta o ratchet do F23
+- **Verificado:** sobrescrever arquivo existente em sessão Pi com fixture → tool bloqueado com reason (EVAL-006, alvo intacto); desvio induzido → falha do teste com diagnóstico; EVAL-007 override real no ledger + block em complete_goal; 397→398 testes (fix cleric stale taskList); zero regressão nos EVAL-001/002/004/005
+
+**F25 — Verification Cascade (determinismo de saída)** — PLANNED — Prereq: F24, F21 ✓ (judge LLM env-gated — padrão F22)
+
+- Cascata cheap→expensive: estrutural → integridade de arquivo → suficiência de mudança → fidelidade de embedding → judge LLM **só** na zona cinza entre limiares; **decisão de escalar é sempre código com limiares explícitos** (decisão 3c), nunca a LLM
+- Port de `verification-reminder` → gate de verificação; RETRY/SKIP/HALT + cost caps; judge LLM env-gated (fora do merge gate)
+
+**F26 — Eval Framework Port (evals do guild)** — PLANNED — Prereq: F21 ✓, F24
+
+- Port do runner/loader/reporter/storage/schema/targets/executors + os 11 evaluators (`contains-all`, `contains-any`, `excludes-all`, `section-contains-all`, `ordered-contains`, `xml-sections-present`, `tool-policy`, `min-length`, `llm-judge`, `baseline-diff`, `trajectory-assertion`) + estrutura suites/cases/scenarios
+- Dona das 5 categorias do eval-coverage do arcanum: constraint adherence (sujeitos = guards F24), compaction recovery (F27), model failover (F30); tool-use correctness e routing completeness ganham casos após o F32 (agentes)
+
+**F27 — Resilience & Continuity** — PLANNED — Prereq: F21 ✓, F24
+
+- Port: `compaction-recovery`, `compaction-todo-preserver`, `work-continuation`, `start-work-hook` (continuação pós-compaction, re-injeção de tarefa pendente)
+- Stall detection (não só timeout/rate-limit), fallback chains multi-trigger, classificação de falha agente-vs-infra, política de escalação (pilar 6)
+
+**F28 — Observability & Lessons** — PLANNED — Prereq: F13 ✓, F21 ✓
+
+- Typed event store + harness bundles (fingerprint hash de config/prompts) + cognition lessons (trigger/anti-pattern/pattern preferido/prioridade, promoção a memória de time)
+- Port: `context-window-monitor`, `session-token-state`, recorder de analytics do guild (`.guild/analytics` → event store)
+
+**F29 — Memory (runes → Pi)** — PLANNED — Prereq: F13 ✓, F21 ✓
+
+- Port de `packages/runes` (SQLite via `bun:sqlite`; db/lib/plugin/tools/config/bin) com os 10 agent tools como tools Pi; memória cross-session via mecanismos do Pi (appendEntry) + state do F13
+- Engram é fallback **somente** se runes for inviável (decisão 6)
+
+---
+
+## M8 — Pi First-Class & Multi-Agent Expansion
+
+**Goal:** Pi vira cidadão de primeira classe (persona objetiva, roteamento de modelo por agente, assets SDD), adapters crescem (copilot/vscode), os 8 agentes RPG do guild viram papéis profissionais objetivos e o roteamento vira código (decisões 1 e 2). Expansão só depois das garantias (decisão 4).
+
+### Features
+
+**F30 — Pi First-Class & SDD Assets** — PLANNED — Prereq: F15 ✓, F17 ✓, F24
+
+- Persona objetiva do Pi (system prompt/AGENTS.md); port de `rules-injector` (before_agent_start) e `first-message-variant`; roteamento de modelo por agente (port de `model-resolution`, per-agent models)
+- Assets SDD: templates de spec, prompt templates, chains (reuso do flow-orchestrator do familiar); `guild_archive_plan` → arquivamento de planos
+
+**F31 — Copilot/VSCode Adapter** — PLANNED — Prereq: F15 ✓, F16 ✓, F17 ✓
+
+- Adapter novo no padrão F15 (`AgentAdapter`): detecção, injecção (AGENTS.md / `.github/copilot-instructions.md`) + MCP taskflow, fail-closed, detect-only; coluna nova na matriz (F17)
+
+**F32 — Objective Role Agents** — PLANNED — Prereq: F24, F30
+
+- Port dos 8 agentes RPG → papéis objetivos: planner (wizard), builder (fighter), reviewer (cleric), auditor (ranger), scout (rogue), researcher (warlock), security (paladin); bard = lógica de orquestração → F33 (não vira subagente)
+- Infra de agentes: prompt-loader/prompt-utils/dynamic-prompt-builder/agent-builder/custom-agent-factory/builtin-agents; review-orchestrator/review-resolver/review-model-variants (reviewer); `guild_spawn_wizard` → delegação via prompt template
+
+**F33 — Coded Routing & Pilot Coordination** — PLANNED — Prereq: F19 ✓, F27, F30, F32
+
+- Port de `keyword-detector` (input → roteamento codificado), lógica de orquestração do bard, workflow engine do guild → chains/prompt templates; `call_guild_agent` → tool `subagent` nativa (F2)
+- Two-driver rules (F7/F19) + fallback chains (F27) + roteamento de modelo por agente (F30)
+
+---
+
 ## M6 — Public Release
 
-**Goal:** Publicável no npm com docs estilo gentle-ai e pipeline.
+**Goal:** Publicável no npm com docs estilo gentle-ai e pipeline. **Paralelo ao M7/M8** — não depende das garantias.
 
 ### Features
 
