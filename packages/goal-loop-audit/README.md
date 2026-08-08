@@ -17,4 +17,4 @@ Installed automatically as part of `@runecraft/companion`. Standalone:
 
 ## Relationship to upstream
 
-Fork of `pi-goal-list-loop-audit` (DraconDev, MIT), pinned at 0.28.34 (SHA `21b6bb0abdf5c21c88c976231f312465c3900128`, see `vendor.json`). Notable divergence: renamed to the `@runecraft/*` identity; otherwise behavior-compatible with the upstream test suite.
+Fork of `pi-goal-list-loop-audit` (DraconDev, MIT), pinned at 0.28.34 (SHA `21b6bb0abdf5c21c88c976231f312465c3900128`). Notable divergence: renamed to the `@runecraft/*` identity; otherwise behavior-compatible with the upstream test suite.

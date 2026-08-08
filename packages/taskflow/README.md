@@ -18,4 +18,4 @@ Installed automatically as part of `@runecraft/companion`. Standalone (Pi adapte
 
 ## Relationship to upstream
 
-Fork of `taskflow` (heggria, MIT), pinned at v0.2.6 (9 packages, per-package `vendor.json` refs in `vendor.manifest.json`). Notable divergences: the MCP layer was re-vendored into the monorepo (9 packages) and kept in sync three-way against the pinned upstream by the harness sync workflow.
+Fork of `taskflow` (heggria, MIT), pinned at v0.2.6 (9 packages). Notable divergences: the MCP layer was re-vendored into the monorepo (9 packages) and the forks are now committed source — maintained in this repo, not synced from upstream.

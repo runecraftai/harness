@@ -17,4 +17,4 @@ Installed automatically as part of `@runecraft/companion`. Standalone:
 
 ## Relationship to upstream
 
-Fork of `pi-subagents` (nicobailon, MIT), pinned at v0.37.2 (SHA `8063333661476ca48afbca826dc4aab8707c72d3`, see `vendor.json`). Notable divergence: the upstream `install.mjs` path was removed — installation is fully owned by the harness (`companion install`), so the package no longer self-installs.
+Fork of `pi-subagents` (nicobailon, MIT), pinned at v0.37.2 (SHA `8063333661476ca48afbca826dc4aab8707c72d3`). Notable divergence: the upstream `install.mjs` path was removed — installation is fully owned by the harness (`companion install`), so the package no longer self-installs.

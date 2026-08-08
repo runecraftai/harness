@@ -17,4 +17,4 @@ Installed automatically as part of `@runecraft/companion`. Standalone:
 
 ## Relationship to upstream
 
-Fork of `pi-pr-review` (10ego, MIT), pinned at v1.11.4 (SHA `dbb4ad7d7d993e737da26543240d787405683cf8`, see `vendor.json`). Notable divergence: hardcoded upstream references (`pi-pr-review` / 10ego) were fixed in the verify-package-contents step so the packaged artifact validates under the `@runecraft/*` identity.
+Fork of `pi-pr-review` (10ego, MIT), pinned at v1.11.4 (SHA `dbb4ad7d7d993e737da26543240d787405683cf8`). Notable divergence: hardcoded upstream references (`pi-pr-review` / 10ego) were fixed in the verify-package-contents step so the packaged artifact validates under the `@runecraft/*` identity.

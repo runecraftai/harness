@@ -22,12 +22,12 @@
 
 ## T3 — Knock-ons de docs/tsconfig (D1/D8, UNV-03) — antes do delete
 
-- [ ] `README.md` (raiz): remover "All versions are pinned in `vendor.manifest.json`" (seção Packages — substituir por "versions come from the committed fork packages, see `packages/harness/src/versions.ts`" ou equivalente) e `bun run vendor --list` (seção Development)
-- [ ] `packages/harness/README.md`: remover "Versions are pinned in `vendor.manifest.json` (single source of truth)" e as 2 refs a `docs/SYNC.md` (Docs section: "upstream sync runbook" + link `../../docs/SYNC.md`)
-- [ ] `packages/harness/docs/README.md`: remover o bullet/link de `../../../docs/SYNC.md`
-- [ ] 4 fork READMEs (`subagents`, `pr-review`, `goal-loop-audit`, `taskflow`): trocar "see `vendor.json`" por nada (o pin versão+SHA permanece como fato de relacionamento); `packages/taskflow/README.md:21`: remover "per-package `vendor.json` refs in `vendor.manifest.json`" e "kept in sync three-way ... by the harness sync workflow" (forks são source commitado agora)
-- [ ] `scripts/tsconfig.json`: `include` sem `sync-upstream.ts`/`sync-upstream/**/*.ts`
-- [ ] **Verificar:** `bun test` verde (nada funcional mudou — docs-only); `grep -rn "vendor.manifest\|SYNC.md" README.md packages/harness/README.md packages/harness/docs/README.md packages/{subagents,pr-review,goal-loop-audit,taskflow}/README.md` → zero hits (ou só documentados)
+- [x] `README.md` (raiz): remover "All versions are pinned in `vendor.manifest.json`" (seção Packages — substituir por "versions come from the committed fork packages, see `packages/harness/src/versions.ts`" ou equivalente) e `bun run vendor --list` (seção Development)
+- [x] `packages/harness/README.md`: remover "Versions are pinned in `vendor.manifest.json` (single source of truth)" e as 2 refs a `docs/SYNC.md` (Docs section: "upstream sync runbook" + link `../../docs/SYNC.md`)
+- [x] `packages/harness/docs/README.md`: remover o bullet/link de `../../../docs/SYNC.md`
+- [x] 4 fork READMEs (`subagents`, `pr-review`, `goal-loop-audit`, `taskflow`): trocar "see `vendor.json`" por nada (o pin versão+SHA permanece como fato de relacionamento); `packages/taskflow/README.md:21`: remover "per-package `vendor.json` refs in `vendor.manifest.json`" e "kept in sync three-way ... by the harness sync workflow" (forks são source commitado agora)
+- [x] `scripts/tsconfig.json`: `include` sem `sync-upstream.ts`/`sync-upstream/**/*.ts`
+- [x] **Verificar:** `bun test` verde (nada funcional mudou — docs-only); `grep -rn "vendor.manifest\|SYNC.md" README.md packages/harness/README.md packages/harness/docs/README.md packages/{subagents,pr-review,goal-loop-audit,taskflow}/README.md` → zero hits (ou só documentados)
 
 ## T4 — Delete da máquina + scripts raiz (D8/D9, UNV-04/05)
 

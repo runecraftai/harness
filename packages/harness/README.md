@@ -4,7 +4,7 @@ Runecraft Harness — umbrella meta-package for the [Pi coding agent](https://pi
 
 ## What it is
 
-The harness ships as a meta-package: the forks are bundled via `bundledDependencies` and their resources are referenced by `node_modules/@runecraft/*` paths in the `pi` manifest (the standard meta-package pattern documented in Pi's docs/packages.md). Versions are pinned in `vendor.manifest.json` (single source of truth).
+The harness ships as a meta-package: the forks are bundled via `bundledDependencies` and their resources are referenced by `node_modules/@runecraft/*` paths in the `pi` manifest (the standard meta-package pattern documented in Pi's docs/packages.md). Versions come from the committed fork packages (see `src/versions.ts`).
 
 | Capability | Package | Entry (manifest `pi`) |
 | --- | --- | --- |
@@ -78,5 +78,4 @@ Each fork's README documents its relationship to the upstream and the notable di
 
 ## Docs
 
-- [Docs index](docs/README.md) — ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + the upstream sync runbook (`docs/SYNC.md` at the repo root).
-- Upstream sync workflow (three-way merge of the vendored forks): [`docs/SYNC.md`](../../docs/SYNC.md).
+- [Docs index](docs/README.md) — ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + usage guides.

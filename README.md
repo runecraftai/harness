@@ -32,7 +32,7 @@ That is it — a new Pi session loads the extensions from the 4 forks: `/tf` (ta
 | `@runecraft/pr-review` | Parallel tiered PR review |
 | `@runecraft/companion` | Umbrella: installs and wires everything |
 
-`@runecraft/taskflow-*` also ships host adapters for Claude Code, Codex, OpenCode and Grok (see `packages/taskflow/README.md`). All versions are pinned in `vendor.manifest.json`.
+`@runecraft/taskflow-*` also ships host adapters for Claude Code, Codex, OpenCode and Grok (see `packages/taskflow/README.md`). All versions come from the committed fork packages — see `packages/harness/src/versions.ts`.
 
 ## Intended usage
 
@@ -58,7 +58,7 @@ Full mental model — when to use which tool, the 7 objective roles, and the rou
 ## Docs
 
 - [Umbrella README](packages/harness/README.md) — full user guide: quickstart, agent matrix, configuration, troubleshooting.
-- [Docs index](packages/harness/docs/README.md) — ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + the upstream sync runbook.
+- [Docs index](packages/harness/docs/README.md) — ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + usage guides.
 
 ## Development
 
@@ -66,7 +66,6 @@ Full mental model — when to use which tool, the 7 objective roles, and the rou
 bun install
 bun run lint
 bun run build
-bun run vendor --list   # show pinned upstreams
 ```
 
 Status: pre-release. See `.specs/project/ROADMAP.md`.
