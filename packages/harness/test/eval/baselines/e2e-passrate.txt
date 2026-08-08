@@ -1,0 +1,3 @@
+# runecraft harness — E2E pass rate per version (fail-only-on-worse; fail-infra excluded)
+# formato: harnessVersion<TAB>scenarioId<TAB>status   (scenarioId = campo `name` do F22 — ex.: hello-world-sdlc)
+# gerado por: bun run eval:ratchet --e2e --update

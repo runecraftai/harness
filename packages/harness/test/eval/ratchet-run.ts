@@ -6,6 +6,10 @@
 // é efêmero/gitignored; o runner não confia em arquivo velho). Evidência
 // ausente = FAIL com mensagem clara — nunca compara contra vazio em silêncio.
 //
+// `--e2e` desvia para a lane E2E (métrica d — ratchet-e2e.ts, release/manual,
+// fora do merge gate); `--update` combina (`--e2e --update`). A lane E2E não
+// toca a evidência do F21 (lê só results/ do F22 + baseline).
+//
 // Entry escolhido no Execute (D6): script TS próprio (não *.test.ts) —
 // (1) `bun test` roda os arquivos de teste EM PARALELO; um runner .test.ts
 // leria a evidência parcial ANTES da suite terminar (raça); (2) o script
@@ -15,6 +19,7 @@ import { writeLastRun, mergeEvidence } from "../../scripts/eval-merge-evidence.t
 import { runRatchet, assertEvidenceComplete, type RatchetEvidence } from "./ratchet.ts";
 import { updateAll, assertUpdateAllowed, UpdateRefusedError } from "./update.ts";
 import { GOLDEN_DIR } from "./goldens.ts";
+import { runE2ERatchetMain } from "./ratchet-e2e.ts";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +58,15 @@ function parseEvidence(payload: Record<string, unknown>): RatchetEvidence {
 }
 
 function main(): void {
+  // Lane E2E (métrica d — F23 P2, release/manual): fora do merge gate, não
+  // toca a evidência do F21 (o runner lê só results/ do F22 + baseline).
+  if (process.argv.includes("--e2e")) {
+    const result = runE2ERatchetMain();
+    print(result.lines);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
   const wantUpdate = process.argv.includes("--update");
 
   // O merge sempre roda (grava last-run.json — contrato AD-015 efêmero).

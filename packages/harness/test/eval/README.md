@@ -3,11 +3,10 @@
 O F23 congela os baselines da suite determinística (F21) e dos assets
 injetados (F15/F18/F19) com a filosofia do gentle-ai: *freezing today's
 violations and refusing growth is the part that pays for itself* — ratchet,
-não gate limpo. Escopo **P1**: (a) falhas conhecidas, (b) cobertura de
-comandos, (c) goldens de assets. Métrica (d) pass-rate E2E é **P2, gated no
-F22** (aprovado, custo de tokens) — o `baselines/e2e-passrate.txt` foi
-**omitido de propósito** (nota datada: 2026-08-08; quando o F22 entregar
-`results/<versão>/<data>.json`, entra com `ratchet-e2e.ts` + `--e2e`).
+não gate limpo. Escopo: (a) falhas conhecidas, (b) cobertura de comandos,
+(c) goldens de assets, (d) pass-rate E2E (**P2, lançado com o F22** —
+`ratchet-e2e.ts` + `baselines/e2e-passrate.txt`, release/manual, fora do
+merge gate).
 
 ## O que roda onde
 
@@ -15,6 +14,7 @@ F22** (aprovado, custo de tokens) — o `baselines/e2e-passrate.txt` foi
 | --- | --- | --- |
 | `baselines/known-failures.txt` | falhas congeladas (may only shrink) | repo (versionado) |
 | `baselines/command-coverage.txt` | cobertura do CLI (lista só cresce) | repo (versionado) |
+| `baselines/e2e-passrate.txt` | pass rate E2E por versão (fail-only-on-worse) | repo (versionado; entradas vêm da 1ª rodada F22 real via `--e2e --update`) |
 | `../golden/*.golden` (5) | drift de templates/seções/configs MCP | repo (versionado) |
 | `evidence/` (F21) | evidência JSON efêmera por run | gitignored (D10) |
 | `normalize.ts` / `sort.ts` / `diff.ts` | identidade estável, colação pinada, diff | código |
@@ -33,7 +33,34 @@ F22** (aprovado, custo de tokens) — o `baselines/e2e-passrate.txt` foi
 bun test                    # suite F21/guards/verify + ratchet (chained no script test)
 bun run eval:ratchet        # compara (read-only; exit 0 verde / 1 vermelho)
 bun run eval:ratchet --update   # humano e explícito: congela o estado atual
+bun run eval:ratchet --e2e      # lane E2E (release/manual — fora do merge gate)
+bun run eval:ratchet --e2e --update  # congela a rodada F22 mais recente (aditivo)
 ```
+
+## Lane E2E (métrica d — F23 P2, D5/D6)
+
+Roda **fora do merge gate** (release/manual): `bun run eval:ratchet --e2e`.
+O runner **NUNCA invoca o E2E do F22** (zero tokens/rede) — lê os resultados
+COMMITTED em `.specs/features/f22-e2e-benchmark/results/<versão>/<data>.json`
+e compara a rodada mais recente da versão atual contra a última rodada de
+versão ANTERIOR no `baselines/e2e-passrate.txt`:
+
+- **Rodada válida** = cenário 0 (COEX-05 `hello-world-sdlc`) presente E pass;
+  senão → aviso e **exit 2** (não compara). Rodada parcial compara só os
+  cenários completos; zero completos → inconclusiva (verde).
+- **Pass rate** = `pass / (pass + fail + limit)` — `fail-infra` excluído do
+  numerador E do denominador. Denominador 0 → inconclusivo (não sinaliza).
+- **Piorou** → **exit 1** com a mensagem `regressão vs v<prev>: 80% → 60%
+  (cenários: …)`; melhorou/igual → verde + aviso de `--e2e --update`.
+- **Exit codes**: 0 verde (avisos ok) · 1 regressão · 2 infra/config (JSON
+  inválido, sem baseline, rodada inválida, `--update` recusado).
+- **`--e2e --update`** é **aditivo** (histórico nunca é removido — appenda a
+  rodada mais recente por versão; a última ocorrência por `(versão, cenário)`
+  é o estado efetivo) e **recusa com `CI=true`** (D6, mesmo contrato do P1).
+  Entradas reais só entram a partir da primeira rodada F22 — o arquivo
+  commitado começa vazio (header apenas).
+- Variáveis de override (testes hermeticos): `RUNECRAFT_E2E_RATCHET_RESULTS_ROOT`,
+  `RUNECRAFT_E2E_RATCHET_BASELINE`, `RUNECRAFT_E2E_RATCHET_VERSION`.
 
 - `--update` **recusa com `CI=true`** (nunca autocorreção em PR — padrão
   gentle-ai). O diff completo fica na PR para revisão.
@@ -65,6 +92,7 @@ bun run eval:ratchet --update   # humano e explícito: congela o estado atual
 | known-failures | falha NOVA (não no baseline) | falha some do baseline | **FAIL** listando entradas / verde + aviso `--update` |
 | command-coverage | comando deixa de ser coberto | cobertura extra | **FAIL** / verde + aviso `--update` |
 | goldens | render ≠ golden (byte a byte) | — | **FAIL** com unified diff (`diff.ts`, zero deps) |
+| e2e-passrate | pass rate piora vs versão anterior | pass rate melhora | **exit 1** com `regressão vs v<prev>: …` / verde + aviso `--e2e --update` |
 
 - Identidade de falha = `(testFile, testName, mensagem normalizada)` — nunca
   linha crua. Normalização em `normalize.ts` (regexes versionadas, uma por
