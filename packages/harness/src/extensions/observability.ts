@@ -47,7 +47,7 @@ import type { EventKind, EventPayload } from "../observability/types.ts";
 import {
   applyCapture,
   buildLessonAdendo,
-  adendoLessonIds,
+  buildLessonAdendoWithIds,
   adendoTextHash,
   readLessonsFile,
   readPromotedFile,
@@ -143,8 +143,11 @@ export function toolArgsHash(args: unknown): string {
 
 export interface PendingAdendo {
   track: "planning" | "execution";
+  /** gate que disparou o adendo execution (ausente na trilha planning). */
   gate?: string;
   text: string;
+  /** ids das lessons selecionadas (fix cleric F28 #4 — nunca re-derivar por texto). */
+  lessonIds: string[];
 }
 
 /** Estado da sessão ativa do processo de extensão. */
@@ -274,18 +277,23 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
     const records = readLessonsFile(file);
     const result = applyCapture(records, input, session.eventCount, cfg.lessons);
     writeLessonsFile(file, result.records);
-    if (result.promoted !== null) writePromotedFile(promotedFileAt(cwd), result.records);
+    // Fix cleric F28 #2: reincidência de lesson JÁ promovida também reescreve o
+    // promoted.jsonl (senão o contador versionado divergia do lessons.jsonl).
+    if (result.promoted !== null || result.record.status === "promoted") writePromotedFile(promotedFileAt(cwd), result.records);
     for (const event of result.events) {
       append(ctx, session.sessionId, event.kind, event.payload);
     }
     // Adendo execution (D6 — F4): lições do gate que falhou no turno seguinte.
-    const adendo = buildLessonAdendo(result.records, { gate: input.gate, track: "execution", max: cfg.lessons.maxAdendoLessons });
+    // Multi-gate no mesmo turno: acumula (dedupe por lessonId, corta no max).
+    const adendo = buildLessonAdendoWithIds(result.records, { gate: input.gate, track: "execution", max: cfg.lessons.maxAdendoLessons });
     if (adendo !== null) {
-      session.pendingAdendo = {
-        track: "execution",
-        gate: input.gate,
-        text: adendo,
-      };
+      const existing = session.pendingAdendo;
+      if (existing !== null && existing.track === "execution") {
+        const merged = [...existing.lessonIds, ...adendo.lessonIds].filter((id, i, all) => all.indexOf(id) === i).slice(0, cfg.lessons.maxAdendoLessons);
+        session.pendingAdendo = { track: "execution", gate: input.gate, text: `${existing.text}\n${adendo.text}`, lessonIds: merged };
+      } else {
+        session.pendingAdendo = { track: "execution", gate: input.gate, text: adendo.text, lessonIds: adendo.lessonIds };
+      }
     }
     log.debug(`lesson captured: ${input.gate} (${result.outcome}, count=${result.record.count})`);
   };
@@ -344,9 +352,9 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
     // Adendo trilha planning (D6/F4): lições promovidas injetadas no início.
     const promoted = readPromotedFile(promotedFileAt(ctx.cwd));
     if (promoted.length > 0) {
-      const adendo = buildLessonAdendo(promoted, { track: "planning", max: frozen.config.lessons.maxAdendoLessons });
+      const adendo = buildLessonAdendoWithIds(promoted, { track: "planning", max: frozen.config.lessons.maxAdendoLessons });
       if (adendo !== null) {
-        session.pendingAdendo = { track: "planning", text: adendo };
+        session.pendingAdendo = { track: "planning", text: adendo.text, lessonIds: adendo.lessonIds };
       }
     }
 
@@ -363,13 +371,10 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
 
     const adendo = session.pendingAdendo;
     session.pendingAdendo = null;
-    // lessonIds do adendo (D6): execution → lessons.jsonl; planning → promoted.jsonl.
-    const records = adendo.track === "planning" ? readPromotedFile(promotedFileAt(ctx.cwd)) : readLessonsFile(lessonsFileAt(ctx.cwd));
-    const lessonIds = adendoLessonIds(records, adendo.text);
     append(ctx, session.sessionId, "adendo:injected", {
       track: adendo.track,
       ...(adendo.gate !== undefined ? { gate: adendo.gate } : {}),
-      lessonIds,
+      lessonIds: adendo.lessonIds,
       textHash: adendoTextHash(adendo.text),
     });
     log.debug(`adendo injected (${adendo.track})`);
@@ -383,10 +388,27 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   // ---------------------------------------------------------------
   pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) => {
     const frozen = sessionConfig.frozen(ctx.cwd);
-    if (frozen.killSwitch) return undefined;
+    if (frozen.killSwitch || !frozen.config.enabled) return undefined;
     if (session === null) return undefined;
 
     session.recorder.trackToolCall(event.toolName, toolArgsHash(event.input ?? {}));
+
+    // Delegação (fix cleric F28 #1 — OBS-03): a tool `subagent` do F2 é a
+    // delegação do harness (equivalente de task/call_guild_agent do guild).
+    if (event.toolName === "subagent") {
+      const input = (event.input ?? {}) as Record<string, unknown>;
+      const agent =
+        typeof input.agent === "string"
+          ? input.agent
+          : typeof input.type === "string"
+            ? input.type
+            : "subagent";
+      session.recorder.trackDelegation({
+        agent,
+        toolCallId: "", // o CustomToolCallEvent do SDK não expõe id (fix cleric F28)
+        durationMs: 0,
+      });
+    }
 
     // Fonte de contexto/tokens REAL do SDK (QA-5 — API tipada validada).
     try {
@@ -417,7 +439,7 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   // ---------------------------------------------------------------
   pi.on("tool_execution_end", (event: ToolExecutionEndEvent, ctx: ExtensionContext) => {
     const frozen = sessionConfig.frozen(ctx.cwd);
-    if (frozen.killSwitch) return;
+    if (frozen.killSwitch || !frozen.config.enabled) return;
     if (session === null) return;
 
     const text = toolResultText(event.result);
@@ -427,7 +449,8 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
       ok: !event.isError,
       ...(block !== null ? { blocked: true, guardId: block.gate } : {}),
       ...(block !== null ? { reason: block.reason } : {}),
-      durationMs: 0,
+      // durationMs omitido: o tool_execution_end do SDK não carrega duração
+      // (fix cleric F28 #3 — sem métrica inventada).
     });
     if (block !== null) {
       append(ctx, session.sessionId, "guard:blocked", {
@@ -453,7 +476,7 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   // ---------------------------------------------------------------
   pi.on("tool_result", (event: ToolResultEvent, ctx: ExtensionContext) => {
     const frozen = sessionConfig.frozen(ctx.cwd);
-    if (frozen.killSwitch) return;
+    if (frozen.killSwitch || !frozen.config.enabled) return;
     if (session === null) return;
     const usage = (event as unknown as { usage?: { input?: number; output?: number; reasoning?: number; cacheRead?: number; cacheWrite?: number } }).usage;
     if (usage === undefined || typeof usage.input !== "number") return;

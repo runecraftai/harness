@@ -227,6 +227,30 @@ describe("wiring — observação do bloqueio F24 via tool_execution_end (D7a)",
     }
   });
 
+  test("tool_call subagent → delegação registrada (fix cleric F28 #1 — OBS-03 AC)", async () => {
+    const base = makeTmp();
+    try {
+      const repo = path.join(base, "repo");
+      fs.mkdirSync(repo, { recursive: true });
+      const pi = makeFakePi();
+      install(pi, repo);
+      const ctx = makeCtx(repo, "sess-1");
+      await emit(pi, "session_start", { type: "session_start", reason: "startup" }, ctx);
+      // Delegação via tool `subagent` (F2 — shape real: input com action+type).
+      await emit(pi, "tool_call", { type: "tool_call", toolCallId: "c1", toolName: "subagent", input: { action: "call", type: "explorer", prompt: "x" } }, ctx);
+      await emit(pi, "agent_end", { type: "agent_end", messages: [] }, ctx);
+      const events = parsedEvents(repo, "sess-1");
+      const delegation = events.find((e) => e.kind === "delegation")!;
+      expect(delegation.payload.agent).toBe("explorer"); // do input.type
+      const ended = events.find((e) => e.kind === "session:ended")!;
+      expect(ended.payload.totalDelegations).toBe(1);
+      // Agregado do recorder (mesma forma do toolUsage — delegações contadas por agente).
+      expect(ended.payload.delegations).toEqual([{ agent: "explorer", count: 1 }]);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+
   test("erro de tool SEM prefixo de guard → NÃO é guard:blocked (sem invenção)", async () => {
     const base = makeTmp();
     try {

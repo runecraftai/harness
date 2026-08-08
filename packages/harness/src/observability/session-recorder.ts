@@ -32,7 +32,8 @@ export interface TrackToolResultInput {
   blocked?: boolean;
   guardId?: string;
   reason?: string | null;
-  durationMs: number;
+  /** ausente quando o SDK não expõe duração (fix cleric F28 #3). */
+  durationMs?: number;
 }
 
 export interface TrackDelegationInput {
@@ -132,7 +133,7 @@ export class SessionRecorder {
       ...(input.blocked !== undefined ? { blocked: input.blocked } : {}),
       ...(input.guardId !== undefined ? { guardId: input.guardId } : {}),
       ...(input.reason !== undefined ? { reason: input.reason } : {}),
-      durationMs: input.durationMs,
+      ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
     });
   }
 

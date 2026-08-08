@@ -253,6 +253,14 @@ export function lessonLine(record: LessonRecord): string {
  * Sem lessons → null (D6 — sem ruído no prompt). Determinístico (F21 D10).
  */
 export function buildLessonAdendo(records: LessonRecord[], opts: BuildAdendoOptions): string | null {
+  return buildLessonAdendoWithIds(records, opts)?.text ?? null;
+}
+
+/** Seleção detalhada do adendo (fix cleric F28 #4): retorna os RECORDS
+ *  selecionados — nunca reconstruir ids por matching de texto (duas lessons
+ *  com trigger/antiPattern/preferred/priority idênticos mas gates diferentes
+ *  produziam ids errados/extra no evento adendo:injected). */
+export function buildLessonAdendoWithIds(records: LessonRecord[], opts: BuildAdendoOptions): { text: string; lessonIds: string[] } | null {
   const max = opts.max ?? 3;
   const filtered = records.filter((r) => {
     if (opts.track === "planning") return r.status === "promoted";
@@ -267,20 +275,10 @@ export function buildLessonAdendo(records: LessonRecord[], opts: BuildAdendoOpti
     })
     .slice(0, max);
   const lines = selected.map((r) => `- ${lessonLine(r)}`);
-  return `${LESSONS_MARKER}\n${lines.join("\n")}`;
+  return { text: `${LESSONS_MARKER}\n${lines.join("\n")}`, lessonIds: selected.map((r) => r.lessonId) };
 }
 
 /** sha256 do texto do adendo (16 hex) — evento adendo:injected (D6). */
 export function adendoTextHash(text: string): string {
   return sha256Hex(text).slice(0, 16);
-}
-
-/** lessonIds do adendo (determinístico — mesma ordem do texto). */
-export function adendoLessonIds(records: LessonRecord[], text: string): string[] {
-  const lines = text.split("\n").slice(1);
-  const ids: string[] = [];
-  for (const record of records) {
-    if (lines.includes(`- ${lessonLine(record)}`)) ids.push(record.lessonId);
-  }
-  return ids;
 }
