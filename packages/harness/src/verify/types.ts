@@ -24,8 +24,17 @@ export type JudgeReply = { ok: true; raw: string } | { ok: false; error: string 
 /** Adaptador do judge (D6 — read-only, env-gated pelo caller da engine). */
 export type JudgeAdapter = (request: JudgeRequest) => Promise<JudgeReply>;
 
+/** Exceções do write-guard F24 (allow/force) herdadas pela camada 2 —
+ *  resolvidas UMA vez por execução da cascata (fix cleric F25: freeze D12). */
+export interface GuardExemptions {
+  allow: string[];
+  force: boolean;
+}
+
 /** Dependências injetáveis da cascata (defaults: executor real, sem judge). */
 export interface VerifyDeps {
   runCommand?: RunCommand;
   judgeAdapter?: JudgeAdapter;
+  /** Snapshot congelado do write-guard (sessão F24 D12) — ausente = carrega uma vez (CLI). */
+  guardExemptions?: GuardExemptions;
 }

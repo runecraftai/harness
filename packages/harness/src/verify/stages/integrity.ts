@@ -18,20 +18,25 @@
 // Reason-id = GUARD_REASON_IDS do F24 (`write-existing-file-guard` — VER-03).
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { effectiveGuards, loadSessionGuards, type GuardRuntime } from "../../guards/guardKit.ts";
+import { block, effectiveGuards, type GuardRuntime, type SessionGuardsConfig } from "../../guards/guardKit.ts";
 import { integrityFailReason } from "../suggestions.ts";
 import type { RepoState } from "../repo.ts";
+import type { GuardExemptions } from "../types.ts";
 import type { StageResult } from "../verdict.ts";
 
 export interface IntegrityStageInput {
   repo: RepoState;
-  env: NodeJS.ProcessEnv;
+  /** Exceções do write-guard F24 resolvidas UMA vez por execução (fix cleric
+   *  F25: freeze D12 — a sessão usa o snapshot congelado; o CLI congela no
+   *  início da execução). */
+  exemptions: GuardExemptions;
 }
 
-/** Autorizações do write-guard F24 (allow/force) — herança, sem definição nova. */
-export function writeGuardExemptions(cwd: string, env: NodeJS.ProcessEnv): { allow: string[]; force: boolean } {
-  const merged = loadSessionGuards(cwd, env);
-  const write = merged.guards.writeExistingFile as GuardRuntime;
+/** Autorizações do write-guard F24 (allow/force) — herança, sem definição nova.
+ *  Consome o snapshot JÁ congelado (SessionGuardsConfig) em vez de re-ler o
+ *  state.json a cada execução (fix cleric F25 — drift vs F24 D12). */
+export function writeGuardExemptions(guards: SessionGuardsConfig): GuardExemptions {
+  const write = guards.guards.writeExistingFile as GuardRuntime;
   if (!write.valid) return { allow: [], force: false }; // config inválida → fail-closed (sem exceção)
   const options = write.options as { allow: string[]; force: boolean };
   return { allow: options.allow ?? [], force: options.force ?? false };
@@ -69,7 +74,7 @@ export function integrityStage(input: IntegrityStageInput): StageResult {
       suggestion: "rode dentro de um repo git para habilitar a checagem de integridade (sem essa evidência não é violação)",
     };
   }
-  const exemptions = writeGuardExemptions(input.repo.cwd, input.env);
+  const exemptions = input.exemptions;
   if (exemptions.force) {
     return {
       layer: "integrity",

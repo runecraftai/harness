@@ -286,6 +286,11 @@ describe("engine — embedding e zona cinza (D4/D5, VER-07/09)", () => {
       expect(calls[0]!.prompt).toContain("Faithfulness"); // critérios da spec, nunca auto-avaliação
       expect(calls[0]!.prompt).not.toContain("self-eval");
       expect(verdict.judge.enabled).toBe(true);
+      // Fix cleric F25: a stage do judge entra no relatório do veredito pass
+      // (sem ela, todo pass era rotulado "structural" no log da sessão).
+      const lastStage = verdict.stages[verdict.stages.length - 1]!;
+      expect(lastStage.layer).toBe("judge");
+      expect(lastStage.status).toBe("pass");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
     }

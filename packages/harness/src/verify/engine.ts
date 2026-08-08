@@ -31,7 +31,8 @@ import { costCapReason, embeddingGrayNoJudgeReason, formatReason } from "./sugge
 import type { VerifyDeps } from "./types.ts";
 import { VERIFY_REASON_ID, type StageResult, type Verdict } from "./verdict.ts";
 import { structuralStage } from "./stages/structural.ts";
-import { integrityStage } from "./stages/integrity.ts";
+import { integrityStage, writeGuardExemptions } from "./stages/integrity.ts";
+import { loadSessionGuards } from "../guards/guardKit.ts";
 import { sufficiencyStage } from "./stages/sufficiency.ts";
 import { embeddingStage, type EmbeddingStageResult } from "./stages/embedding.ts";
 import { buildJudgePrompt, judgeEnvEnabled, judgeStage } from "./stages/judge.ts";
@@ -112,6 +113,10 @@ export async function runVerificationCascade(input: VerificationInput, deps: Ver
   let retriesUsed = 0;
   const runCommand = deps.runCommand;
   const judgeAdapter = deps.judgeAdapter;
+  // Fix cleric F25 (freeze drift): exceções do write-guard resolvidas UMA vez
+  // por execução — sessão usa o snapshot congelado do F24 (D12); CLI carrega
+  // no início da execução (mesma semântica: sem drift mid-run).
+  const guardExemptions = deps.guardExemptions ?? writeGuardExemptions(loadSessionGuards(input.repo.cwd, input.env));
 
   // Loop de execuções (D7): a 1ª conta como 1; retry re-roda até o cap.
   let stages: StageResult[] = [];
@@ -141,7 +146,7 @@ export async function runVerificationCascade(input: VerificationInput, deps: Ver
     }
 
     // Camada 2 — integrity (D3; política default halt — guardrail HARD).
-    const integrity = integrityStage({ repo: input.repo, env: input.env });
+    const integrity = integrityStage({ repo: input.repo, exemptions: guardExemptions });
     stages.push(integrity);
     if (integrity.status === "fail") {
       const resolution = resolvePolicy(config, "integrity", retriesUsed, maxRetries, cost);
@@ -215,8 +220,9 @@ export async function runVerificationCascade(input: VerificationInput, deps: Ver
         if (resolution === "halt") return costHaltVerdict(cost, judgeEnabled, stages);
         return resolvedVerdict("skip", gray.stage, stages, cost, judgeEnabled);
       }
-      // judge-pass → veredito final pass.
-      return passVerdict(stages, cost, judgeEnabled);
+      // judge-pass → veredito final pass, com a stage do judge no relatório
+      // (fix cleric F25: sem ela, todo pass era rotulado "structural" no log).
+      return passVerdict([...stages, gray.stage], cost, judgeEnabled);
     }
 
     // Camada 4 passou (score >= max) — veredito final pass.
@@ -265,7 +271,7 @@ interface GrayZoneContext {
 type GrayOutcome =
   | { kind: "verdict"; verdict: Verdict }
   | { kind: "judge-fail"; stage: StageResult }
-  | { kind: "judge-pass" };
+  | { kind: "judge-pass"; stage: StageResult };
 
 /** Resolve a zona cinza (D5/D6): judge com env ativo; senão grayZoneNoJudge. */
 async function resolveGrayZone(ctx: GrayZoneContext): Promise<GrayOutcome> {
@@ -298,7 +304,7 @@ async function resolveGrayZone(ctx: GrayZoneContext): Promise<GrayOutcome> {
   if (outcome.result.status === "fail") {
     return { kind: "judge-fail", stage: outcome.result };
   }
-  return { kind: "judge-pass" };
+  return { kind: "judge-pass", stage: outcome.result };
 }
 
 // ---------------------------------------------------------------------------
@@ -361,8 +367,9 @@ export function sessionPayloadText(input: Record<string, unknown>): string | nul
 }
 
 /** Grava o veredito no log da sessão (append-only JSONL — precedente do glla).
- *  O `layer` registrado é o da stage que RESOLVEU o veredito (última não-pass
- *  — fail/skip/halt/degraded; o relatório completo fica nas stages do CLI). */
+ *  O `layer` registrado é o da stage que RESOLVEU o veredito: última não-pass
+ *  (fail/skip/halt/degraded) — veredito pass → última stage executada
+ *  (embedding ou judge, nunca "structural" — fix cleric F25). */
 export function recordSessionVerdict(cwd: string, verdict: Verdict): void {
   const file = verdictLogPath(cwd);
   try {
@@ -371,10 +378,11 @@ export function recordSessionVerdict(cwd: string, verdict: Verdict): void {
     for (const stage of verdict.stages) {
       if (stage.status !== "pass") resolving = stage;
     }
+    if (resolving === undefined) resolving = verdict.stages[verdict.stages.length - 1];
     const line = JSON.stringify({
       verifyId: verdict.verifyId,
       status: verdict.status,
-      layer: resolving?.layer ?? verdict.stages[0]?.layer ?? null,
+      layer: resolving?.layer ?? null,
       reason: verdict.reason,
       suggestion: verdict.suggestion,
       cost: verdict.cost,

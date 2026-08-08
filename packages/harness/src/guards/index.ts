@@ -26,6 +26,7 @@ import { rewriteTodoInput, TODO_WRITE_TOOL } from "./todo-description-override.t
 import { decideTodoEnforcer, TODO_COMPLETE_TOOL } from "./todo-continuation-enforcer.ts";
 import { SessionVerifyConfig } from "../verify/config.ts";
 import { configInvalidReason, runSessionVerification } from "../verify/engine.ts";
+import { writeGuardExemptions } from "../verify/stages/integrity.ts";
 import type { VerifyDeps } from "../verify/types.ts";
 
 export interface GuardsDeps {
@@ -126,7 +127,10 @@ export function installGuards(pi: ExtensionAPI, deps: GuardsDeps = {}): void {
             env,
             config: verify.config,
             input: (event.input ?? {}) as Record<string, unknown>,
-            deps: deps.verify,
+            // Fix cleric F25 (freeze drift): exceções do write-guard vêm do
+            // snapshot CONGELADO do F24 (D12), nunca de re-leitura do state;
+            // testes podem sobrescrever via deps.verify.
+            deps: { guardExemptions: writeGuardExemptions(sessionConfig.frozen(ctx.cwd)), ...(deps.verify ?? {}) },
           });
           if (result.block && result.reason !== null) {
             guardLog.debug(`blocked (verification): ${result.reason}`);

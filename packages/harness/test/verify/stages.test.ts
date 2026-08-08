@@ -7,12 +7,18 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { defaultVerificationConfig } from "../../src/verify/config.ts";
 import { collectRepoState } from "../../src/verify/repo.ts";
-import { structuralStage } from "../../src/verify/stages/structural.ts";
-import { integrityStage } from "../../src/verify/stages/integrity.ts";
+import { structuralStage, defaultRunCommand } from "../../src/verify/stages/structural.ts";
+import { integrityStage, writeGuardExemptions } from "../../src/verify/stages/integrity.ts";
 import { sufficiencyStage } from "../../src/verify/stages/sufficiency.ts";
 import { embeddingScore, embeddingStage, ngramTf, cosineSimilarity } from "../../src/verify/stages/embedding.ts";
 import { buildJudgePrompt, judgeEnvEnabled, judgeStage, parseJudgeResponse } from "../../src/verify/stages/judge.ts";
-import type { JudgeAdapter, RunCommand } from "../../src/verify/types.ts";
+import { loadSessionGuards } from "../../src/guards/guardKit.ts";
+import type { GuardExemptions, JudgeAdapter, RunCommand } from "../../src/verify/types.ts";
+
+/** Exceções default da camada 2 (nenhuma autorização — herança F24). */
+function defaultExemptions(): GuardExemptions {
+  return { allow: [], force: false };
+}
 
 const SPEC = "Create a file notes.txt whose content is exactly hello verify";
 const OUTPUT_PASS = "Create a file notes.txt whose content is exactly hello verify. The file notes.txt content is exactly hello verify and it exists in the repository root. <evidence>notes.txt content is exactly hello verify</evidence>";
@@ -144,12 +150,31 @@ describe("camada 1 — structural (D12, VER-02)", () => {
   });
 });
 
+describe("defaultRunCommand — timeout real (fix cleric F25)", () => {
+  test("processo que ignora SIGTERM → timedOut=true e retorna (escalada SIGKILL, sem hang)", async () => {
+    const result = await defaultRunCommand(
+      [process.execPath, "-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"],
+      process.cwd(),
+      200,
+      env(),
+    );
+    expect(result.timedOut).toBe(true); // o flag é REAL agora (era dead code)
+    expect(result.exitCode).not.toBe(0); // encerrado pela escalada — nunca pendura o gate
+  }, { timeout: 20_000 });
+
+  test("processo normal que termina rápido → timedOut=false, exitCode real", async () => {
+    const result = await defaultRunCommand([process.execPath, "-e", "console.log('ok')"], process.cwd(), 5_000, env());
+    expect(result.timedOut).toBe(false);
+    expect(result.exitCode).toBe(0);
+  });
+});
+
 describe("camada 2 — integrity (D3, VER-03)", () => {
   test("arquivo protegido (rastreado no HEAD) deletado → fail com reason-id F24", () => {
     const repoDir = makeRepo();
     try {
       fs.rmSync(path.join(repoDir, "README.md"));
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("fail");
       expect(result.reasonId).toBe("write-existing-file-guard");
       expect(result.reason).toContain("write-existing-file-guard: integrity");
@@ -165,13 +190,13 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
     try {
       // Substituição integral: README.md tinha 1 linha; overwrite com conteúdo novo.
       writeFile(repoDir, "README.md", "# completely different content that replaces everything\n");
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("fail");
       expect(result.reason).toContain("sobrescrito por inteiro");
 
       // Edição pontual: adiciona uma linha ao arquivo (não substitui o todo).
       fs.writeFileSync(path.join(repoDir, "README.md"), "# eval repo\n\nline two\n");
-      const result2 = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result2 = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result2.status).toBe("pass");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
@@ -182,7 +207,7 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
     const repoDir = makeRepo();
     try {
       writeFile(repoDir, "notes.txt", "new file"); // untracked — não protegido
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("pass");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
@@ -195,7 +220,7 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
       fs.symlinkSync("README.md", path.join(repoDir, "alias.txt"));
       // Escrita através do symlink: o git reporta o ALVO real modificado.
       writeFile(repoDir, "alias.txt", "# overwritten through symlink — full replacement\n");
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("fail");
       expect(result.reason).toContain("README.md");
     } finally {
@@ -210,7 +235,7 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
       git(repoDir, "add", "link.txt");
       git(repoDir, "commit", "-q", "-m", "chore: symlink");
       fs.rmSync(path.join(repoDir, "link.txt"));
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("fail");
       expect(result.reason).toContain("link.txt");
     } finally {
@@ -225,7 +250,9 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
         guards: { writeExistingFile: { enabled: true, options: { allow: ["README.md"] } } },
       });
       fs.rmSync(path.join(repoDir, "README.md"));
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      // Exceções resolvidas do snapshot (caminho real do engine — fix cleric F25).
+      const exemptions = writeGuardExemptions(loadSessionGuards(repoDir, env()));
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions });
       expect(result.status).toBe("pass");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
@@ -239,7 +266,8 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
         guards: { writeExistingFile: { enabled: true, options: { force: true } } },
       });
       fs.rmSync(path.join(repoDir, "README.md"));
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const exemptions = writeGuardExemptions(loadSessionGuards(repoDir, env()));
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions });
       expect(result.status).toBe("pass");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
@@ -249,7 +277,7 @@ describe("camada 2 — integrity (D3, VER-03)", () => {
   test("fora de repo git → degraded (sem baseline)", () => {
     const repoDir = makeTmp();
     try {
-      const result = integrityStage({ repo: collectRepoState(repoDir, env()), env: env() });
+      const result = integrityStage({ repo: collectRepoState(repoDir, env()), exemptions: defaultExemptions() });
       expect(result.status).toBe("degraded");
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });

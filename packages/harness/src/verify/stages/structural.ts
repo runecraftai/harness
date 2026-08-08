@@ -81,7 +81,10 @@ export async function structuralStage(input: StructuralStageInput): Promise<Stag
   };
 }
 
-/** Executor padrão (verify-gate do arcanum — exec + timeout + shape estável). */
+/** Executor padrão (verify-gate do arcanum — exec + timeout + shape estável).
+ *  Timeout real (fix cleric F25): o timer marca `timedOut`, envia SIGTERM e
+ *  escala para SIGKILL após 5s — um check que ignore SIGTERM não pode
+ *  pendurar o gate do complete_goal (fail-closed em vez de hang). */
 export const defaultRunCommand: RunCommand = async (cmd, cwd, timeoutMs, env): Promise<{
   exitCode: number;
   stdout: string;
@@ -89,15 +92,28 @@ export const defaultRunCommand: RunCommand = async (cmd, cwd, timeoutMs, env): P
   timedOut: boolean;
 }> => {
   const proc = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "pipe", env: env as Record<string, string> });
+  let timedOut = false;
   const timer = setTimeout(() => {
-    proc.kill();
+    timedOut = true;
+    try {
+      proc.kill("SIGTERM");
+    } catch {
+      // processo já encerrado
+    }
+    setTimeout(() => {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        // já encerrado pelo SIGTERM — ok
+      }
+    }, 5_000);
   }, timeoutMs);
   try {
     const exitCode = await proc.exited;
     const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
-    return { exitCode, stdout, stderr, timedOut: false };
+    return { exitCode, stdout, stderr, timedOut };
   } catch {
-    return { exitCode: -1, stdout: "", stderr: "", timedOut: false };
+    return { exitCode: -1, stdout: "", stderr: "", timedOut };
   } finally {
     clearTimeout(timer);
   }
