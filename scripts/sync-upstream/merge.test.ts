@@ -154,6 +154,26 @@ describe("threeWayMerge — git merge-file on fixture trees", () => {
 		expect(result.kept).not.toContain("dist/bundle.js");
 	});
 
+	test("file→directory type change (upstream vira x em x/y) → conflito (fix cleric F10 #3)", () => {
+		const base = { x: "v1\n", "keep.txt": "k\n" };
+		const ours = { x: "v1\n", "keep.txt": "k\n" };
+		const theirs = { "x/y": "nested\n", "keep.txt": "k\n" }; // x virou diretório
+		const { result, staging } = runMerge(base, theirs, ours);
+		expect(result.kind).toBe("conflict");
+		expect(result.conflicts).toContainEqual({ rel: "x", reason: "file-directory-type-change" });
+		expect(stagingHas(staging, "x")).toBe(false); // nada aplicado (fail-closed)
+		expect(stagingHas(staging, "x/y")).toBe(false);
+	});
+
+	test("directory→file type change (upstream remove x/y e cria arquivo x) → conflito", () => {
+		const base = { "x/y": "nested\n", "keep.txt": "k\n" };
+		const ours = { "x/y": "nested\n", "keep.txt": "k\n" };
+		const theirs = { x: "now-a-file\n", "keep.txt": "k\n" };
+		const { result } = runMerge(base, theirs, ours);
+		expect(result.kind).toBe("conflict");
+		expect(result.conflicts).toContainEqual({ rel: "x", reason: "file-directory-type-change" });
+	});
+
 	test("gitMergeFile produces diff3 markers on conflict (format)", () => {
 		const base = tree({ "a.txt": "l1\nl2\nl3\n" });
 		const ours = tree({ "a.txt": "l1\nO\nl3\n" });

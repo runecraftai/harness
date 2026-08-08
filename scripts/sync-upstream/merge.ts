@@ -37,7 +37,12 @@ import {
 	writeText,
 } from "./util.ts";
 
-export type ConflictReason = "conflict" | "modify-delete" | "binary" | "both-added";
+export type ConflictReason =
+	| "conflict"
+	| "modify-delete"
+	| "binary"
+	| "both-added"
+	| "file-directory-type-change";
 
 export interface ConflictFile {
 	rel: string;
@@ -157,6 +162,27 @@ export function threeWayMerge(input: MergeInput): MergeResult {
 		conflicts: [],
 		divergences: [],
 	};
+
+	// Fix cleric F10 #3: mudança de tipo file→directory (upstream transforma o
+	// arquivo x em x/y) passava como "clean" e o apply quebrava com EISDIR no
+	// meio do phase 3 (dest parcial). Todo path do universo é arquivo em PELO
+	// MENOS uma árvore; se ele também é prefixo de diretório de outro path,
+	// é diretório noutra árvore → type change → conflito (fail-closed).
+	const dirPrefixes = new Set<string>();
+	for (const rel of universe) {
+		const parts = rel.split("/");
+		for (let i = 1; i < parts.length; i++) {
+			dirPrefixes.add(parts.slice(0, i).join("/"));
+		}
+	}
+	for (const rel of universe) {
+		if (dirPrefixes.has(rel)) result.conflicts.push({ rel, reason: "file-directory-type-change" });
+	}
+	// Early return com kind correto (o kind final só é derivado no fim).
+	if (result.conflicts.length > 0) {
+		result.kind = "conflict";
+		return result;
+	}
 
 	for (const rel of [...universe].sort()) {
 		const b = inBase(rel);

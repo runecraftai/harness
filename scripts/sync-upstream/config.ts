@@ -94,9 +94,13 @@ const TASKFLOW_ADAPTATIONS = [
 export const FORK_CONFIGS: Record<string, ForkConfig> = {
 	subagents: {
 		renameMap: { "pi-subagents": "@runecraft/subagents" },
-		excludeFiles: [...DEFAULT_EXCLUDES, "install.mjs", "package-lock.json"],
+		// Fix cleric F10 #2: install.mjs SAI dos excludes — a remoção F2 deve
+		// seguir a semântica three-way real (upstream inalterado → deleção
+		// preservada; upstream mudou → conflito modify/delete), nunca ser
+		// silenciosamente descartada do universo do merge.
+		excludeFiles: [...DEFAULT_EXCLUDES, "package-lock.json"],
 		adaptations: [
-			"F2: install.mjs removed (commit efdd9da) — three-way preserves the deletion when upstream leaves it unchanged",
+			"F2: install.mjs removed (commit efdd9da) — three-way preserves the deletion when upstream leaves it unchanged; upstream change → modify/delete conflict (fix cleric F10)",
 			"plugin/ and skills/ point at local fork paths",
 		],
 	},
