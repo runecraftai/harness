@@ -248,6 +248,7 @@ O repo é um monorepo de forks (`@runecraft/*`, 12 packages com `vendor.json`) c
 | DOC-03 | P2: READMEs reestruturados (beautify-github-readme + tabela Core Workflow) | Design | Pending |
 | DOC-04 | P2: Posicionamento próprio (differentiators × paridade) — honesto (F8) | Design | Pending |
 | DOC-05 | P2: Índice + verificação final (links, greps, suite verde, golden F19) | Design | Pending |
+| DOC-06 | P2: README visual via skill beautify-github-readme (preview local + aprovação; zero invenção) | Design | Pending |
 
 **Coverage:** 16 total, 0 mapeados, 16 unmapped (mapeamento em design.md e tasks.md)
 

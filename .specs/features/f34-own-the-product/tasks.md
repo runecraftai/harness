@@ -1,7 +1,7 @@
 # F34 — Tasks (Own the Product: un-vendor + remap + skills + docs)
 
-**Base:** design.md D1-D10 (QA-1..6 para confirmar — defaults recomendados implementáveis) · infra: F8 (docs, AD-035/036/038), F10 (sync — sendo removido), F23 (ratchets/goldens), F21/F26 (evals), F19 (ROUTING canônico + golden §9), F29 (skills Pi — using-runes layout).
-**Dependências de decisão:** T2 (QA-6 vendorHash — default remoção) · T5 (QA-1/2/3 RESOLVIDAS 2026-08-08 — usuário: remover/mudar menções em todo o repo, manter funcionamento) · T7 (QA-5 skills — default 4 propostas) · T8-T10 (QA-4 docs §8.x — default headers EN + páginas novas).
+**Base:** design.md D1-D11 (QA-4..7 para confirmar — defaults recomendados implementáveis) · infra: F8 (docs, AD-035/036/038), F10 (sync — sendo removido), F23 (ratchets/goldens), F21/F26 (evals), F19 (ROUTING canônico + golden §9), F29 (skills Pi — using-runes layout).
+**Dependências de decisão:** T2 (QA-6 vendorHash — default remoção) · T5 (QA-1/2/3 RESOLVIDAS 2026-08-08 — usuário: remover/mudar menções em todo o repo, manter funcionamento) · T7 (QA-5 skills — default 4 propostas) · T8-T10 (QA-4 docs §8.x — default headers EN + páginas novas) · T12 (QA-7 skill mode — default Whole README raiz).
 **Regra de ouro:** 13 fork packages intocados · `.specs/` intocados · coexistência funcional com gentle-ai intacta · green at every step · 1 commit atômico por task (padrão da casa).
 
 ## T1 — Fonte única das versões migrada (D1, UNV-01) — Front 1, primeiro
@@ -85,6 +85,14 @@
 - [x] `packages/harness/docs/README.md` (índice): ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + **intended-usage / usage / agents / components / CODEBASE-GUIDE / testing** — sem SYNC.md; root README aponta para o índice
 - [x] **Verificar (gates finais D9):** `bun run lint` + `bun run build` + `bun test` (1193) verdes; golden chain F19 (`test/f19-routing.test.ts` — §9 intocado); todos os links de docs resolvem; greps: `vendor.manifest|vendor.json|SYNC.md` vazio nos docs shipped; `padrão gentle-ai` vazio; menções na apresentação vazias (só literais de dados); `@runecraft/harness` vazio fora de .specs; `git status --porcelain packages/` zero nos forks; docs shipped EN (AD-038); tabela Core Workflow consistente com ROUTING §3 (checklist)
 
+## T12 — README raiz via skill beautify-github-readme (D11, DOC-06) — GATED na escolha do usuário (QA-7)
+
+- [ ] Instalar a skill: `npx skills add oil-oil/beautify-github-readme` (verificar SKILL.md carregável no ambiente)
+- [ ] Executar a skill no modo escolhido (QA-7 — default **Whole README** sobre o README raiz): a skill LÊ o repo real primeiro (prova: 1193 testes, ratchets/goldens, E2E, guards) e deriva o sistema visual project-native (hero SVG, tipografia/cores do projeto runecraft) — zero capacidades inventadas (regra F8; checklist contra components.md)
+- [ ] **Preview local obrigatório**: assets GitHub-safe (SVG editável como fallback estático; GIF só opt-in; texto pesquisável/copiável preservado; links resolvem); **nenhum commit/push sem aprovação explícita do usuário** (regra da skill)
+- [ ] Após aprovação: commit atômico dos assets + README raiz; escopo = README raiz (umbrella opcional se o usuário pedir no preview — QA-7c)
+- [ ] **Verificar:** preview renderizado localmente (SVG abre no browser); aprovação registrada no corpo do commit; `bun test` verde; links do README resolvem; checklist de capacidade sem invenção
+
 ## Traceability → tasks
 
 | Requirement | Tasks |
@@ -105,5 +113,6 @@
 | DOC-03 | T11 |
 | DOC-04 | T11 |
 | DOC-05 | T11 |
+| DOC-06 | T12 |
 
-**Cobertura:** 16/16 · toda user story da spec tem requirement ID · todo requisito tem task.
+**Cobertura:** 17/17 · toda user story da spec tem requirement ID · todo requisito tem task.
