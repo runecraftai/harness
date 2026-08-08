@@ -1,5 +1,5 @@
 // memory/repository.ts — port completo do Repository do runes
-// (db/repository.ts — org própria, MIT; AD-002) para bun:sqlite, com as
+// (db/repository.ts) para bun:sqlite, com as
 // adaptações decididas no design:
 //
 //   D6 (determinismo): DI de relógio/id — `clock: () => number` (default

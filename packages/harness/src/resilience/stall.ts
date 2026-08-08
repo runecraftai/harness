@@ -1,8 +1,7 @@
 // resilience/stall.ts — stall detection PURO (D4, RES-04).
 //
-// Port dos padrões PROVADOS EM CAMPO do fork goal-loop-audit (fork é nosso —
-// AD-001; upstream MIT — atribuição por função abaixo; os arquivos-fonte do
-// fork são citados em cada port):
+// Padrões de stall supervisionado do fork goal-loop-audit (arquivos-fonte
+// citados em cada port):
 //   - heartbeat refire + escada de stall (consecutiveStalls/escalation) e
 //     wedge alert (sessão OCUPADA + silêncio = comando pendurado) e pending-
 //     latch watchdog (continuation aceita mas turn trigger caiu) e grace

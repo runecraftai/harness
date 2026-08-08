@@ -1,5 +1,5 @@
 // memory/project.ts — identidade do projeto (port de lib/project.ts do
-// runes — org própria, MIT; AD-002): slug derivado do remote git normalizado
+// runes): slug derivado do remote git normalizado
 // (regex SSH/HTTPS, strip .git), fallback para o path absoluto quando não há
 // remote; worktrees do mesmo repo compartilham o mesmo git root → mesma
 // memória (D1).

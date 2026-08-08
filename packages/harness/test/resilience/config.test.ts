@@ -2,7 +2,7 @@
 //
 // (a) schema v1 aditivo `resilience` válido/inválido (fail-closed por módulo —
 //     F24 D10); (b) kill switch RUNECRAFT_RESILIENCE=0; (c) freeze por sessão
-//     (D12); (d) defaults = valores do fork glla (atribuição verificada contra
+//     (D12); (d) defaults = valores do fork glla (verificados contra
 //     packages/goal-loop-audit — goal-loop-backoff.ts / loops/goal.ts /
 //     goal-loop-repetition.ts / goal-loop-core.ts).
 import { describe, expect, test } from "bun:test";
@@ -28,7 +28,7 @@ function makeTmp(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "resilience-config-"));
 }
 
-describe("resilience config — defaults do fork glla (atribuição D4)", () => {
+describe("resilience config — defaults do fork glla (verificados contra o source)", () => {
   test("thresholds = constantes do fork (verificadas no source)", () => {
     const cfg = defaultResilienceConfig();
     expect(cfg.stall.heartbeatStallMs).toBe(DEFAULT_HEARTBEAT_STALL_MS); // HEARTBEAT_STALL_MS = 60s

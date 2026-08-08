@@ -1,5 +1,5 @@
 // memory/types.ts — tipos do domínio de memória (port de db/types.ts do
-// pacote runes do arcanum — org própria, MIT; AD-002). Tipos puros, sem zod.
+// pacote runes do arcanum). Tipos puros, sem zod.
 //
 // 8 categorias do source (MEMORY_CATEGORIES) — o contrato de agrupamento das
 // memórias (same semantics do port; evals comparam contra fixtures do source).

@@ -1,14 +1,12 @@
 // resilience/config.ts — config do F27 (D9, RES-09).
 //
 // Thresholds de stall/backoff/escalação com DEFAULTS = valores do fork glla
-// (provados em campo — atribuição por constante no código abaixo):
+// (provados em campo — fonte citada em cada constante abaixo):
 //   - HEARTBEAT_STALL_MS / WEDGE_ALERT_DEFAULT_MINUTES / PENDING_LATCH_STUCK_MS
 //     / BACKOFF_HARD_CAP_MS / ERROR_RETRY_LADDER_MS → goal-loop-backoff.ts
 //   - COMPACTION_GRACE_MS → loops/goal.ts
 //   - REPETITION.{toolResultRepeat,similarityThreshold} → goal-loop-repetition.ts
 //   - DEFAULT_STALL_ESCALATION_REFIRES → goal-loop-core.ts
-// (fork é nosso — AD-001; upstream MIT — atribuição em docs/ROUTING.md seção
-// Resilience; padrão F24/F25 de citar a fonte no código.)
 //
 // Padrão da casa (F24 guardKit / F25 verify config): seção `resilience`
 // ADITIVA no state.json (F13, schemaVersion 1 — ao lado de `guards` e
@@ -27,7 +25,7 @@ import { isPlainObject } from "../guards/guardKit.ts";
 import { ESCALATION_POLICIES, type EscalationPolicy } from "./types.ts";
 
 // =================================================================
-// Defaults do fork glla (atribuição por constante — fonte citada).
+// Defaults do fork glla (valores verificados contra o source).
 // =================================================================
 
 /** goal-loop-backoff.ts: HEARTBEAT_STALL_MS — silêncio de sessão OCIOSA que
@@ -114,7 +112,7 @@ export interface ResilienceConfig {
   escalation: EscalationConfig;
 }
 
-/** Defaults calibrados (valores do fork glla — ver atribuição acima). */
+/** Defaults calibrados (valores do fork glla). */
 export function defaultResilienceConfig(): ResilienceConfig {
   return {
     enabled: true,

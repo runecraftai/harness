@@ -1,95 +1,82 @@
 # @runecraft/companion
 
-Runecraft Harness — umbrella meta-package (F6). Instala os 4 forks do Pi num único comando:
+Runecraft Harness — umbrella meta-package for the [Pi coding agent](https://pi.dev). Installs and wires the four forked components (`@runecraft/subagents`, `@runecraft/taskflow` group, `@runecraft/goal-loop-audit`, `@runecraft/pr-review`) in a single command.
 
-| Capacidade | Package | Entry (manifest `pi`) |
+## What it is
+
+The harness ships as a meta-package: the forks are bundled via `bundledDependencies` and their resources are referenced by `node_modules/@runecraft/*` paths in the `pi` manifest (the standard meta-package pattern documented in Pi's docs/packages.md). Versions are pinned in `vendor.manifest.json` (single source of truth).
+
+| Capability | Package | Entry (manifest `pi`) |
 | --- | --- | --- |
-| Dispatch de subagentes | `@runecraft/subagents` 0.37.2 | `node_modules/@runecraft/subagents/index.ts` + `skills/` + `prompts/` |
-| DAG de tarefas (`/tf`) | `@runecraft/taskflow` 0.2.6 | `node_modules/@runecraft/taskflow/dist/index.js` + `skills/` |
-| Engine + DSL do taskflow (libs) | `@runecraft/taskflow-core` 0.2.6 · `@runecraft/taskflow-dsl` 0.2.6 | sem recursos `pi` (libs apenas) |
-| Goal loop com auditor isolado (`/goal`) | `@runecraft/goal-loop-audit` 0.28.34 | `node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts` |
-| Code review de PRs | `@runecraft/pr-review` 1.11.4 | `node_modules/@runecraft/pr-review/extensions/index.ts` + `prompts/` |
+| Subagent dispatch | `@runecraft/subagents` 0.37.2 | `node_modules/@runecraft/subagents/index.ts` + `skills/` + `prompts/` |
+| Task DAG (`/tf`) | `@runecraft/taskflow` 0.2.6 | `node_modules/@runecraft/taskflow/dist/index.js` + `skills/` |
+| Taskflow engine + DSL (libs) | `@runecraft/taskflow-core` 0.2.6 · `@runecraft/taskflow-dsl` 0.2.6 | no `pi` resources (libs only) |
+| Goal loop with isolated auditor (`/goal`) | `@runecraft/goal-loop-audit` 0.28.34 | `node_modules/@runecraft/goal-loop-audit/extensions/loops/goal.ts` |
+| PR code review | `@runecraft/pr-review` 1.11.4 | `node_modules/@runecraft/pr-review/extensions/index.ts` + `prompts/` |
 
-Os forks são empacotados via `bundledDependencies`; o manifest `pi` referencia os recursos deles por paths `node_modules/@runecraft/*` (padrão de meta-package documentado em docs/packages.md do Pi). Versões pinadas em `vendor.manifest.json` (fonte única — F10).
-
-**Agentes não-Pi gerenciados (matriz F17/F31):** o CLI do harness
-(`install/status/doctor/sync/uninstall --agent <id>`) também gerencia
-agentes não-Pi no padrão F15 (detect/inject/remove + coluna na matriz):
-Claude Code (`claude-code`), OpenCode (`opencode`), Codex (`codex`) e
-**Copilot (VS Code)** (`copilot`; aliases `vscode`/`vscode-copilot`/
-`github-copilot` — F31). O Copilot recebe rules repo-scoped em
-`.github/copilot-instructions.md` + MCP em `.vscode/mcp.json`
-(`servers.taskflow`, host reusado `@runecraft/taskflow-claude`). Detalhes e
-two-driver com o gentle-ai em `docs/ROUTING.md` §8.12.
-
-**Papéis objetivos (F32):** o harness entrega 7 papéis profissionais como
-agentes-dados materializados em `<cwd>/.pi/agents/` via `harness install`/`sync`
-(escopo projeto; three-way por conteúdo — edições do usuário preservadas):
-
-| Papel | Identidade | Tools (allowlist) | Delegação |
-| --- | --- | --- | --- |
-| planner | planos apenas (nunca implementa) | read, grep, find, ls, intercom | nunca |
-| builder | executa o plano, verifica antes de reportar | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | ÚNICO: scout + reviewer |
-| reviewer | veredito `[APPROVE]/[REJECT]` + ≤3 blocking issues (read-only) | read, grep, find, ls, bash, intercom | nunca |
-| auditor | auditoria de conformidade (write só `.md` — guard F24) | read, grep, find, ls, bash, write, intercom | nunca |
-| scout | recon read-only, reporta no retorno | read, grep, find, ls, intercom | nunca |
-| researcher | pesquisa externa com fontes (read-only) | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | nunca |
-| security | revisão de segurança read-only (triage + fast-exit) | read, grep, find, ls, bash, intercom | nunca |
-
-Os papéis shadowam os builtins homônimos do fork (planner/reviewer/scout/
-researcher — compatível+endurecido) e são consumíveis por
-`state.models.agents.<id>.fallbackChain` (F30). Detalhes em
-`docs/ROUTING.md` §8.13.
-
-**Roteamento codificado (F33):** o harness roteia cada tarefa por **CÓDIGO
-puro** (decisão 3c — nunca LLM): classificador determinístico com thresholds
-em constantes (`ROUTE_THRESHOLD=2`; high ×2 / medium ×1; security
-OBRIGATÓRIA — bypassa threshold, espelho do paladin; empate → prioridade
-fixa) → 7 rotas mapeadas aos papéis F32 (explore→scout, research→researcher,
-implement→builder, review→reviewer, security→security, planning→planner,
-direct fail-closed) → 5 pilot chains `.chain.md` (implement/plan/research/
-explore/security — assets versionados em `chains/` + materialização three-way
-em `<cwd>/.pi/chains/`, alvo reusado do F30) com gate de veredito
-`[APPROVE]/[REJECT]` + ≤3 blocking issues. O hook é o `before_agent_start`
-(primeira mensagem = `event.prompt`; freeze por sessão; kill switch
-`RUNECRAFT_ROUTING=0`; two-driver F19: goal-loop supervisionando → inerte;
-F27 não re-roteia; F30 modelos por papel; F28 lessons → prompts, nunca
-rotas). Evals EVAL-067..078 (matriz v11 — routing completeness COMPLETA,
-última categoria do F26). Detalhes em `docs/ROUTING.md` §8.14.
-
-**Nota sobre deps compartilhadas:** npm não instala deps transitivas de pacotes bundled. Por isso as deps de runtime não-peer dos forks (jiti/yaml do subagents, typescript do taskflow-dsl) são declaradas como `dependencies` regulares deste package — o npm as baixa do registry no `pi install`. O `prepack` materializa cópias reais dos 6 forks em `node_modules/@runecraft/*` antes do pack (os symlinks do bun geram paths `..` no tarball).
-
-## Instalação
+## Quickstart
 
 ```bash
 pi install npm:@runecraft/companion     # global
-pi install npm:@runecraft/companion -l  # projeto local (.pi/settings.json)
+pi install npm:@runecraft/companion -l  # project-local (.pi/settings.json)
 ```
 
-Uma sessão Pi nova carrega as extensões dos 4 forks: `/tf`, `/goal`, `subagent({action:"list"})` e o comando de pr-review respondem na mesma sessão.
-
-## Settings
-
-Cada fork traz seus próprios defaults e docs (`subagents.defaultModel`, modelo do auditor do goal-loop-audit, budgets do taskflow…). O bloco `settings.json` recomendado cobrindo os 4 packages (merge de defaults) é entregue pelo CLI do harness (F14 — `.specs/features/f14-settings-merge`).
-
-## Verificação (doctor)
-
-A sequência de doctor documentada é entregue pelo CLI do harness (F12 — `.specs/features/f12-lifecycle`). Checagem manual equivalente:
+The CLI is `companion` (alias `harness`). Verify the install:
 
 ```bash
-pi list                                   # mostra @runecraft/companion
-pi -p "/tf --help"                        # taskflow responde
-pi -p "/goal status"                      # goal-loop-audit responde
-pi -p "subagent({action:'list'})"         # subagents responde
-pi -p "/pr-review --help"                 # pr-review responde
+companion doctor                        # read-only diagnostics (6 checks, pass/warn/fail + remedy)
+companion status                        # cross-state report: pi list × state × manifest
+pi -p "/tf --help"                      # taskflow responds
+pi -p "/goal status"                    # goal-loop-audit responds
+pi -p "subagent({action:'list'})"       # subagents responds
+pi -p "/pr-review --help"               # pr-review responds
 ```
 
-## Aviso de colisão
+A new Pi session loads the extensions of all four forks: `/tf`, `/goal`, `subagent({action:"list"})` and `/pr-review` respond in the same session.
 
-Não instale junto com os upstreams originais (`pi-subagents`, `pi-taskflow`, `pi-goal-list-loop-audit`, `pi-pr-review`) — comandos/tools duplicam. Remova os upstreams antes de instalar o harness.
+## Intended usage
 
-## Roadmap
+**Role agents.** The harness ships 7 professional roles, materialized as data-driven agents in `<cwd>/.pi/agents/` via `companion install`/`sync` (project scope; three-way merge by content — your edits are preserved):
 
-- F11 — CLI do harness (`bin/harness.ts`: install/doctor/status/sync/uninstall)
-- F12 — lifecycle (doctor/status)
-- F14 — settings merge (defaults por componente)
+| Role | Identity | Tools (allowlist) | Delegation |
+| --- | --- | --- | --- |
+| `planner` | plans only — never implements | read, grep, find, ls, intercom | never |
+| `builder` | executes the plan, verifies before reporting | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | only: scout + reviewer |
+| `reviewer` | `[APPROVE]`/`[REJECT]` verdict + ≤3 blocking issues (read-only) | read, grep, find, ls, bash, intercom | never |
+| `auditor` | compliance audit (writes only `.md`) | read, grep, find, ls, bash, write, intercom | never |
+| `scout` | read-only codebase recon, reports on return | read, grep, find, ls, intercom | never |
+| `researcher` | external research with sources (read-only) | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | never |
+| `security` | read-only security review (triage + fast-exit) | read, grep, find, ls, bash, intercom | never |
+
+**Non-Pi agents.** The CLI also manages non-Pi agents in the same detect/inject/remove pattern: Claude Code (`claude-code`), OpenCode (`opencode`), Codex (`codex`) and Copilot for VS Code (`copilot`; aliases `vscode`, `vscode-copilot`, `github-copilot`). Copilot receives repo-scoped rules in `.github/copilot-instructions.md` plus MCP in `.vscode/mcp.json` (`servers.taskflow`, reusing the `@runecraft/taskflow-claude` host).
+
+**When to use which tool** — full mental model, the 7 routing rules and the two-driver limits: [`docs/ROUTING.md`](docs/ROUTING.md).
+
+## Configuration
+
+Each fork ships its own defaults and docs (`subagents.defaultModel`, the goal-loop-audit auditor model, taskflow budgets, …). The recommended `settings.json` block covering all four packages (merge of defaults) is delivered by the harness CLI — `companion install` writes it; see the doctor output for the effective state.
+
+## Troubleshooting
+
+- `companion doctor` — read-only diagnostics: 6 checks with pass/warn/fail and a remedy for each failure.
+- `companion status` — installed packages and versions, cross-state report (pi list × state × manifest), install suggestion when nothing is managed.
+- `companion sync` — idempotent reconciliation: reinstalls what the harness manages and is missing.
+- `companion uninstall` — managed removal: removes **only** what the harness installed (`--component <id>` / `--all`).
+- `companion restore <name>` / `companion backups` — snapshot restore and listing.
+- **Collision warning**: do not install alongside the original upstreams (`pi-subagents`, `pi-taskflow`, `pi-goal-list-loop-audit`, `pi-pr-review`) — commands and tools duplicate. Remove the upstreams before installing the harness.
+
+## Relationship to upstreams
+
+| Package | Upstream | Pinned | README |
+| --- | --- | --- | --- |
+| `@runecraft/subagents` | `pi-subagents` (nicobailon) | v0.37.2 | [subagents](../subagents/README.md) |
+| `@runecraft/taskflow` (group) | `taskflow` (heggria) | v0.2.6 | [taskflow](../taskflow/README.md) |
+| `@runecraft/goal-loop-audit` | `pi-goal-list-loop-audit` (DraconDev) | 0.28.34 | [goal-loop-audit](../goal-loop-audit/README.md) |
+| `@runecraft/pr-review` | `pi-pr-review` (10ego) | v1.11.4 | [pr-review](../pr-review/README.md) |
+
+Each fork's README documents its relationship to the upstream and the notable divergences.
+
+## Docs
+
+- [Docs index](docs/README.md) — ROUTING / EVENTS / MEMORY / PI / EVAL-FRAMEWORK + the upstream sync runbook (`docs/SYNC.md` at the repo root).
+- Upstream sync workflow (three-way merge of the vendored forks): [`docs/SYNC.md`](../../docs/SYNC.md).

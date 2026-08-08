@@ -8,7 +8,7 @@ Escreva a ESPECIFICAÇÃO da feature `<feature>` no shape da casa. CWD: repo do 
 PASSO 1 — Contexto: leia `.specs/project/STATE.md`, `ROADMAP.md` e a infra existente (`packages/harness/src/`, `test/`) antes de escrever.
 
 PASSO 2 — Carregue o template e o prompt da fase:
-  - template: `assets/sdd/templates/spec.md` (do package @runecraft/harness — scaffold via `harness sdd new <feature> --scope <scope>`)
+  - template: `assets/sdd/templates/spec.md` (do package @runecraft/companion — scaffold via `harness sdd new <feature> --scope <scope>`)
   - prompt: `assets/sdd/prompts/spec.md` (siga as regras dele)
 
 PASSO 3 — Escreva `.specs/features/<feature>/spec.md` com: Problem Statement (evidência de arquivo/linha), Goals verificáveis, Out of Scope com motivo, Gray area (QA-1..QA-n com recomendação), User Stories P1/P2 (Acceptance Criteria WHEN/THEN + Independent Test), Edge Cases, Requirement Traceability (IDs PFC-xx, status Pending), Success Criteria.

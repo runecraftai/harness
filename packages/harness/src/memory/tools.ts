@@ -1,7 +1,6 @@
 // memory/tools.ts — 10 agent tools `rune_*` como Pi tools (D3, MEM-03).
 //
-// Port 1:1 dos tools do runes (src/tools/*.ts — org própria, MIT; AD-002)
-// com as adaptações decididas:
+// Port 1:1 dos tools do runes (src/tools/*.ts) com as adaptações decididas:
 //   - `tool()` de @opencode-ai/plugin → `defineTool` do SDK 0.81.0 + 
 //     `pi.registerTool` (padrão verificado no fork glla, goal.ts:2621+)
 //   - zod → TypeBox `parameters` (shape REAL do defineTool — validado no

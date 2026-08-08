@@ -4,7 +4,7 @@
 // status logic of this package (same module root — no isolation issue):
 // buildStatusMessage computes the cross-state report (pi list × state ×
 // manifest, design G3) and renders a compact per-scope summary. Nothing
-// installed → instructs `npx @runecraft/harness install` (CLI-07 AC2).
+// installed → instructs `npx @runecraft/companion install` (CLI-07 AC2).
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildStatusMessage } from "../src/commands/status.ts";
 

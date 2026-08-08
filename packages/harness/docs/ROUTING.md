@@ -327,12 +327,11 @@ runtime do Pi / F30). Invariante D7 (AD-024): a continuação re-injeta
 pendências SÓ do ledger atual — nunca re-injeta task completa (teste
 adversarial dedicado em `test/resilience/invariant.test.ts`).
 
-**Atribuição (AD-002)**: os padrões de stall/backoff/quota são portes dos
-mecanismos do fork goal-loop-audit (MIT, Copyright (c) 2026 dracon — nosso
-fork AD-001); cada port cita o arquivo-fonte no código (constantes com os
-valores exatos: HEARTBEAT_STALL_MS, WEDGE_ALERT_DEFAULT_MINUTES,
-PENDING_LATCH_STUCK_MS, COMPACTION_GRACE_MS, DEFAULT_STALL_ESCALATION_REFIRES,
-REPETITION.*, BACKOFF_HARD_CAP_MS).
+**Origens dos padrões**: os padrões de stall/backoff/quota são portes dos
+mecanismos do fork goal-loop-audit; cada port cita o arquivo-fonte no código
+(constantes com os valores exatos: HEARTBEAT_STALL_MS,
+WEDGE_ALERT_DEFAULT_MINUTES, PENDING_LATCH_STUCK_MS, COMPACTION_GRACE_MS,
+DEFAULT_STALL_ESCALATION_REFIRES, REPETITION.*, BACKOFF_HARD_CAP_MS).
 
 ## 8.9 Observability & Lessons — event store, bundles e lessons do harness (F28)
 
@@ -374,8 +373,7 @@ contrato de F24/F25/F27).
 ## 8.10 Memory — memória persistente cross-session (F29)
 
 A camada de memória (M7, pilar 7 do doc do usuário — "memória durável
-consultável por tool") porta o pacote `runes` do arcanum (supersedido,
-AD-001/AD-002) para MECANISMOS REAIS do Pi 0.81.0:
+consultável por tool") porta o pacote `runes` do arcanum para MECANISMOS REAIS do Pi 0.81.0:
 
 | Mecanismo | Existe (SDK 0.81.0 / runes / harness) — evidência | F29 constrói |
 | --- | --- | --- |

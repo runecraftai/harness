@@ -1,7 +1,7 @@
 // memory/cli.ts — comandos de inspeção/manutenção da memória (D8, MEM-07).
 //
-// Port do bin/runes.ts (search/stats/doctor [--purge] — org própria, MIT;
-// AD-002) + o bridge import-lessons (D7). Os comandos são PUROS: recebem um
+// Port do bin/runes.ts (search/stats/doctor [--purge]) + o bridge
+// import-lessons (D7). Os comandos são PUROS: recebem um
 // Repository + sinks e devolvem texto/exit code — a abertura do DB vive no
 // caller (commands/memory.ts), com RUNECRAFT_MEMORY_DATA_DIR como override
 // de path (evals/CLI testável).

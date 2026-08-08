@@ -2,8 +2,7 @@
 
 A camada de memória persistente do harness (M7, pilar 7 do doc do usuário —
 "memória durável consultável por tool") é o port do pacote `runes` do arcanum
-(org própria, MIT — AD-002; fonte: `packages/runes` em
-`~/Projects/arcanum`) para MECANISMOS REAIS do Pi 0.81.0: **10 agent tools
+para MECANISMOS REAIS do Pi 0.81.0: **10 agent tools
 `rune_*` registradas via `pi.registerTool(defineTool(...))`**, SQLite local
 via `bun:sqlite` (zero deps novas), **o arquivo `.runecraft/memory/runes.db`
 É a memória cross-session** (D2 — resolução honesta do wording do roadmap:
@@ -165,10 +164,3 @@ fail-visible (nada criado).
 | `verify-verdicts.jsonl` | F25 |
 | ledger `.pi-glla/` | F24/F27 |
 | `.runecraft/memory/` | **F29** |
-
-## Atribuição
-
-Schema, Repository, tools, CLI e skill são ports do pacote `runes` do arcanum
-(`~/Projects/arcanum/packages/runes` — org própria, MIT; AD-002). Cada port
-cita o arquivo-fonte no código. `bun:sqlite` (builtin do Bun 1.3.14) é o
-runtime — sem fallback node:sqlite (documentado em `src/memory/client.ts`).

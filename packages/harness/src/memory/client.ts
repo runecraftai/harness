@@ -1,5 +1,5 @@
 // memory/client.ts — abertura do SQLite via bun:sqlite (port de db/client.ts
-// do runes — org própria, MIT; AD-002). SEM fallback node:sqlite: o runtime
+// do runes). SEM fallback node:sqlite: o runtime
 // do harness é Bun (D1 — documentado; bun:sqlite verificado no Execute).
 //
 // Pragmas do source: journal_mode = WAL (leitores concorrentes + escritor
