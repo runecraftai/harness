@@ -68,7 +68,8 @@ let cachedDriver: SqliteDriver | null = null;
 
 /** Driver ativo, resolvido lazy (import do módulo nunca throwa — SQL-01). */
 export function getDriver(): SqliteDriver {
-	return (cachedDriver ??= selectDriver((id) => require(id)));
+	if (!cachedDriver) cachedDriver = selectDriver((id) => require(id));
+	return cachedDriver;
 }
 
 export interface OpenDatabaseOptions {
