@@ -230,6 +230,13 @@
 **Trade-off:** Memória é tool-driven (sem digest automático no v1 — o agente decide; F33 pode reavaliar com roteamento); eventos do F28 nunca expõem conteúdo da memória (argsHash — D10).
 **Impact:** Design F29 marcado Ready for Execute; fighter implementa EVAL-030..038 (matriz v7, após F28 fechar v6 — one writer thread); Engram fica como fallback documentado (D12) — não necessário hoje.
 
+### AD-030: Resolução das QAs do F30 — Pi First-Class & SDD Assets (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Chains SDD**: formato `.chain.md` do harness (front-matter + `worker -> reviewer`; precedente f3-taskflow; consumido pelo fork subagents) — NÃO familiar agent-chain.yaml. (2) **QA-2 — modelSwitch**: automático leve→forte via chain config + exaustão → halt + escalada humana (implementa a interface NO-OP do F27 sem tocar no F27). (3) **QA-3 — Rules injection**: `before_agent_start` (rewrite encadeado) — o wording do roadmap vence o tool-call-level do guild (P2 flag documentado). (4) **QA-4 — models.json**: CLI `harness models generate` (determinístico, fixture-testável; o SDK 0.81.0 NÃO tem API de model-switch em runtime — models.json é o único mecanismo real, provado pelo fixture F21). (5) **QA-5 — Archive**: CLI `harness plans archive <slug>` (port de createArchivePlanTool para `.runecraft/plans/`).
+**Reason:** Usuário delegou as recomendações; mechanismo de modelos com evidência (models.json — F21 fixture); persona objetiva sem RPG; assets SDD autorais (guild não tem prompts/; familiar é específico dele).
+**Trade-off:** TUI/model modal fora (decisão de escopo); chains builtin vazias (sem IDs de modelo inventados — chains vêm do state); geração de models.json com "validar no Execute" no caminho real de resolução do SDK.
+**Impact:** Design F30 marcado Ready for Execute; fighter implementa EVAL-039..048 (matriz v8 após F29 fechar v7); categoria failover (F26) desbloqueada; F27 intocado.
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
