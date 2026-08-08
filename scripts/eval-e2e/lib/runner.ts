@@ -8,7 +8,6 @@
 //
 // TODAS as deps são injetáveis (HARD CONSTRAINT: offline-testability — os
 // testes usam cenários/sessão/exec fake; o caminho real é env-gated).
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
@@ -49,17 +48,6 @@ export function resolveHarnessVersion(repoRoot: string): string {
 		return `0.0.0-dev-${describe}`;
 	} catch {
 		return "0.0.0-dev";
-	}
-}
-
-/** sha256 do vendor.manifest.json (aditivo D4 — forks mudaram sem bump). */
-export function vendorHash(repoRoot: string): string | null {
-	const file = path.join(repoRoot, "vendor.manifest.json");
-	if (!fs.existsSync(file)) return null;
-	try {
-		return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 16);
-	} catch {
-		return null;
 	}
 }
 
@@ -131,7 +119,6 @@ export async function executeRound(deps: RunnerDeps): Promise<RunOutcome> {
 		environment: preflight.environment,
 		confounders: [...preflight.confounders],
 		probe: null,
-		vendorHash: vendorHash(repoRoot),
 		scenarios: [],
 	};
 

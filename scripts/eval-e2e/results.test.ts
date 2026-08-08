@@ -30,7 +30,6 @@ function sampleRound(): RoundResult {
 		environment: { bun: "1.3.14", node: "24.3.0", os: "linux" },
 		confounders: [],
 		probe: { tokensApprox: 42, costUsd: 0.0001 },
-		vendorHash: "abc123",
 		scenarios: [
 			{
 				id: "COEX-05",

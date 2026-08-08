@@ -13,12 +13,12 @@
 
 ## T2 — vendorHash removido do contrato E2E (D2, UNV-02) — último da frente 1
 
-- [ ] `scripts/eval-e2e/types.ts`: remover o campo `vendorHash` de `RoundResult` (linhas ~173-174) + doc comment
-- [ ] `scripts/eval-e2e/lib/runner.ts`: remover a função `vendorHash()` (55-57) e o uso em `:134` (round sem o campo)
-- [ ] `scripts/eval-e2e/lib/results.ts`: remover `vendorHash: round.vendorHash` da serialização (`:43`)
-- [ ] Fixtures: `scripts/eval-e2e/results.test.ts:33` (remover `vendorHash: "abc123"` do sample) e `packages/harness/test/eval/ratchet-e2e.test.ts:65` (remover `vendorHash: null` do fixture) — checar nenhum outro uso (verificado: nenhum)
-- [ ] Registrar a mudança de schema no commit/mensagem (contrato versionado F23 P2 — remoção deliberada; rodadas antigas em `.specs/features/f22-e2e-benchmark/results/` seguem legíveis por parse leniente — `.specs` intocadas)
-- [ ] **Verificar:** `bun test scripts/eval-e2e` verde (71 testes offline — env-gated: sem RUNECRAFT_E2E → skip/exit 0); `bun test test/eval/ratchet-e2e.test.ts` verde (lê rodada commitada antiga com o campo extra); `grep -rn "vendorHash" scripts/eval-e2e packages/harness/test/eval/ratchet-e2e.ts` vazio
+- [x] `scripts/eval-e2e/types.ts`: remover o campo `vendorHash` de `RoundResult` (linhas ~173-174) + doc comment
+- [x] `scripts/eval-e2e/lib/runner.ts`: remover a função `vendorHash()` (55-57) e o uso em `:134` (round sem o campo)
+- [x] `scripts/eval-e2e/lib/results.ts`: remover `vendorHash: round.vendorHash` da serialização (`:43`)
+- [x] Fixtures: `scripts/eval-e2e/results.test.ts:33` (remover `vendorHash: "abc123"` do sample) e `packages/harness/test/eval/ratchet-e2e.test.ts:65` (remover `vendorHash: null` do fixture) — checar nenhum outro uso (verificado: nenhum)
+- [x] Registrar a mudança de schema no commit/mensagem (contrato versionado F23 P2 — remoção deliberada; rodadas antigas em `.specs/features/f22-e2e-benchmark/results/` seguem legíveis por parse leniente — `.specs` intocadas)
+- [x] **Verificar:** `bun test scripts/eval-e2e` verde (71 testes offline — env-gated: sem RUNECRAFT_E2E → skip/exit 0); `bun test test/eval/ratchet-e2e.test.ts` verde (lê rodada commitada antiga com o campo extra); `grep -rn "vendorHash" scripts/eval-e2e packages/harness/test/eval/ratchet-e2e.ts` vazio
 
 ## T3 — Knock-ons de docs/tsconfig (D1/D8, UNV-03) — antes do delete
 

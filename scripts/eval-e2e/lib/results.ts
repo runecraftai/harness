@@ -40,7 +40,6 @@ export function serializeRound(round: RoundResult): string {
 		environment: round.environment,
 		confounders: round.confounders,
 		probe: round.probe,
-		vendorHash: round.vendorHash,
 		scenarios: round.scenarios.map((s) => ({
 			id: s.id,
 			name: s.name,

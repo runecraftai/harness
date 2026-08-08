@@ -62,7 +62,6 @@ function writeRound(
 		environment: {},
 		confounders: [],
 		probe: null,
-		vendorHash: null,
 		scenarios: scenarios.map((s) => ({
 			id: s.id,
 			name: s.name,

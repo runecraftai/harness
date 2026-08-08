@@ -170,8 +170,6 @@ export interface RoundResult {
 	confounders: string[];
 	/** uso do probe de modelo do preflight (aditivo — contabilizado no cap). */
 	probe: { tokensApprox: number | null; costUsd: number | null } | null;
-	/** sha256 do vendor.manifest.json (aditivo — forks mudaram sem bump do umbrella). */
-	vendorHash: string | null;
 	scenarios: ScenarioResult[];
 }
 
