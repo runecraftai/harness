@@ -61,9 +61,9 @@
 
 ## T8 — Docs páginas 1/3: intended-usage + usage (D3/D4, DOC-01/02) — após Front 1+2
 
-- [ ] `packages/harness/docs/intended-usage.md` (EN) ← ROUTING §1-2 (quando usar o quê) + §5 (hello world SDLC versionado F7/F19 — prova de uso real) + two-driver em uma linha (link ROUTING §2)
-- [ ] `packages/harness/docs/usage.md` (EN) ← README raiz quickstart + umbrella (install `companion`, doctor/status/sync/uninstall/restore, config essencial, troubleshooting → link) + nota de coexistência (owners/check 14 — KEEP language) + rollback/backups (F13, uma seção)
-- [ ] **Verificar:** links resolvem; conteúdo extraído (checklist fonte→seção no corpo da task); EN; §9 ROUTING intocado; `bun test` verde
+- [x] `packages/harness/docs/intended-usage.md` (EN) ← ROUTING §1-2 (quando usar o quê) + §5 (hello world SDLC versionado F7/F19 — prova de uso real) + two-driver em uma linha (link ROUTING §2)
+- [x] `packages/harness/docs/usage.md` (EN) ← README raiz quickstart + umbrella (install `companion`, doctor/status/sync/uninstall/restore, config essencial, troubleshooting → link) + nota de coexistência (owners/check 14 — KEEP language) + rollback/backups (F13, uma seção)
+- [x] **Verificar:** links resolvem; conteúdo extraído (checklist fonte→seção no corpo da task); EN; §9 ROUTING intocado; `bun test` verde
 
 ## T9 — Docs páginas 2/3: agents + components (D4, DOC-02)
 
