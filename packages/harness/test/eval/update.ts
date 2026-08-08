@@ -14,7 +14,7 @@
 // ratchet compara.
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { normalizeMessage } from "./normalize.ts";
+import { normalizeMessage } from "../../src/eval/normalize.ts";
 import { goldenDefs } from "./goldens.ts";
 import {
   COVERAGE_HEADER,

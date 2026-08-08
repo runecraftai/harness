@@ -2,7 +2,7 @@
 // teste dedicado") + regras de identidade (primeira linha, tabs, 200 chars,
 // dedup, fail-safe, números de assert NUNCA removidos).
 import { describe, expect, test } from "bun:test";
-import { applyPatterns, firstLineSanitized, normalizeMessage, NORMALIZE_PATTERNS, MAX_IDENTITY_MESSAGE_LENGTH } from "./normalize.ts";
+import { applyPatterns, firstLineSanitized, normalizeMessage, NORMALIZE_PATTERNS, MAX_IDENTITY_MESSAGE_LENGTH } from "../../src/eval/normalize.ts";
 
 describe("normalize — regexes versionadas (um teste por padrão, D2)", () => {
   test("cada padrão tem nome único e regex com flag global (replace determinístico)", () => {

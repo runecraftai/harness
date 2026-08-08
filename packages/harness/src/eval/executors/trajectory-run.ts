@@ -12,6 +12,13 @@
 // diagnóstico (desvio induzido — ex.: guard off e o marcador de reason
 // some da conversa), o executor FALHA com o diagnóstico do fixture (case
 // vermelho com reason — nunca passa em silêncio).
+//
+// TEST-COUPLED POR DESIGN (fix cleric F26): este executor dirige o fixture
+// do F21 (test/eval/) — é infra de teste, não superfície de runtime. O
+// pacote publicado (files: bin/src/extensions/docs) NÃO inclui test/;
+// guards/verify/CLI não importam este módulo. Se o publish precisar do
+// framework sem o fixture (F9), este executor fica de fora da superfície
+// (documentado em docs/EVAL-FRAMEWORK.md).
 import type { SeenRequest } from "../../../test/eval/layer2/fixture/chatServer.ts";
 import type { ScriptedScenario } from "../../../test/eval/layer2/fixture/scenarios.ts";
 import { setupEvalFixture } from "../../../test/eval/helpers/evalFixture.ts";

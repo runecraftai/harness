@@ -5,8 +5,9 @@
 // is not implemented yet" — deterministic.ts); F26 o IMPLEMENTA comparando o
 // resultado do case atual contra o baseline do F23 (test/eval/baselines/
 // known-failures.txt — formato `identidade<TAB>...` do ratchet). Reuso da
-// infra F23 SEM duplicação: normalizeMessage (normalize.ts — identidade
-// estável, sem path/timestamp) e sortLines (sort.ts — colação pinada).
+// infra F23 SEM duplicação: normalizeMessage (src/eval/normalize.ts —
+// identidade estável, sem path/timestamp) + parseBaselineLines
+// (src/eval/baselines.ts — fonte única promovida do ratchet, fix cleric F26).
 //
 // Semântica (EVAL-015): falha do case com identidade NOVA no baseline →
 // regression (fail com reason caseId + métrica); falha congelada → pass
@@ -19,8 +20,8 @@
 // documentado no docs/EVAL-FRAMEWORK.md (T10).
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { normalizeMessage } from "../../../test/eval/normalize.ts";
-import { parseBaselineLines } from "../../../test/eval/ratchet.ts";
+import { normalizeMessage } from "../normalize.ts";
+import { parseBaselineLines } from "../baselines.ts";
 import type { AssertionResult, BaselineDiffEvaluator, EvalCaseResult } from "../types.ts";
 
 /** Identidade de falha de um case do framework (2-partes — namespace F26). */

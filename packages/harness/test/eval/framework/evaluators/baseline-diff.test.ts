@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { caseFailureIdentity, runBaselineDiffEvaluator } from "../../../../src/eval/evaluators/baseline-diff.ts";
-import { normalizeMessage } from "../../../../test/eval/normalize.ts";
+import { normalizeMessage } from "../../../../src/eval/normalize.ts";
 import type { BaselineDiffEvaluator } from "../../../../src/eval/types.ts";
 
 const KNOWN_FAILURES_HEADER = "# runecraft harness — known failures (may only shrink)";

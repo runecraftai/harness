@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { compareCodePoints, sortLines } from "./sort.ts";
+import { compareCodePoints, sortLines } from "../../src/eval/sort.ts";
 import { diffLines, unifiedDiff } from "./diff.ts";
 import {
   assertEvidenceComplete,

@@ -62,7 +62,7 @@
   `known-failures.txt` do F23 → regression; congelada → pass; case passou →
   no-regression; baseline ausente → degraded. Identidade 2-partes
   `caseId<TAB>mensagemNormalizada` (namespace F26, distinto da identidade
-  3-partes da evidência F21); reusa `normalizeMessage`/`sortLines`/
+  3-partes da evidência F21); reusa `normalizeMessage`/`parseBaselineLines` (fonte única src/eval/baselines.ts — fix cleric F26)
   `parseBaselineLines` do F23 (sem duplicação).
 
 ## 4. Subset v1 de evaluators (D4 — honesto)

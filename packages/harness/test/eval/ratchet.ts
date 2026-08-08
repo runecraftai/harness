@@ -9,8 +9,9 @@
 // mesmo contrato do fail (infra) do F22).
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { normalizeMessage } from "./normalize.ts";
-import { sortLines } from "./sort.ts";
+import { normalizeMessage } from "../../src/eval/normalize.ts";
+import { sortLines } from "../../src/eval/sort.ts";
+import { parseBaselineLines } from "../../src/eval/baselines.ts";
 import { unifiedDiff } from "./diff.ts";
 import { countLines, goldenDefs, readGolden, type GoldenDef } from "./goldens.ts";
 
@@ -92,34 +93,7 @@ export function coverageIdentity(command: string, flags: string[]): string {
   return `${canonical.command}\t${canonical.flags.join(" ")}`;
 }
 
-export const KNOWN_FAILURES_HEADER = [
-  "# runecraft harness — known failures (may only shrink)",
-  "# formato: testFile<TAB>testName<TAB>mensagemNormalizada",
-  "# gerado por: bun run eval:ratchet --update",
-].join("\n");
-
-export const COVERAGE_HEADER = [
-  "# runecraft harness — command coverage (list only grows)",
-  "# formato: comando<TAB>flagsCanonicas (nomes ordenados, valores removidos)",
-  "# gerado por: bun run eval:ratchet --update",
-].join("\n");
-
-/** Linhas não-comentário de um baseline (identidades já canônicas). */
-export function parseBaselineLines(text: string): Set<string> {
-  const set = new Set<string>();
-  for (const line of text.split("\n")) {
-    const clean = line.replace(/\r$/, "");
-    if (clean === "" || clean.startsWith("#")) continue;
-    set.add(clean);
-  }
-  return set;
-}
-
-/** Serializa um baseline: header + identidades ordenadas pela colação pinada. */
-export function serializeBaseline(header: string, identities: Iterable<string>): string {
-  const lines = sortLines(identities);
-  return lines.length === 0 ? `${header}\n` : `${header}\n${lines.join("\n")}\n`;
-}
+export { KNOWN_FAILURES_HEADER, COVERAGE_HEADER, parseBaselineLines, serializeBaseline } from "../../src/eval/baselines.ts";
 
 /** Comparação de conjuntos ordenada (colação pinada — D2). */
 export function compareSets(current: Set<string>, baseline: Set<string>): SetComparison {
