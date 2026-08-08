@@ -214,6 +214,13 @@
 **Trade-off:** modelSwitch NO-OP até F30 — fallback de modelo não dispara de verdade até lá (gatilhos e política prontos).
 **Impact:** Design F27 marcado Ready for Execute; fighter implementa EVAL-017..021 (v5) sem reabrir QA; categoria compaction-recovery (F26) desbloqueada.
 
+### AD-028: Resolução das QAs do F28 — Observability & Lessons (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Store**: `.runecraft/events/<sessionId>.jsonl` por sessão (header `session:started` com bundle full; isolamento multi-sessão; precedente evidence/partial F21). (2) **QA-2 — Bundle**: sha256 canônico de config+settings+renderRules+routingVersion+versões; **gitHead FORA do hash** (identidade de variante, não de execução). (3) **QA-3 — Adendo**: injeção via `before_agent_start` (rewrite encadeável do systemPrompt com marker `<!-- runecraft:lessons -->`). (4) **QA-4 — Memória de time**: `.runecraft/lessons/promoted.jsonl` VERSIONADO (commit-worthy; F29 consome). (5) **QA-5 — Fontes de contexto/tokens**: SDK `context` event (a validar) + token-budget do taskflow read-only (shape verificado) + `shouldCompact` puro.
+**Reason:** Usuário delegou as recomendações; mecanismos citados existem (SDK types.d.ts / taskflow / recordSessionVerdict — evidência no design); pilar 7 do doc (eventos tipados, bundles, lessons com reincidência/promoção/adendo) coberto sem violar zero-deps.
+**Trade-off:** OTel/Langfuse = tabela de mapeamento documentada (implementação adiada com nota datada — v1 jsonl); args de tools nunca crus (argsHash).
+**Impact:** Design F28 marcado Ready for Execute; schema do store = CONTRATO cross-feature (OBS-09) que F24/F25/F27 conformam sem retrofit; fighter implementa EVAL-022..029 (matriz v6) após o F27 (one writer thread).
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
