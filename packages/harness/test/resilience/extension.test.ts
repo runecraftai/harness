@@ -249,7 +249,10 @@ describe("wiring — scoping de sessão (D2 — AC4)", () => {
       expect(meta(repo).lastSessionId).toBe("sess-owner");
       // Child (subagent) dispara session_start com o MESMO agentDir — NÃO pode
       // sequestrar a ownership (senão a sessão principal perde a continuação).
+      // Subagents rodam a MESMA extensão (agentDir compartilhado) — o child
+      // precisa ter a extensão registrada, como no processo real (fix re-review).
       const child = makeFakePi("sess-child");
+      installResilience(child.api, { env: process.env });
       await emit(child, "session_start", { type: "session_start", reason: "resume" }, makeCtx(repo, "sess-child"));
       expect(meta(repo).lastSessionId).toBe("sess-owner"); // inalterado
       // E a injeção continua funcionando para o dono.

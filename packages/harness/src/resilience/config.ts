@@ -180,15 +180,6 @@ function numberField(
   return value;
 }
 
-function numberArrayField(value: unknown, field: string, errors: string[]): number[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || !value.every((x) => typeof x === "number" && Number.isFinite(x) && x >= 0)) {
-    errors.push(`${field}: esperado number[] não-negativo, encontrado ${Array.isArray(value) ? "array com tipo errado" : typeof value}`);
-    return undefined;
-  }
-  return value;
-}
-
 function policyField(value: unknown, errors: string[]): EscalationPolicy | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || !(ESCALATION_POLICIES as readonly string[]).includes(value)) {
