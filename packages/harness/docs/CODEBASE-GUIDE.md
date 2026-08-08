@@ -63,7 +63,7 @@ Three layers:
 
 - **Language (AD-038)**: shipped docs (READMEs, `docs/`) are **EN**; code
   comments and `.specs/` are **PT-BR**. New docs pages follow this split.
-- **Fork edits**: the 13 fork packages are committed source — never edit
+- **Fork edits**: the 12 fork packages are committed source — never edit
   their code or tests; only README-level relationship notes are touched
   deliberately. There is **no sync workflow** and no vendoring machinery:
   forks live in this repo as source.

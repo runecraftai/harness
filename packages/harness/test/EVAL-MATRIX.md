@@ -14,6 +14,12 @@ bump de `MATRIX_VERSION`); **nada sai sem AD**. Correção in-place do script
 linha. Mudança SEMÂNTICA de fluxo (novo passo no meio) = entrada nova, nunca
 edição da antiga.
 
+**Nota (F34, 2026-08-08):** entradas datadas abaixo citam o nome do produto
+externo detectado (`gentle-ai`) como **dado funcional da detecção**; a
+apresentação atual do harness usa `upstream-installer` (remap F34 — ver
+CODEBASE-GUIDE "third-party fingerprints"). As entradas são imutáveis
+(política aditiva) — o nome permanece como registro histórico.
+
 Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-deterministic/spec.md`) + F24 GUARD-01..08 (ver `.specs/features/f24-execution-guards/spec.md` — EVAL-006 → GUARD-01/02/07/08; EVAL-007 → GUARD-04/05/07/08) + F25 VER-01..13 (ver `.specs/features/f25-verification-cascade/spec.md` — EVAL-008 → VER-01/02; EVAL-009 → VER-03/04; EVAL-010 → VER-07/08/09/10; EVAL-011 → VER-06) + F26 EVAL-012..016 (ver `.specs/features/f26-eval-framework-port/spec.md` — framework de evals portado do arcanum, AD-026) + F31 COP-01..09 (ver `.specs/features/f31-copilot-adapter/spec.md` — EVAL-049..056).
 
 **v9 (F31, AD-031):** entradas aditivas EVAL-049..056 (Copilot/VSCode Adapter —
