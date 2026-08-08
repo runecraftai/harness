@@ -259,6 +259,13 @@
 **Trade-off:** Rota nunca por LLM; hook em before_agent_start depende da 1ª mensagem estar disponível via client API (validar no Execute).
 **Impact:** Design F33 marcado Ready for Execute; fighter implementa EVAL-067..078 (matriz v11); categorias do eval-coverage (F26) 100% completas — constraint adherence (F24), compaction (F27), failover (F30), tool-use + routing (F32/F33).
 
+### AD-034: Resolução das QAs do F10 — Upstream Sync Workflow (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **BUG-1/BUG-2**: resolver no 1º ciclo de sync do taskflow (BUG-1 via rename pass — import() dinâmicos; BUG-2 via files/export no config.ts) — T10 contingent. (2) **`--to`**: ref explícita obrigatória (sem `--to latest` automático — reprodutibilidade). (3) **Auto-rename**: aplicação mecânica automática via config.ts por fork (renameMap estáticos + dinâmicos — wording do roadmap). (4) **Ratchet/golden drift**: `--update` explícito commitado DENTRO do commit de sync com relatório (nunca silencioso; recusado com CI=true). (5) **Registry**: `.patch` como artefatos `git diff` opcionais para revisão (engine é three-way — patches nunca aplicados).
+**Reason:** Usuário delegou as recomendações; three-way com base materializada (tarball do resolvedSha) rejeita patch-queue puro (bookkeeping duplicado + retro-extração frágil); os fixes F2/F5/renames já vivem no ours.
+**Trade-off:** Sync é manual + rede (CI offline preservado — `--check`/`--status` offline cobrem CI); conflito → nada escrito (fail-closed com hint git restore).
+**Impact:** Design F10 marcado Ready for Execute; fighter implementa engine three-way + CLI + group taskflow (9 packages) + runbook docs/SYNC.md; commit de sync separado de feature (`chore(<pkg>): sync upstream vOld..vNew`).
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
