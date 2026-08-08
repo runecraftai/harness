@@ -1,4 +1,4 @@
-// plan.test.ts — presets/components e consistência com vendor.manifest.json.
+// plan.test.ts — presets/components e consistência com os package.json dos forks.
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -7,6 +7,7 @@ import { buildPlan, COMPONENTS, helpText } from "../src/plan.ts";
 import { HARNESS_VERSIONS } from "../src/versions.ts";
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = path.resolve(PKG_ROOT, "..", "..");
 
 describe("buildPlan", () => {
   test("preset minimal → 4 components / 6 packages / 6 specs", () => {
@@ -51,31 +52,28 @@ describe("buildPlan", () => {
   });
 });
 
-describe("HARNESS_VERSIONS vs vendor.manifest.json (fonte única)", () => {
-  test("versões batem com o manifest da raiz", () => {
-    const manifestPath = path.resolve(PKG_ROOT, "..", "..", "vendor.manifest.json");
-    expect(fs.existsSync(manifestPath)).toBe(true);
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
-      upstreams: Record<string, { npmVersion?: string }>;
+describe("HARNESS_VERSIONS vs package.json dos forks (fonte única)", () => {
+  test("versões batem com os package.json commitados dos forks", () => {
+    // @runecraft/* package name → committed fork package.json (rel. ao repo root).
+    const forks: Record<string, string> = {
+      "@runecraft/subagents": "packages/subagents/package.json",
+      "@runecraft/taskflow-core": "packages/taskflow/core/package.json",
+      "@runecraft/taskflow": "packages/taskflow/pi/package.json",
+      "@runecraft/taskflow-dsl": "packages/taskflow/dsl/package.json",
+      "@runecraft/taskflow-mcp-core": "packages/taskflow/mcp-core/package.json",
+      "@runecraft/taskflow-hosts": "packages/taskflow/hosts/package.json",
+      "@runecraft/taskflow-codex": "packages/taskflow/codex/package.json",
+      "@runecraft/taskflow-claude": "packages/taskflow/claude/package.json",
+      "@runecraft/taskflow-opencode": "packages/taskflow/opencode/package.json",
+      "@runecraft/taskflow-grok": "packages/taskflow/grok/package.json",
+      "@runecraft/goal-loop-audit": "packages/goal-loop-audit/package.json",
+      "@runecraft/pr-review": "packages/pr-review/package.json",
     };
-    const renamed: Record<string, string> = {
-      subagents: "@runecraft/subagents",
-      "taskflow-core": "@runecraft/taskflow-core",
-      "taskflow-pi": "@runecraft/taskflow",
-      "taskflow-dsl": "@runecraft/taskflow-dsl",
-      "taskflow-mcp-core": "@runecraft/taskflow-mcp-core",
-      "taskflow-hosts": "@runecraft/taskflow-hosts",
-      "taskflow-codex": "@runecraft/taskflow-codex",
-      "taskflow-claude": "@runecraft/taskflow-claude",
-      "taskflow-opencode": "@runecraft/taskflow-opencode",
-      "taskflow-grok": "@runecraft/taskflow-grok",
-      "goal-loop-audit": "@runecraft/goal-loop-audit",
-      "pr-review": "@runecraft/pr-review",
-    };
-    for (const [vendorKey, pkgName] of Object.entries(renamed)) {
-      expect(HARNESS_VERSIONS[pkgName], `${pkgName} vs vendor ${vendorKey}`).toBe(
-        manifest.upstreams[vendorKey]?.npmVersion,
-      );
+    for (const [pkgName, relPath] of Object.entries(forks)) {
+      const forkPath = path.resolve(REPO_ROOT, relPath);
+      expect(fs.existsSync(forkPath), relPath).toBe(true);
+      const forkPkg = JSON.parse(fs.readFileSync(forkPath, "utf8")) as { version?: string };
+      expect(HARNESS_VERSIONS[pkgName], `${pkgName} vs ${relPath}`).toBe(forkPkg.version);
     }
     expect(Object.keys(HARNESS_VERSIONS)).toHaveLength(12);
   });

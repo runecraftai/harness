@@ -1,7 +1,8 @@
 // plan.ts — presets + components → install plan (F11).
 //
-// Versions come from src/versions.ts, generated from vendor.manifest.json
-// (single source of truth). The CLI never hardcodes versions here.
+// Versions come from src/versions.ts, generated from the committed fork
+// package.json files (single source of truth). The CLI never hardcodes
+// versions here.
 import { HARNESS_VERSIONS } from "./versions.ts";
 import { createRequire } from "node:module";
 
@@ -94,7 +95,7 @@ export function specForPackage(name: string): string {
   const version = HARNESS_VERSIONS[name];
   if (!version) {
     throw new Error(
-      `versão ausente para ${name} em src/versions.ts — rode \`bun run generate:versions\` (fonte: vendor.manifest.json)`,
+      `versão ausente para ${name} em src/versions.ts — rode \`bun run generate:versions\` (fonte: package.json dos forks)`,
     );
   }
   return `npm:${name}@${version}`;

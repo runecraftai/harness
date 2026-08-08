@@ -1,14 +1,17 @@
-// gen-versions.mjs — generates src/versions.ts from vendor.manifest.json.
+// gen-versions.mjs — generates src/versions.ts from the committed fork packages.
 //
 // Mechanism decision (F11): the committed-file approach.
-//   - vendor.manifest.json lives at the repo root and is NOT published in the
-//     npm tarball (see design F11, revisão 2026-08-05).
-//   - Generating during `prepack` would couple pack to the repo layout
-//     (vendor.manifest.json is one level above the package dir), breaking
-//     `npm pack`/`npm publish` run from the package dir or from a tarball.
+//   - The single source of truth is the 12 committed fork package.json files
+//     (packages/subagents, packages/taskflow/*, packages/goal-loop-audit,
+//     packages/pr-review). The forks are committed source (F34) — the
+//     vendoring machinery has been removed.
+//   - Generating during `prepack` would couple pack to the repo layout,
+//     breaking `npm pack`/`npm publish` run from the package dir or from a
+//     tarball.
 //   - Committing the generated src/versions.ts keeps `npm pack` hermetic and
 //     deterministic; the generator cross-checks package.json dependencies so
-//     the single source of truth (vendor.manifest.json) cannot drift silently.
+//     the single source of truth (the fork package.json files) cannot drift
+//     silently.
 //
 // Usage:
 //   node ./scripts/gen-versions.mjs            # write src/versions.ts
@@ -21,48 +24,51 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(pkgRoot, "..", "..");
 
-const MANIFEST = join(repoRoot, "vendor.manifest.json");
 const OUT = join(pkgRoot, "src", "versions.ts");
 const PKG_JSON = join(pkgRoot, "package.json");
 
-// vendor key (upstreams.<name>) → @runecraft/* package name (rename per F2–F5).
-const RENAMES = {
-  subagents: "@runecraft/subagents",
-  "taskflow-core": "@runecraft/taskflow-core",
-  "taskflow-pi": "@runecraft/taskflow",
-  "taskflow-dsl": "@runecraft/taskflow-dsl",
-  "taskflow-mcp-core": "@runecraft/taskflow-mcp-core",
-  "taskflow-hosts": "@runecraft/taskflow-hosts",
-  "taskflow-codex": "@runecraft/taskflow-codex",
-  "taskflow-claude": "@runecraft/taskflow-claude",
-  "taskflow-opencode": "@runecraft/taskflow-opencode",
-  "taskflow-grok": "@runecraft/taskflow-grok",
-  "goal-loop-audit": "@runecraft/goal-loop-audit",
-  "pr-review": "@runecraft/pr-review",
+// @runecraft/* package name → committed fork package.json (relative to repo root).
+const FORKS = {
+  "@runecraft/subagents": "packages/subagents/package.json",
+  "@runecraft/taskflow-core": "packages/taskflow/core/package.json",
+  "@runecraft/taskflow": "packages/taskflow/pi/package.json",
+  "@runecraft/taskflow-dsl": "packages/taskflow/dsl/package.json",
+  "@runecraft/taskflow-mcp-core": "packages/taskflow/mcp-core/package.json",
+  "@runecraft/taskflow-hosts": "packages/taskflow/hosts/package.json",
+  "@runecraft/taskflow-codex": "packages/taskflow/codex/package.json",
+  "@runecraft/taskflow-claude": "packages/taskflow/claude/package.json",
+  "@runecraft/taskflow-opencode": "packages/taskflow/opencode/package.json",
+  "@runecraft/taskflow-grok": "packages/taskflow/grok/package.json",
+  "@runecraft/goal-loop-audit": "packages/goal-loop-audit/package.json",
+  "@runecraft/pr-review": "packages/pr-review/package.json",
 };
 
-if (!existsSync(MANIFEST)) {
-  console.error(`gen-versions: vendor.manifest.json não encontrado em ${MANIFEST}`);
-  process.exit(1);
-}
-
-const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
 const pkg = JSON.parse(readFileSync(PKG_JSON, "utf8"));
 
 /** @type {Record<string, string>} name → pinned version */
 const versions = {};
-for (const [key, entry] of Object.entries(manifest.upstreams ?? {})) {
-  const name = RENAMES[key];
-  if (!name) continue; // vendor entries not renamed into @runecraft/* are irrelevant here
-  if (!entry?.npmVersion) {
-    console.error(`gen-versions: entry "${key}" sem npmVersion no vendor.manifest.json`);
+for (const [name, relPath] of Object.entries(FORKS)) {
+  const forkPath = join(repoRoot, relPath);
+  if (!existsSync(forkPath)) {
+    console.error(`gen-versions: fork package.json não encontrado em ${forkPath}`);
     process.exit(1);
   }
-  versions[name] = entry.npmVersion;
+  const forkPkg = JSON.parse(readFileSync(forkPath, "utf8"));
+  if (forkPkg.name !== name) {
+    console.error(
+      `gen-versions: ${relPath} declara name "${forkPkg.name}" — esperado "${name}" (fonte única = fork package.json).`,
+    );
+    process.exit(1);
+  }
+  if (typeof forkPkg.version !== "string" || forkPkg.version.length === 0) {
+    console.error(`gen-versions: ${relPath} sem version (fonte única = fork package.json).`);
+    process.exit(1);
+  }
+  versions[name] = forkPkg.version;
 }
 
 // Cross-check: bundled dependency versions (installed by the umbrella tarball)
-// must match the vendor pins — otherwise the tarball would install something
+// must match the fork pins — otherwise the tarball would install something
 // else than what versions.ts advertises. Packages NOT in the umbrella deps
 // (e.g. the taskflow-MCP layer, F16: distributed via host configs, never
 // bundled — design F16 D6) are reference pins only: no cross-check, but they
@@ -73,19 +79,20 @@ for (const [name, version] of Object.entries(versions)) {
   if (depVersion !== version) {
     console.error(
       `gen-versions: package.json dependencies["${name}"] = ${JSON.stringify(depVersion)} ` +
-        `≠ vendor.manifest.json ${JSON.stringify(version)} — atualize o package.json (fonte única = vendor.manifest.json).`,
+        `≠ fork package.json ${JSON.stringify(version)} — atualize o package.json (fonte única = fork package.json).`,
     );
     process.exit(1);
   }
 }
 
 const body = [
-  "// AUTO-GENERATED by scripts/gen-versions.mjs from vendor.manifest.json — do not edit by hand.",
+  "// AUTO-GENERATED by scripts/gen-versions.mjs from the committed fork package.json files — do not edit by hand.",
   "// Regenerate with: bun run generate:versions  (or node ./scripts/gen-versions.mjs)",
   "//",
-  "// Single source of truth: vendor.manifest.json at the repo root. The",
-  "// generated file is committed so the published tarball stays hermetic",
-  "// (vendor.manifest.json is not part of the npm package).",
+  "// Single source of truth: the 12 committed fork packages",
+  "// (packages/{subagents,taskflow/*,goal-loop-audit,pr-review}/package.json). The",
+  "// generated file is committed so the published tarball stays hermetic (the",
+  "// fork package.json files are not part of the npm package).",
   "export const HARNESS_VERSIONS: Readonly<Record<string, string>> = {",
   ...Object.keys(versions)
     .sort()
