@@ -36,7 +36,7 @@ import { runEvalSuite } from "../../../src/eval/runner.ts";
 import { evalTest } from "../helpers/evalTest.ts";
 import { setupEvalFixture } from "../helpers/evalFixture.ts";
 import { script, type ScriptedScenario } from "../layer2/fixture/scenarios.ts";
-import { openDatabase, type Database } from "../../../src/memory/client.ts";
+import { openDatabase, type DatabaseLike } from "../../../src/memory/client.ts";
 import { Repository, ValidationError } from "../../../src/memory/repository.ts";
 import { readSchemaVersion, SCHEMA_VERSION } from "../../../src/memory/migrations.ts";
 import { importLessons } from "../../../src/memory/import-lessons.ts";
@@ -69,7 +69,7 @@ function appendExtension(agentDir: string, extension: string): void {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 }
 
-function openRepo(dir: string, env: NodeJS.ProcessEnv): { db: Database; repo: Repository } {
+function openRepo(dir: string, env: NodeJS.ProcessEnv): { db: DatabaseLike; repo: Repository } {
   const db = openDatabase(dir);
   return { db, repo: new Repository(db, { clock: () => 1000, idGen: (() => { let n = 0; return () => `id-${++n}`; })() }) };
 }

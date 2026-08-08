@@ -377,7 +377,7 @@ consultável por tool") porta o pacote `runes` do arcanum para MECANISMOS REAIS 
 
 | Mecanismo | Existe (SDK 0.81.0 / runes / harness) — evidência | F29 constrói |
 | --- | --- | --- |
-| SQLite + FTS5 + WAL em Bun | `bun:sqlite` builtin (Bun 1.3.14) ✓ — probes: WAL `"wal"`, FTS5 diacríticos, schema real executa | `src/memory/client.ts` + `schema.sql` AS-IS (D1/D4) |
+| SQLite + FTS5 + WAL | `bun:sqlite` (Bun 1.3.14) ✓ · `node:sqlite`/DatabaseSync (Node ≥22.19, F35) ✓ — probes: WAL `"wal"`, FTS5 diacríticos, schema real executa | `src/memory/client.ts` (driver duplo) + `schema.sql` AS-IS (D1/D4) |
 | Registro de tools Pi | `pi.registerTool(defineTool(...))` ✓ (fork glla goal.ts:2621+) | `src/memory/tools.ts` — 10 × `rune_*` (D3) |
 | Extensão Pi do harness | `extensions/{guards,resilience,observability}.ts` + manifest `pi.extensions` ✓ | `extensions/memory.ts` (D3) |
 | Config aditiva + freeze + kill switch | state.ts `guards`/`verification`/`resilience`/`observability` ✓ (F24 D12) | `src/memory/config.ts` seção `memory` (D5) |
@@ -824,7 +824,7 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   do pi-coding-agent; TypeBox já é peerDep do harness e usado pelo fork glla:
   zero deps novas); `ExtensionContext.cwd` é a fonte do diretório do repo
   (registro das tools no `session_start` — síncrono, padrão glla, sem race no
-  primeiro request); bun:sqlite (Bun 1.3.14) executa o schema.sql REAL do runes
+  primeiro request); bun:sqlite (Bun 1.3.14) — e node:sqlite no runtime Node (F35) — executam o schema.sql REAL do runes
   (WAL, FTS5 diacríticos, triggers real-table→FTS5); o argsHash do F28 é
   sha256 prefixo 16 hex (nunca args crus — EVAL-038 asserta o sentinel ausente
   do event store); `PRAGMA busy_timeout` do bun:sqlite expõe a coluna

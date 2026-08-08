@@ -7,15 +7,16 @@
 // de path (evals/CLI testável).
 //
 // Exit codes (port do bin): 0 ok · 1 erro/drift sem --purge · 2 uso errado.
+import { getDriver } from "./client.ts";
 
-/** FTS5 disponível? (probe — port do probeSqlite do bin; runtime Bun). */
-export function probeSqlite(): { ok: boolean; error?: string } {
+/** FTS5 disponível? (probe — port do probeSqlite do bin; F35: driver ativo). */
+export function probeSqlite(): { ok: boolean; driver?: "bun" | "node"; error?: string } {
 	try {
-		const { Database } = require("bun:sqlite") as typeof import("bun:sqlite");
-		const probe = new Database(":memory:");
+		const driver = getDriver();
+		const probe = driver.open(":memory:");
 		probe.exec("CREATE VIRTUAL TABLE _probe USING fts5(x)");
 		probe.close();
-		return { ok: true };
+		return { ok: true, driver: driver.name };
 	} catch (err) {
 		return { ok: false, error: err instanceof Error ? err.message : String(err) };
 	}

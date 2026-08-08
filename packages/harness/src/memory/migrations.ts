@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Database } from "bun:sqlite";
+import type { DatabaseLike } from "./client.ts";
 
 export const SCHEMA_VERSION = 1;
 
@@ -35,7 +35,7 @@ export function loadSchema(): string {
 }
 
 /** Executa o schema + upsert da versão — idempotente (2× → mesmo resultado). */
-export function runMigrations(db: Database): void {
+export function runMigrations(db: DatabaseLike): void {
 	db.exec(loadSchema());
 	db.exec("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 	db.prepare(
@@ -45,7 +45,7 @@ export function runMigrations(db: Database): void {
 }
 
 /** Lê a versão do schema_meta (null quando ausente — DB não migrado). */
-export function readSchemaVersion(db: Database): string | null {
+export function readSchemaVersion(db: DatabaseLike): string | null {
 	try {
 		const row = db.prepare("SELECT value FROM schema_meta WHERE key = 'version'").get() as
 			| { value: string }

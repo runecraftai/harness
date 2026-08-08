@@ -19,7 +19,7 @@
 // sessions/stats/recent/rebuild/purge — evals comparam contra fixtures do
 // source (EVAL-030/033/034/037).
 import { randomUUID } from "node:crypto";
-import type { Database } from "bun:sqlite";
+import type { DatabaseLike } from "./client.ts";
 import { clampImportance, validateSave, validateUpdate, ValidationError } from "./validate.ts";
 import {
 	type CompactionCandidate,
@@ -113,12 +113,12 @@ function rowToProject(row: Record<string, unknown>): Project {
 }
 
 export class Repository {
-	private readonly db: Database;
+	private readonly db: DatabaseLike;
 	private readonly clock: () => number;
 	private readonly idGen: () => string;
 
 	constructor(
-		db: Database,
+		db: DatabaseLike,
 		deps: RepositoryDeps = {},
 	) {
 		this.db = db;

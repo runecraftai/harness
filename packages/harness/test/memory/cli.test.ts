@@ -7,13 +7,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { dispatchMemoryCli, renderDoctor, renderSearchTable, renderStats, runDoctor, truncate } from "../../src/memory/cli.ts";
-import { openDatabase, type Database } from "../../src/memory/client.ts";
+import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
 import { importLessons } from "../../src/memory/import-lessons.ts";
 import { Repository } from "../../src/memory/repository.ts";
 import { runMemoryCommand } from "../../src/commands/memory.ts";
 
 let sandbox = "";
-let db: Database;
+let db: DatabaseLike;
 let repo: Repository;
 let projectId: number;
 let env: NodeJS.ProcessEnv;

@@ -6,12 +6,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDatabase, type Database } from "../../src/memory/client.ts";
+import { openDatabase, selectDriver, type DatabaseLike } from "../../src/memory/client.ts";
 import { runMigrations, readSchemaVersion, SCHEMA_VERSION } from "../../src/memory/migrations.ts";
 import { loadSchema } from "../../src/memory/migrations.ts";
 
 let sandbox = "";
-let db: Database;
+let db: DatabaseLike;
 
 beforeEach(() => {
 	sandbox = join(tmpdir(), `f29-client-${process.pid}-${Math.random().toString(36).slice(2)}`);
@@ -27,15 +27,58 @@ afterEach(() => {
 	rmSync(sandbox, { recursive: true, force: true });
 });
 
-describe("openDatabase (MEM-01)", () => {
+describe("selectDriver (F35, SQL-04)", () => {
+	test("bun:sqlite disponível → driver bun", () => {
+		class FakeDb {
+			exec(): void {}
+			prepare(): never {
+				throw new Error("unused");
+			}
+			close(): void {}
+		}
+		const load = (id: string): unknown => {
+			if (id === "bun:sqlite") return { Database: FakeDb };
+			throw new Error(`no such module: ${id}`);
+		};
+		const driver = selectDriver(load);
+		expect(driver.name).toBe("bun");
+		expect(driver.open(":memory:")).toBeInstanceOf(FakeDb);
+	});
+
+	test("bun:sqlite falha → fallback node:sqlite", () => {
+		class FakeSync {
+			exec(): void {}
+			prepare(): never {
+				throw new Error("unused");
+			}
+			close(): void {}
+		}
+		const load = (id: string): unknown => {
+			if (id === "node:sqlite") return { DatabaseSync: FakeSync };
+			throw new Error(`no such module: ${id}`);
+		};
+		const driver = selectDriver(load);
+		expect(driver.name).toBe("node");
+		expect(driver.open(":memory:")).toBeInstanceOf(FakeSync);
+	});
+
+	test("ambos falham → throw com hint de doctor", () => {
+		const load = (): never => {
+			throw new Error("no such built-in module");
+		};
+		expect(() => selectDriver(load)).toThrow(/no SQLite driver available/);
+	});
+});
+
+	describe("openDatabase (MEM-01)", () => {
 	test("abre em arquivo temp com WAL + foreign_keys + busy_timeout", () => {
 		db = openDatabase(sandbox);
-		const jm = db.query("PRAGMA journal_mode").get() as { journal_mode: string };
+		const jm = db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
 		expect(jm.journal_mode).toBe("wal");
-		const fk = db.query("PRAGMA foreign_keys").get() as { foreign_keys: number };
+		const fk = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number };
 		expect(fk.foreign_keys).toBe(1);
 		// bun:sqlite expõe o pragma busy_timeout na coluna `timeout`.
-		const bt = db.query("PRAGMA busy_timeout").get() as { timeout: number };
+		const bt = db.prepare("PRAGMA busy_timeout").get() as { timeout: number };
 		expect(bt.timeout).toBe(5000);
 	});
 
@@ -69,7 +112,7 @@ describe("migrations idempotentes (D4)", () => {
 		runMigrations(db);
 		expect(readSchemaVersion(db)).toBe("1");
 		const tables = db
-			.query("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'memories%' ORDER BY name")
+			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'memories%' ORDER BY name")
 			.all() as Array<{ name: string }>;
 		const names = tables.map((t) => t.name).sort();
 		expect(names).toContain("memories");
@@ -95,14 +138,14 @@ describe("schema.sql REAL (D12 — espelho do probe)", () => {
 		).run("m2", 1, "decisions", "other", "unrelated", 1001, 1001);
 
 		// FTS5 com diacríticos: "cafe" e "café" matcheiam.
-		const match = db.query("SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?").all('"cafe"') as Array<{ rowid: number }>;
+		const match = db.prepare("SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?").all('"cafe"') as Array<{ rowid: number }>;
 		expect(match.map((r) => r.rowid)).toEqual([1]);
-		const matchAccent = db.query("SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?").all('"café"') as Array<{ rowid: number }>;
+		const matchAccent = db.prepare("SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?").all('"café"') as Array<{ rowid: number }>;
 		expect(matchAccent.map((r) => r.rowid)).toEqual([1]);
 
 		// Soft-delete → trigger remove do índice FTS.
 		db.prepare("UPDATE memories SET soft_deleted = 1, updated_at = ? WHERE id = ?").run(2000, "m1");
-		const after = db.query("SELECT COUNT(*) AS c FROM memories_fts").get() as { c: number };
+		const after = db.prepare("SELECT COUNT(*) AS c FROM memories_fts").get() as { c: number };
 		expect(after.c).toBe(1);
 	});
 

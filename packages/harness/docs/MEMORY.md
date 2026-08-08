@@ -4,7 +4,7 @@ A camada de memória persistente do harness (M7, pilar 7 do doc do usuário —
 "memória durável consultável por tool") é o port do pacote `runes` do arcanum
 para MECANISMOS REAIS do Pi 0.81.0: **10 agent tools
 `rune_*` registradas via `pi.registerTool(defineTool(...))`**, SQLite local
-via `bun:sqlite` (zero deps novas), **o arquivo `.runecraft/memory/runes.db`
+via `bun:sqlite` (zero deps novas) no runtime Bun e `node:sqlite` no runtime Node — o runtime de produção do pi (F35: driver duplo em `src/memory/client.ts`), **o arquivo `.runecraft/memory/runes.db`
 É a memória cross-session** (D2 — resolução honesta do wording do roadmap:
 `appendEntry` do SDK é log de sessão e não persiste entre sessões; o DB em
 arquivo persiste por construção; state F13 carrega a CONFIG, não conteúdo).
@@ -26,7 +26,7 @@ arquivo persiste por construção; state F13 carrega a CONFIG, não conteúdo).
 
 ## Schema (D4 — AS-IS do runes v1)
 
-`schema.sql` portado integral (verificado executável em bun:sqlite, D12):
+`schema.sql` portado integral (verificado executável em bun:sqlite — D12; F35: também em node:sqlite, node v26.5 + FTS5):
 
 - `projects` (id, slug UNIQUE, root_path, remote_url, created_at)
 - `sessions` (id, project_id FK, agent, started_at, ended_at, summary)

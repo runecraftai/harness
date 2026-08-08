@@ -6,12 +6,12 @@ import * as crypto from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDatabase, type Database } from "../../src/memory/client.ts";
+import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
 import { importLessons, lessonWhereRef, parseLessonLine } from "../../src/memory/import-lessons.ts";
 import { Repository } from "../../src/memory/repository.ts";
 
 let sandbox = "";
-let db: Database;
+let db: DatabaseLike;
 let repo: Repository;
 let projectId: number;
 
