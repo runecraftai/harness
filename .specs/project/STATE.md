@@ -221,6 +221,13 @@
 **Trade-off:** OTel/Langfuse = tabela de mapeamento documentada (implementação adiada com nota datada — v1 jsonl); args de tools nunca crus (argsHash).
 **Impact:** Design F28 marcado Ready for Execute; schema do store = CONTRATO cross-feature (OBS-09) que F24/F25/F27 conformam sem retrofit; fighter implementa EVAL-022..029 (matriz v6) após o F27 (one writer thread).
 
+### AD-029: Resolução das QAs do F29 — Memory (runes → Pi) (2026-08-08, recomendações do wizard adotadas)
+
+**Decision:** (1) **QA-1 — Storage**: `<gitRoot>/.runecraft/memory/runes.db` (WAL, gitignored; override `RUNECRAFT_MEMORY_DATA_DIR`); NÃO usa `~/.runes/` legado. (2) **QA-2 — Recall**: tool-driven via skill Pi (o agente decide quando buscar); SEM auto-digest em before_agent_start no v1 (nota honesta: appendEntry do SDK é log de sessão e não persiste — o DB é a memória cross-session; state F13 carrega config, não conteúdo). (3) **QA-3 — Bridge F28**: CLI explícito (`harness memory import-lessons`) + `importLessonsOnStart: false` default (fonte never reescrita; `where_ref="lesson:<id>"` idempotente). (4) **QA-4 — Skill**: portada como skill Pi (progressive disclosure — o agente sabe QUANDO usar cada tool). (5) **QA-5 — CLI**: port completo (`harness memory search|stats|doctor [--purge]|import-lessons`).
+**Reason:** Usuário delegou as recomendações; runes VIÁVEL com evidência empírica (schema.sql real executa em bun:sqlite 1.3.14 — FTS match, soft-delete, WAL); 10/10 tools portadas com mesmo nome/semântica; drops documentados com honestidade (importance_floor parsed mas nunca enforced — achado do source).
+**Trade-off:** Memória é tool-driven (sem digest automático no v1 — o agente decide; F33 pode reavaliar com roteamento); eventos do F28 nunca expõem conteúdo da memória (argsHash — D10).
+**Impact:** Design F29 marcado Ready for Execute; fighter implementa EVAL-030..038 (matriz v7, após F28 fechar v6 — one writer thread); Engram fica como fallback documentado (D12) — não necessário hoje.
+
 ## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
 
 Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
