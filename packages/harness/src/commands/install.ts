@@ -162,7 +162,14 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     if (detect.installed) {
       agentDetection.push({ agentId: id, ok: true });
     } else {
-      const message = `agente '${id}' não detectado (binário '${adapter.bin}' fora do PATH). Instale com: ${adapter.installHint} (display-only — o harness nunca instala runtimes).`;      err.write(`  ✗ ${id} — ${message}\n`);
+      // F31 D6: copilot detecta por bin 'code'/'code-insiders' OU extensão
+      // github.copilot* — o hint do fail-closed reflete a detecção honesta.
+      const detectedBy =
+        id === "copilot"
+          ? "sem bin 'code'/'code-insiders' no PATH nem extensão github.copilot*"
+          : `binário '${adapter.bin}' fora do PATH`;
+      const message = `agente '${id}' não detectado (${detectedBy}). Instale com: ${adapter.installHint} (display-only — o harness nunca instala runtimes).`;
+      err.write(`  ✗ ${id} — ${message}\n`);
       agentDetection.push({ agentId: id, ok: false, error: message });
     }
   }

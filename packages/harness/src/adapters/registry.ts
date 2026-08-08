@@ -6,22 +6,30 @@
 import { claudeAdapter } from "./claude.ts";
 import { codexAdapter } from "./codex.ts";
 import { opencodeAdapter } from "./opencode.ts";
+import { copilotAdapter } from "./copilot.ts";
 import type { AgentAdapter, AgentId } from "./types.ts";
 
 export const ADAPTERS: Record<AgentId, AgentAdapter> = {
   "claude-code": claudeAdapter,
   opencode: opencodeAdapter,
   codex: codexAdapter,
+  copilot: copilotAdapter,
 };
 
-export const SUPPORTED_AGENT_IDS: readonly AgentId[] = ["claude-code", "opencode", "codex"];
+export const SUPPORTED_AGENT_IDS: readonly AgentId[] = ["claude-code", "opencode", "codex", "copilot"];
 
-/** Aliases accepted in --agent (e.g. "claude" → "claude-code"). */
+/** Aliases accepted in --agent (e.g. "claude" → "claude-code").
+ *  F31 (D1): copilot + vscode/vscode-copilot/github-copilot (compat com a
+ *  nomenclatura do gentle-ai — docs/agents.md id `vscode-copilot`). */
 export const AGENT_ALIASES: Record<string, AgentId> = {
   claude: "claude-code",
   "claude-code": "claude-code",
   opencode: "opencode",
   codex: "codex",
+  copilot: "copilot",
+  vscode: "copilot",
+  "vscode-copilot": "copilot",
+  "github-copilot": "copilot",
 };
 
 /**

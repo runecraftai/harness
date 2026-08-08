@@ -1,12 +1,13 @@
 // adapters/types.ts — contract of a non-Pi agent adapter (F15 D1).
 //
-// One shape for the three v1 adapters (claude-code / opencode / codex). The Pi
-// is NOT an adapter — its flow stays the F11 one. Adapters own detection,
-// injection and removal; what each agent receives (matrix column) is applied
-// by the caller (F17 matrix; v1 = rules + taskflow-MCP).
+// One shape for the v1 adapters (claude-code / opencode / codex / copilot —
+// F31 adds copilot additively). The Pi is NOT an adapter — its flow stays
+// the F11 one. Adapters own detection, injection and removal; what each
+// agent receives (matrix column) is applied by the caller (F17 matrix;
+// v1 = rules + taskflow-MCP).
 import type { Runtime } from "../config.ts";
 
-export type AgentId = "claude-code" | "opencode" | "codex";
+export type AgentId = "claude-code" | "opencode" | "codex" | "copilot";
 
 /** Result of adapter.detect(). Binary on PATH = installed; config dir is
  *  informative, never blocking (F15 ADPT-02, gentle-ai pattern). */

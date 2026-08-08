@@ -165,14 +165,18 @@ export interface McpConfigInput {
   mcpBin: string;
   /** full command for the MCP entry (defaults to ["node", mcpBin]). */
   mcpBinCommand?: string[];
+  /** extra env for the entry (F31 copilot — schema VS Code `env?`; optional). */
+  mcpEnvironment?: Record<string, string>;
 }
 
 /**
  * Render the taskflow MCP entry for a host — the EXACT value the adapter
  * injects (F23 D4 golden source). Single source of truth: claude/opencode
- * get the JSON entry object, codex gets the TOML block body. The adapters
- * call this on inject; the golden tests serialize it via renderMcpConfig.
- * Pure: same input → same bytes.
+ * get the JSON entry object, codex gets the TOML block body; copilot gets
+ * the VS Code schema entry `{type: "stdio", command, args?, env?}` (F31 D3/D5
+ * — schema mcp.json verificado; SEM `${input:...}` — o Agent Host repassa).
+ * The adapters call this on inject; the golden tests serialize it via
+ * renderMcpConfig. Pure: same input → same bytes.
  */
 export function renderMcpEntry(host: AgentId, input: McpConfigInput): unknown {
   const command = input.mcpBinCommand ?? ["node", input.mcpBin];
@@ -180,6 +184,18 @@ export function renderMcpEntry(host: AgentId, input: McpConfigInput): unknown {
     case "claude-code": {
       const [cmd, ...args] = command;
       return { type: "stdio", command: cmd, ...(args.length > 0 ? { args } : {}) };
+    }
+    case "copilot": {
+      // F31 D3: schema VS Code — `{type: "stdio", command, args?, env?}`;
+      // env opcional (ctx.mcpEnvironment quando presente). O host MCP é o
+      // reuso @runecraft/taskflow-claude (QA-2/D4) — resolveMcpBin("claude").
+      const [cmd, ...args] = command;
+      return {
+        type: "stdio",
+        command: cmd,
+        ...(args.length > 0 ? { args } : {}),
+        ...(input.mcpEnvironment ? { env: input.mcpEnvironment } : {}),
+      };
     }
     case "opencode":
       return { type: "local", command, enabled: true };
@@ -195,10 +211,15 @@ export function renderMcpEntry(host: AgentId, input: McpConfigInput): unknown {
  * (F23 D4 — golden files are byte-to-byte drift detectors). claude/opencode
  * use the jsonc 2-space indent (the entry is nested one level, indentation
  * is identical to a standalone serialization); codex includes the
- * `[mcp_servers.taskflow]` header. Always ends with a newline.
+ * `[mcp_servers.taskflow]` header; copilot (F31 D5 — desvio documentado do
+ * F23 D4) serializes o ARQUIVO COMPLETO `{"servers": {"taskflow": <entry>}}`
+ * (2-space) — o entry copilot fica aninhado 2 níveis (servers.taskflow), a
+ * serialização standalone NÃO é byte-idêntica à do arquivo → o golden cobre
+ * o artefato inteiro injetado. Always ends with a newline.
  */
 export function renderMcpConfig(host: AgentId, input: McpConfigInput): string {
   const entry = renderMcpEntry(host, input);
   if (host === "codex") return `[mcp_servers.${TASKFLOW_MCP_KEY}]\n${entry}\n`;
+  if (host === "copilot") return `${JSON.stringify({ servers: { [TASKFLOW_MCP_KEY]: entry } }, null, 2)}\n`;
   return `${JSON.stringify(entry, null, 2)}\n`;
 }

@@ -570,7 +570,9 @@ function syncAgentContext(
   rec: AgentRecord,
   opts: { preserveRules?: boolean } = {},
 ): AgentContext {
-  const mcp = resolveMcpBin(adapter.id === "claude-code" ? "claude" : adapter.id, rt);
+  // F31 QA-2/D4: copilot reusa o host claude (mesma regra do install).
+  const host = adapter.id === "claude-code" || adapter.id === "copilot" ? "claude" : adapter.id;
+  const mcp = resolveMcpBin(host, rt);
   return {
     rt,
     mcpBin: mcp.command[mcp.command.length - 1] ?? "",

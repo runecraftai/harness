@@ -25,6 +25,7 @@ import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { execFileSync } from "node:child_process";
 import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { detectCopilotSync } from "../adapters/copilot.ts";
 import { hasSection } from "../adapters/rules.ts";
 import { isUpstreamMcpEntry } from "../adapters/mcpConfig.ts";
 import { COMPONENTS } from "../plan.ts";
@@ -428,7 +429,11 @@ function buildStatusAgents(
 
   // Non-Pi matrix rows: rules/mcp cells evaluated against real configs.
   for (const id of SUPPORTED_AGENT_IDS) {
-    const detected = agentBinOnPath(ADAPTERS[id].bin, rt.env);
+    // F31 (D6): copilot detecta por bin 'code'/'code-insiders' OU dir de
+    // extensão github.copilot* (a extensão é o sinal real — CLI nem sempre
+    // no PATH); os demais por bin no PATH.
+    const detected =
+      id === "copilot" ? detectCopilotSync(rt.env).installed : agentBinOnPath(ADAPTERS[id].bin, rt.env);
     const record = state.agents[id];
     agents.push({
       agent: id,

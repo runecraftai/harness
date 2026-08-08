@@ -12,6 +12,16 @@ Runecraft Harness — umbrella meta-package (F6). Instala os 4 forks do Pi num �
 
 Os forks são empacotados via `bundledDependencies`; o manifest `pi` referencia os recursos deles por paths `node_modules/@runecraft/*` (padrão de meta-package documentado em docs/packages.md do Pi). Versões pinadas em `vendor.manifest.json` (fonte única — F10).
 
+**Agentes não-Pi gerenciados (matriz F17/F31):** o CLI do harness
+(`install/status/doctor/sync/uninstall --agent <id>`) também gerencia
+agentes não-Pi no padrão F15 (detect/inject/remove + coluna na matriz):
+Claude Code (`claude-code`), OpenCode (`opencode`), Codex (`codex`) e
+**Copilot (VS Code)** (`copilot`; aliases `vscode`/`vscode-copilot`/
+`github-copilot` — F31). O Copilot recebe rules repo-scoped em
+`.github/copilot-instructions.md` + MCP em `.vscode/mcp.json`
+(`servers.taskflow`, host reusado `@runecraft/taskflow-claude`). Detalhes e
+two-driver com o gentle-ai em `docs/ROUTING.md` §8.12.
+
 **Nota sobre deps compartilhadas:** npm não instala deps transitivas de pacotes bundled. Por isso as deps de runtime não-peer dos forks (jiti/yaml do subagents, typescript do taskflow-dsl) são declaradas como `dependencies` regulares deste package — o npm as baixa do registry no `pi install`. O `prepack` materializa cópias reais dos 6 forks em `node_modules/@runecraft/*` antes do pack (os symlinks do bun geram paths `..` no tarball).
 
 ## Instalação

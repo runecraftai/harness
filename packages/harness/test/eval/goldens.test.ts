@@ -18,14 +18,15 @@ const AGENT_CTX = { mcpBin: MCP_FIXTURE_BINS["claude-code"], mcpBinCommand: [MCP
 describe("goldens — byte a byte (D4)", () => {
   const defs = goldenDefs();
 
-  test("registro estável: 5 goldens, nomes únicos e ordem fixa", () => {
-    expect(defs).toHaveLength(5);
+  test("registro estável: 6 goldens, nomes únicos e ordem fixa", () => {
+    expect(defs).toHaveLength(6);
     expect(defs.map((d) => d.name)).toEqual([
       "section-workflow-pi.golden",
       "section-workflow-nonpi.golden",
       "mcp-claude.golden",
       "mcp-opencode.golden",
       "mcp-codex.golden",
+      "mcp-copilot.golden",
     ]);
   });
 
@@ -69,6 +70,20 @@ describe("goldens — determinismo (D4: env fixado no teste)", () => {
     expect(claude).toContain("/test/fixtures/bin/claude-taskflow-mcp");
     expect(claude).not.toContain("npx");
     expect(claude).not.toContain("node_modules");
+    // F31 D5: copilot reusa o bin do host claude (QA-2) — o golden do mcp.json
+    // completo aponta para o mesmo bin; nunca @runecraft/taskflow-copilot.
+    const copilot = renderMcpGolden("copilot", env);
+    expect(copilot).toContain("/test/fixtures/bin/claude-taskflow-mcp");
+    expect(copilot).not.toContain("taskflow-copilot");
+    expect(copilot).toContain('"servers"');
+  });
+
+  test("renderMcpConfig(copilot) == arquivo mcp.json completo (2 níveis servers.taskflow)", () => {
+    const rendered = renderMcpGolden("copilot", pinnedEnv());
+    const parsed = JSON.parse(rendered) as { servers: { taskflow: { type: string; command: string } } };
+    expect(parsed.servers.taskflow.type).toBe("stdio");
+    expect(parsed.servers.taskflow.command).toBe("/test/fixtures/bin/claude-taskflow-mcp");
+    expect(rendered.endsWith("\n")).toBe(true);
   });
 
   test("renderMcpConfig(claude) == entry que o adapter F15 injeta (mcpEntry)", () => {

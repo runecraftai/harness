@@ -78,7 +78,8 @@ export function scanMcpUpstreams(rt: Runtime): Array<{ agent: AgentId; file: str
       }
       continue;
     }
-    // JSON hosts: mcpServers (claude) / mcp (opencode).
+    // JSON hosts: mcpServers (claude) / mcp (opencode) / servers (copilot —
+    // .vscode/mcp.json, F31 D3/D10).
     let content: Record<string, unknown>;
     try {
       content = readJsonConfig(paths.mcpFile, false).content;
@@ -87,7 +88,9 @@ export function scanMcpUpstreams(rt: Runtime): Array<{ agent: AgentId; file: str
     }
     const entries = (id === "claude-code"
       ? (content.mcpServers as Record<string, unknown> | undefined)
-      : (content.mcp as Record<string, unknown> | undefined)) ?? {};
+      : id === "copilot"
+        ? (content.servers as Record<string, unknown> | undefined)
+        : (content.mcp as Record<string, unknown> | undefined)) ?? {};
     for (const [name, entry] of Object.entries(entries)) {
       if (isUpstreamMcpEntry(entry)) {
         found.push({ agent: id, file: paths.mcpFile, entry: name });
@@ -161,6 +164,9 @@ export function detectOwners(rt: Runtime, pi: PiInterop): OwnersReport {
   }
 
   // 5. User content: managed text file without any known marker → info only.
+//    F31 D10: os alvos copilot (.github/copilot-instructions.md) entram na
+//    varredura via SUPPORTED_AGENT_IDS — conteúdo do usuário preservado +
+//    reportado (nunca clobber).
   for (const id of SUPPORTED_AGENT_IDS) {
     const file = ADAPTERS[id].paths(rt).rulesFile;
     if (!fs.existsSync(file)) continue;

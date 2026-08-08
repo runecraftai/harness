@@ -34,6 +34,7 @@ import { loadStateReadonly } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts } from "../conflicts.ts";
 import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
+import { copilotPaths, detectCopilotSync } from "../adapters/copilot.ts";
 import { hasSection, isValidUtf8, readSectionContent } from "../adapters/rules.ts";
 import { renderRules, WORKFLOW_RULES_VERSION } from "../adapters/rulesContent.ts";
 import { sectionContentHash } from "../sections.ts";
@@ -379,6 +380,9 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   checks.push(checkVerification(rt));
   // F30: check 20 (models) — independente do Pi (só lê state.json + models.json + env).
   checks.push(checkModels(rt));
+  // F31: check 21 (Copilot VS Code) — independente do Pi (detecção bin/
+  // extensão + configs parseáveis + estado gerenciado).
+  checks.push(checkCopilot(rt));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -628,7 +632,15 @@ function checkAgentDetection(rt: Runtime): DoctorCheck {
   if (detected.length === 0) {
     return { id: 7, name: "Agentes (detecção)", status: "pass", detail: "nenhum agente não-Pi detectado no PATH" };
   }
-  const detail = detected.map((id) => `${id} (bin '${ADAPTERS[id].bin}')`).join("; ");
+  // F31: copilot detecta por bin 'code'/'code-insiders' OU extensão github.copilot* —
+  // o label do check 7 reflete a detecção honesta (D6), não só o bin.
+  const detail = detected
+    .map((id) =>
+      id === "copilot"
+        ? "copilot (bin 'code'/'code-insiders' ou extensão github.copilot*)"
+        : `${id} (bin '${ADAPTERS[id].bin}')`,
+    )
+    .join("; ");
   return { id: 7, name: "Agentes (detecção)", status: "pass", detail: `detectado: ${detail}` };
 }
 
@@ -966,9 +978,76 @@ function checkAgentMatrixOrphans(rt: Runtime): DoctorCheck {
   };
 }
 
-/** Agentes não-Pi da matriz com binário no PATH (síncrono — read-only). */
+/**
+ * F31 check 21 — Copilot (VS Code): detecção informativa (bin `code`/
+ * `code-insiders` OU dirs de extensão github.copilot* — D6) + configs
+ * parseáveis (rules UTF-8; mcp.json JSON válido) + estado gerenciado.
+ * Read-only (LIFE-01). Nunca falha por ausência (fail-closed é domínio do
+ * install — display-only; detect-only honesto). Two-driver (D10): a persona
+ * user-level do gentle-ai (~/.copilot, legado ~/.github/copilot-instructions.md
+ * na HOME) sobrepõe SEMANTICAMENTE o alvo repo-level do harness (VS Code
+ * fornece ambos; prioridade personal > repo) — documentado, nunca removido;
+ * o state file ~/.gentle-ai/state.json + marcadores são domínio do check 14.
+ */
+function checkCopilot(rt: Runtime): DoctorCheck {
+  const detection = detectCopilotSync(rt.env);
+  if (!detection.installed) {
+    return {
+      id: 21,
+      name: "Copilot (VS Code)",
+      status: "pass",
+      detail:
+        "não detectado (sem bin 'code'/'code-insiders' no PATH nem dir de extensão github.copilot* em ~/.vscode*/extensions) — detect-only; instale o VS Code + a extensão GitHub Copilot (o harness nunca instala runtimes)",
+    };
+  }
+  const via =
+    detection.binPath !== undefined
+      ? `bin 'code' (${detection.binPath})`
+      : `extensão github.copilot* (${detection.extensionDir ?? "?"})`;
+  const paths = copilotPaths(rt);
+  const problems: string[] = [];
+  if (fs.existsSync(paths.rulesFile)) {
+    try {
+      if (!isValidUtf8(fs.readFileSync(paths.rulesFile))) {
+        problems.push(`${paths.rulesFile}: não é UTF-8 legível`);
+      }
+    } catch (error) {
+      problems.push(`${paths.rulesFile}: ilegível — ${(error as Error).message}`);
+    }
+  }
+  if (fs.existsSync(paths.mcpFile)) {
+    try {
+      JSON.parse(fs.readFileSync(paths.mcpFile, "utf8"));
+    } catch (error) {
+      problems.push(`${paths.mcpFile}: JSON inválido — ${(error as Error).message}`);
+    }
+  }
+  const loaded = loadStateReadonly(statePath(rt, "global"), "global");
+  const managed = loaded.ok && loaded.state.agents.copilot !== undefined;
+  if (problems.length > 0) {
+    return {
+      id: 21,
+      name: "Copilot (VS Code)",
+      status: "fail",
+      detail: `detectado (${via}) — ${problems.join("; ")}`,
+      remedy: "corrija o arquivo apontado (ou restaure de um backup do harness)",
+    };
+  }
+  return {
+    id: 21,
+    name: "Copilot (VS Code)",
+    status: "pass",
+    detail: `detectado (${via}) · gerenciado: ${managed ? "sim" : "não (harness install --agent copilot)"} · alvos repo-scoped: ${paths.rulesFile}, ${paths.mcpFile}`,
+  };
+}
+
+/** Agentes não-Pi da matriz com binário no PATH (síncrono — read-only).
+ *  Copilot (F31 D6): bin `code`/`code-insiders` OU dir de extensão
+ *  github.copilot* — a extensão é o sinal real (CLI nem sempre no PATH). */
 function detectedAgentIds(rt: Runtime): AgentId[] {
-  return SUPPORTED_AGENT_IDS.filter((id) => binOnPath(ADAPTERS[id].bin, rt));
+  return SUPPORTED_AGENT_IDS.filter((id) =>
+    id === "copilot" ? detectCopilotSync(rt.env).installed : binOnPath(ADAPTERS[id].bin, rt),
+  );
 }
 
 /** `command -v <bin>` via sh, síncrono (contrato do doctor: read-only/sync — F12 LIFE-01). */

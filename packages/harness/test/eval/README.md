@@ -54,7 +54,9 @@ bun run eval:ratchet --update   # humano e explícito: congela o estado atual
   `test/eval/framework/constraint-adherence.test.ts` (EVAL-014/EVAL-012,
   lane do framework de evals) entrou na evidência. **F27 (v5):** piso 14 →
   15 — o `test/eval/framework/compaction-recovery.test.ts` (EVAL-017..021,
-  lane do F27 Resilience & Continuity) entrou na evidência.
+  lane do F27 Resilience & Continuity) entrou na evidência. **F31 (v9):**
+  piso 18 → 19 — o `test/eval/framework/copilot.test.ts` (EVAL-049..056,
+  lane do F31 Copilot/VSCode Adapter) entrou na evidência.
 
 ## Regras (D3, fail-only-on-worse)
 

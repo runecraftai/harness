@@ -34,7 +34,11 @@ export interface AgentUninstallOutcome {
 
 /** Shared per-agent context builder (rules content + MCP resolution). */
 function buildContext(adapter: AgentAdapter, rt: Runtime, registered: AgentRecord | undefined): AgentContext {
-  const mcp = resolveMcpBin(adapter.id === "claude-code" ? "claude" : adapter.id, rt);
+  // F31 QA-2/D4: o host MCP do Copilot REUSA @runecraft/taskflow-claude
+  // (servidor MCP stdio genérico — resolveMcpBin("claude"); nunca inventar
+  // @runecraft/taskflow-copilot).
+  const host = adapter.id === "claude-code" || adapter.id === "copilot" ? "claude" : adapter.id;
+  const mcp = resolveMcpBin(host, rt);
   return {
     rt,
     mcpBin: mcp.command[mcp.command.length - 1] ?? "",
@@ -122,11 +126,17 @@ export async function installAgent(
   const adapter = ADAPTERS[agentId];
   const detect: DetectResult = await adapter.detect(rt);
   if (!detect.installed) {
+    // F31 D6: copilot detecta por bin 'code'/'code-insiders' OU extensão
+    // github.copilot* — o hint reflete a detecção honesta (não só o bin).
+    const detectedBy =
+      agentId === "copilot"
+        ? "sem bin 'code'/'code-insiders' no PATH nem extensão github.copilot*"
+        : `binário '${adapter.bin}' ausente do PATH`;
     return {
       agentId,
       status: "failed",
       detail: [],
-      error: `agente '${agentId}' não detectado (binário '${adapter.bin}' ausente do PATH). Instale com: ${adapter.installHint} (display-only — o harness nunca instala runtimes).`,
+      error: `agente '${agentId}' não detectado (${detectedBy}). Instale com: ${adapter.installHint} (display-only — o harness nunca instala runtimes).`,
     };
   }
   try {

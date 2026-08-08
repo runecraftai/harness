@@ -47,7 +47,8 @@ describe("matrix — declarativa (F17 D1)", () => {
   });
 
   test("não-Pi = taskflow mcp + rules + 4 células unsupported com motivo", () => {
-    for (const agent of ["claude-code", "opencode", "codex"] as const) {
+    // F31: copilot entra no loop (coluna aditiva — D8).
+    for (const agent of ["claude-code", "opencode", "codex", "copilot"] as const) {
       const column = MATRIX[agent];
       expect(column.taskflow?.kind).toBe("mcp");
       expect(column.rules?.kind).toBe("rules");
@@ -58,11 +59,16 @@ describe("matrix — declarativa (F17 D1)", () => {
         expect((cell as { reason: string }).reason).toContain("é extensão Pi; use --agent pi");
       }
     }
+    // F31 D8: AGENTS.copilot declarado (display + nota honesta).
+    expect(AGENTS.copilot.display).toBe("Copilot (VS Code)");
+    expect(AGENTS.copilot.binary).toBe("code");
+    expect(AGENTS.copilot.note).toContain("repo-scoped");
   });
 
   test("columnComponents = coluna inteira (sem native); fora da matriz não tem célula", () => {
     // unsupported são células da coluna — incluídas; `native` (rules/guards no Pi) é no-op
     expect(columnComponents("claude-code")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
+    expect(columnComponents("copilot")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
     expect(columnComponents("pi")).toEqual(["subagents", "taskflow", "goal-loop-audit", "pr-review"]);
     // detect-only (fora da matriz): sem célula → firstUnsupported nunca recusa
     expect((MATRIX as Record<string, unknown>).cursor).toBeUndefined();
@@ -71,8 +77,13 @@ describe("matrix — declarativa (F17 D1)", () => {
   test("firstUnsupported: par agente×componente com motivo; pares ok → undefined", () => {
     const blocked = firstUnsupported(["claude-code"], ["subagents"]);
     expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi");
+    // F31: copilot bloqueia os mesmos componentes Pi-only (D8).
+    const copilotBlocked = firstUnsupported(["copilot"], ["guards"]);
+    expect(copilotBlocked?.agent).toBe("copilot");
+    expect(copilotBlocked?.reason).toContain("guards é extensão Pi");
     // taskflow é suportado no claude-code → sem bloqueio
     expect(firstUnsupported(["claude-code"], ["taskflow"])).toBeUndefined();
+    expect(firstUnsupported(["copilot"], ["taskflow"])).toBeUndefined();
     // misto: subagents é ok para o Pi, mas o par não-Pi bloqueia
     expect(firstUnsupported(["pi", "claude-code"], ["subagents"])).not.toBeUndefined();
     // componente fora da coluna (sem célula) → sem bloqueio (detect-only cobre)

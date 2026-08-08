@@ -1,4 +1,4 @@
-// eval/goldens.ts — renderers + registro dos 5 goldens v1 (F23 D4).
+// eval/goldens.ts — renderers + registro dos 6 goldens v1 (F23 D4; + copilot F31).
 //
 // Goldens = drift detector de assets injetados (templates/seções/configs).
 // Cada renderer aqui é a MESMA fonte usada pela produção (renderRules do F19,
@@ -21,11 +21,15 @@ export const GOLDEN_DIR = path.resolve(EVAL_DIR, "../golden");
 export const SECTION_WORKFLOW_ID = "runecraft:workflow";
 
 /** Bins MCP pinados pelos testes de golden (F23 D4 — env fixture; NUNCA
- *  executados, só renderizados; o literal é o mesmo em qualquer máquina). */
+ *  executados, só renderizados; o literal é o mesmo em qualquer máquina).
+ *  copilot (F31 D5): o render usa o bin do host REUSADO (claude — QA-2); o
+ *  literal aqui é o valor do env RUNECRAFT_TASKFLOW_CLAUDE_BIN que o
+ *  resolveMcpBin("claude") consome. */
 export const MCP_FIXTURE_BINS: Record<AgentId, string> = {
   "claude-code": "/test/fixtures/bin/claude-taskflow-mcp",
   opencode: "/test/fixtures/bin/opencode-taskflow-mcp",
   codex: "/test/fixtures/bin/codex-taskflow-mcp",
+  copilot: "/test/fixtures/bin/claude-taskflow-mcp",
 };
 
 /** Ambiente com os bins MCP pinados (determinismo byte a byte do render). */
@@ -49,7 +53,8 @@ export function renderSectionWorkflow(agentKey: "pi" | "non-pi"): string {
 /** Entry MCP do host com bin pinado via env (F23 D4: resolveMcpBin > env). */
 export function renderMcpGolden(host: AgentId, env: NodeJS.ProcessEnv): string {
   const rt = { cwd: process.cwd(), env };
-  const hostKey = host === "claude-code" ? "claude" : host;
+  // F31 QA-2/D4: copilot reusa o host claude (nunca @runecraft/taskflow-copilot).
+  const hostKey = host === "claude-code" || host === "copilot" ? "claude" : host;
   const resolved = resolveMcpBin(hostKey, rt);
   return renderMcpConfig(host, {
     mcpBin: resolved.command[resolved.command.length - 1] ?? "",
@@ -65,7 +70,8 @@ export interface GoldenDef {
   maxLines: number;
 }
 
-/** Os 5 goldens v1 — ordem estável para --update e relatórios. */
+/** Os 6 goldens v1 + copilot (F31 D5 — arquivo mcp.json COMPLETO) — ordem
+ *  estável para --update e relatórios. */
 export function goldenDefs(): GoldenDef[] {
   const env = pinnedEnv();
   return [
@@ -74,6 +80,7 @@ export function goldenDefs(): GoldenDef[] {
     { name: "mcp-claude.golden", render: () => renderMcpGolden("claude-code", env), maxLines: 20 },
     { name: "mcp-opencode.golden", render: () => renderMcpGolden("opencode", env), maxLines: 20 },
     { name: "mcp-codex.golden", render: () => renderMcpGolden("codex", env), maxLines: 20 },
+    { name: "mcp-copilot.golden", render: () => renderMcpGolden("copilot", env), maxLines: 20 },
   ];
 }
 

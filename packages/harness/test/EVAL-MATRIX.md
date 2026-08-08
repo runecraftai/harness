@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 8
+MATRIX_VERSION: 9
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -14,7 +14,19 @@ bump de `MATRIX_VERSION`); **nada sai sem AD**. Correção in-place do script
 linha. Mudança SEMÂNTICA de fluxo (novo passo no meio) = entrada nova, nunca
 edição da antiga.
 
-Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-deterministic/spec.md`) + F24 GUARD-01..08 (ver `.specs/features/f24-execution-guards/spec.md` — EVAL-006 → GUARD-01/02/07/08; EVAL-007 → GUARD-04/05/07/08) + F25 VER-01..13 (ver `.specs/features/f25-verification-cascade/spec.md` — EVAL-008 → VER-01/02; EVAL-009 → VER-03/04; EVAL-010 → VER-07/08/09/10; EVAL-011 → VER-06) + F26 EVAL-012..016 (ver `.specs/features/f26-eval-framework-port/spec.md` — framework de evals portado do arcanum, AD-026).
+Cobertura de requisitos: DETR-01..06 — 6/6 (ver `.specs/features/f21-eval-deterministic/spec.md`) + F24 GUARD-01..08 (ver `.specs/features/f24-execution-guards/spec.md` — EVAL-006 → GUARD-01/02/07/08; EVAL-007 → GUARD-04/05/07/08) + F25 VER-01..13 (ver `.specs/features/f25-verification-cascade/spec.md` — EVAL-008 → VER-01/02; EVAL-009 → VER-03/04; EVAL-010 → VER-07/08/09/10; EVAL-011 → VER-06) + F26 EVAL-012..016 (ver `.specs/features/f26-eval-framework-port/spec.md` — framework de evals portado do arcanum, AD-026) + F31 COP-01..09 (ver `.specs/features/f31-copilot-adapter/spec.md` — EVAL-049..056).
+
+**v9 (F31, AD-031):** entradas aditivas EVAL-049..056 (Copilot/VSCode Adapter —
+adapter F15 repo-scoped: detecção bin `code`/`code-insiders` OU extensão
+`github.copilot*`, injeção rules `.github/copilot-instructions.md` + MCP
+`.vscode/mcp.json` servers.taskflow (schema VS Code; host reusado
+`@runecraft/taskflow-claude`), remoção content-based, fail-closed,
+coluna matriz F17, two-driver gentle-ai user-level × repo-level, sync/state)
+— política aditiva D9; o teste de consistência agora também varre
+`test/eval/suites/copilot` + `test/eval/framework/copilot` (lane do
+Copilot). Nota datada 2026-08-10: os cases puros (EVAL-049..056) são
+unit/fixture do framework (mesmo padrão EVAL-017..020 do F27 — o adapter é
+mecanismo, sem fluxo SDLC novo); tool-use/routing (F32) segue SEM entradas.
 
 **v2 (F24, AD-022):** entradas aditivas EVAL-006 (write guard) e EVAL-007 (todo enforcer) — política aditiva D9; o teste de consistência agora também varre `test/guards/` (lane dos guards).
 
@@ -111,6 +123,17 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-036 | config/kill switch (F29 MEM-05 — D5) | eval (framework/memory) | 1. defaults fail-closed; 2. freeze por sessão (D12); 3. `RUNECRAFT_MEMORY=0` → zero tools + zero arquivos; 4. CLI recusa (fail-visible, exit 0) | padrão F24/F25/F27/F28 (F20) |
 | EVAL-037 | determinismo (F29 MEM-02 — D6) | eval (framework/memory) | 1. ops scriptadas com clock/idGen injetados → 2 runs resultado JSON IDÊNTICO (inclui created_at injetado; tie-breaks) | F21 D10 (D6); FTS5 rank determinístico no mesmo runtime |
 | EVAL-038 | privacidade (F29 MEM-09 — D10) | eval (framework/memory) + fixture | 1. `rune_save` com sentinel numa sessão REAL (extensões memory + observability) → `events/*.jsonl` sem o sentinel (só argsHash — F28 D2); 2. conteúdo presente SÓ no DB; 3. nenhum outro sink do repo contém o sentinel cru | argsHash = sha256 prefixo 16 hex (F28); memória é dado privado (nunca logada crua) |
+
+| ID | Fluxo (evidência F31) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-049 | render/goldens (F31 D5 — reuso F19) | adapters (copilot) | 1. `renderMcpConfig("copilot")` == `mcp-copilot.golden` byte-a-byte (F23; arquivo mcp.json COMPLETO — desvio D5 do F23 D4: nesting 2 níveis `servers.taskflow`); 2. `renderRules("copilot")` === NON_PI_RULES (mesmo texto dos demais não-Pi — zero texto novo); 3. ausência `goal|loop|subagent|pr-review|auditor` | unit do framework (mesmo padrão EVAL-017..020); delta vs EVAL-012/015 (goldens — F31 prova a ADIÇÃO do golden copilot, não o mecanismo) |
+| EVAL-050 | detect (F31 D6) | adapters (copilot) | 1. fake `code` bin no PATH mínimo → installed (binPath, reasons []); 2. fake dir de extensão `~/.vscode/extensions/github.copilot-*` SEM bin → installed (via extensão); 3. ausente → not installed + reasons + hint display-only (nunca executado) | AD-017 PATH mínimo; HOME fake (lição F15 — nunca os.homedir()) |
+| EVAL-051 | inject round-trip (F31 D2/D3) | adapters (copilot) + CLI install | 1. install --agent copilot → seção `runecraft:workflow` em `.github/copilot-instructions.md` + `servers.taskflow` em `.vscode/mcp.json` (schema VS Code: type stdio); 2. rerun byte-idêntico (idempotência F15); 3. conteúdo do usuário fora do marcador preservado (nunca clobber); 4. BOM preservado + CRLF detectado (F18); 5. entry MCP estrangeira → conflict, nunca sobrescrita (D5) | delta vs EVAL-012/014 (mechanism já provado — F31 prova a ADIÇÃO dos alvos repo-scoped) |
+| EVAL-052 | remove round-trip (F31 D9/D7) | adapters (copilot) + CLI uninstall | 1. fingerprint == registrado → remove (arquivo vazio → deletado — D6); 2. entry MCP editada → preserved + edited (D7/SETM-05); 3. conteúdo do usuário fora da seção preservado; marcador de OUTRO id runecraft: → preservado (F18 MXST-02) | delta vs EVAL-017..048 (D6 — sem double-test) |
+| EVAL-053 | fail-closed (F31 D6/D8/D9) | CLI install | 1. install sem detecção → recusa + hint display-only, zero writes nos alvos (rules/mcp); 2. copilot + `--component` Pi-only → firstUnsupported recusa com o motivo da célula; 3. dry-run → plano sem efeitos colaterais (sem lock/state de agentes) | contrato F15: exit ≠ 0 + alvos intocados (bookkeeping do state.json é do fluxo F15 pré-existente) |
+| EVAL-054 | matrix/status (F31 D8) | matrix + CLI status/doctor | 1. `AGENTS.copilot` + coluna (taskflow mcp + rules + 4 unsupported com motivo "é extensão Pi; use --agent pi"); 2. status --json: 3 fontes (configs × state × matriz); cells taskflow/rules ok; `agents[].components[]` com reason; 3. doctor check 21 (detectado/ausente informativo — sem crash); 4. consistência matriz↔suites v9 | aditiva — colunas existentes intocadas (F17 D1) |
+| EVAL-055 | two-driver (F31 D10) | owners + CLI install/sync | 1. gentle-ai state (`~/.gentle-ai/state.json` em HOME fake) → owners warn + gate MXST-04: sem TTY sem --yes aborta apontando --yes; --yes prossegue com warnings no relatório; 2. sync three-way: seção editada → "preservada (editada)" (F19 D7 — nunca auto-cura); ausente → re-inject preservando o usuário | sobreposição SEMÂNTICA user-level × repo-level documentada (check/status/ROUTING) |
+| EVAL-056 | sync/state (F31 D9) | CLI install/sync/uninstall/status | 1. targets registrados com contentHash (fingerprint do MCP lido do ARQUIVO — lição F15); 2. sync idempotente (already in sync, zero writes); 3. uninstall preserva edição do usuário; 4. determinismo 2 runs (F21 D10) | delta vs EVAL-017..048 (sync three-way já provado no F19 — F31 prova a ADIÇÃO dos alvos copilot) |
 
 | ID | Fluxo (evidência F30) | Ferramentas | Script esperado (tool calls por turno) | Notas |
 | --- | --- | --- | --- | --- |

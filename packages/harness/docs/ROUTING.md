@@ -135,6 +135,7 @@ never cite a tool outside the column.
 | **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md). No goal-loop/subagents/pr-review — Pi extensions only. |
 | **OpenCode** | taskflow-MCP + workflow rules (AGENTS.md). Same limits. |
 | **Codex** | taskflow-MCP + workflow rules (AGENTS.md). Solo agent (no permissions/output styles — F17); the injected rules are the shared non-Pi template. |
+| **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped (F31). Same limits; the injected rules are the shared non-Pi template (reuso F19). |
 | **Other agents (cursor, grok, …)** | detect-only with a manual MCP guide (no adapter in v1). |
 
 ## 7. Coexistence
@@ -451,6 +452,52 @@ Evals: EVAL-039..048 (matriz v8 — categoria failover desbloqueada no F26).
 PI_RULES (F30 reusa read-only); F28/F27 donos de continuation/lessons (a
 persona só anexa); F31 independente; F32 consome o config `models`.
 
+## 8.12 Copilot (VS Code) — adapter do harness (F31)
+
+O Copilot (VS Code) é o 5º agente do M8 (AD-022 decisão 8) com adapter no
+padrão F15 (`harness install --agent copilot`; aliases `vscode`/
+`vscode-copilot`/`github-copilot` — a nomenclatura do gentle-ai é aceita
+como alias, sem adotar o id). Alvos **repo-scoped** (workspace = cwd — QA-4):
+
+| Alvo | Arquivo | Conteúdo gerenciado |
+| --- | --- | --- |
+| Regras | `.github/copilot-instructions.md` | seção `runecraft:workflow` (marcadores html F18) — conteúdo = `renderRules("copilot")` = o template não-Pi do F19 (reuso read-only, zero texto novo) |
+| MCP | `.vscode/mcp.json` | entry `servers.taskflow` — schema VS Code `{type: "stdio", command, args?, env?}` (sem `${input:...}` — o Agent Host não lê o arquivo diretamente: o VS Code repassa os servers) |
+
+**Host MCP reusado (QA-2/D4):** o servidor é o `@runecraft/taskflow-claude`
+(stdio genérico — `resolveMcpBin("claude")`; env > dev fork > npx pin com
+guard anti-upstream). **NUNCA `@runecraft/taskflow-copilot`** (não existe nos
+packages taskflow — fabricação fora de escopo). Alternativa user-level
+documentada: `~/.copilot/mcp-config.json` (lido nativamente pelo Agent Host)
+— fora do default (escopo repo-level do harness).
+
+**Detecção (D6):** bin `code`/`code-insiders` no PATH **OU** dirs de extensão
+`github.copilot*`/`github.copilot-chat*` sob `~/.vscode*/extensions` (a
+extensão é o sinal real — o CLI `code` nem sempre está no PATH). Ausente →
+install recusa **fail-closed display-only** (zero writes) com hint; status e
+doctor (check 21) reportam detect-only informativo — o harness nunca instala
+runtimes.
+
+**Matriz (D8):** coluna copilot = taskflow-MCP + rules + 4 células
+`unsupported` (subagents/goal-loop-audit/pr-review/guards — "é extensão Pi;
+use --agent pi"; guards sem enforcement em agentes não-Pi — F24).
+
+**Two-driver com o gentle-ai (D10):** o gentle-ai gerencia o Copilot em
+**user-level** (`~/.copilot/...`, legado `~/.github/copilot-instructions.md`
+na HOME — auto-removido por versões novas do gentle-ai; persona do VS Code
+via `SystemPromptFile(homeDir)`). O harness F31 é **repo-level** — **sem
+colisão de path**, mas com sobreposição SEMÂNTICA: o VS Code fornece ambos os
+conjuntos ao modelo (prioridade personal > repo). O `owners.ts` detecta o
+state `~/.gentle-ai/state.json` + marcadores `<!-- gentle-ai:` e o install com
+colisão exige `--yes` (gate MXST-04); conteúdo do usuário em
+`.github/copilot-instructions.md`/`.vscode/mcp.json` é sempre preservado e
+reportado — o harness nunca remove/reescreve nada alheio.
+
+**Governança:** goldens `mcp-copilot.golden` (arquivo mcp.json COMPLETO —
+desvio documentado do F23 D4: nesting 2 níveis `servers.taskflow`); evals
+EVAL-049..056 (matriz v9); F19 dono do conteúdo das regras (`renderRules`
+intocado — copilot recebe o NON_PI_RULES existente).
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -589,6 +636,17 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   sha256 prefixo 16 hex (nunca args crus — EVAL-038 asserta o sentinel ausente
   do event store); `PRAGMA busy_timeout` do bun:sqlite expõe a coluna
   `timeout` (não `busy_timeout`).
+- **2026-08-10**: Copilot (F31, section 8.12) — adapter repo-scoped do 5º
+  agente M8: rules `.github/copilot-instructions.md` (marker `runecraft:workflow`;
+  conteúdo = NON_PI_RULES do F19 — reuso read-only), MCP `.vscode/mcp.json`
+  `servers.taskflow` (schema VS Code verificado — `type: "stdio"` + command;
+  sem `${input:...}`: o Agent Host NÃO lê o arquivo — o VS Code repassa),
+  host MCP reusado `@runecraft/taskflow-claude` (QA-2 — nunca inventar
+  `taskflow-copilot`), detecção bin `code`/`code-insiders` OU extensão
+  `github.copilot*` (fail-closed display-only), two-driver gentle-ai
+  user-level × repo-level (sobreposição SEMÂNTICA — owners + gate MXST-04),
+  coluna na matriz (mcp+rules + 4 unsupported Pi-only), doctor check 21,
+  golden `mcp-copilot.golden` + EVAL-049..056 (matriz v9).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

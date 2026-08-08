@@ -94,6 +94,7 @@ describe("renderRules — determinismo e variação por coluna (D5/D6)", () => {
     // Não-Pi: só taskflow-MCP + review via gate (D6 — um texto único).
     expect(claude).toBe(opencode);
     expect(opencode).toBe(codex);
+    expect(codex).toBe(renderRules("copilot")); // F31: copilot recebe o MESMO texto não-Pi (reuso F19 — zero texto novo)
     expect(renderWorkflowRules("claude-code")).toBe(claude);
     expect(claude).toContain("taskflow-MCP");
     expect(claude).toContain("Review/verification inside a flow");
@@ -102,7 +103,7 @@ describe("renderRules — determinismo e variação por coluna (D5/D6)", () => {
 
   test("ausência (AC 1.3): grep goal|loop|subagent|pr-review|auditor no não-Pi → zero matches", () => {
     const forbidden = /goal|loop|subagent|pr-review|auditor/i;
-    for (const agent of ["claude-code", "opencode", "codex"] as const) {
+    for (const agent of ["claude-code", "opencode", "codex", "copilot"] as const) {
       expect(renderRules(agent).match(forbidden)).toBeNull();
     }
   });
@@ -132,9 +133,9 @@ describe("golden — apêndice do ROUTING.md (D9, anti-divergência)", () => {
     expect(renderRules("pi")).toBe(goldenBlock("pi"));
   });
 
-  test("renderRules(não-Pi) == bloco golden non-pi (os 3 agentes)", () => {
+  test("renderRules(não-Pi) == bloco golden non-pi (os 4 agentes)", () => {
     const golden = goldenBlock("non-pi");
-    for (const agent of ["claude-code", "opencode", "codex"] as const) {
+    for (const agent of ["claude-code", "opencode", "codex", "copilot"] as const) {
       expect(renderRules(agent)).toBe(golden);
     }
   });

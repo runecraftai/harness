@@ -6,6 +6,7 @@
 //   Claude CC  = taskflow-MCP + workflow rules (+ fail-closed cells)
 //   OpenCode   = taskflow-MCP + workflow rules (+ fail-closed cells)
 //   Codex      = taskflow-MCP + workflow rules (+ fail-closed cells)
+//   Copilot    = taskflow-MCP + workflow rules (+ fail-closed cells) (F31)
 //   other      = detect-only with a guide (registry.ts DETECT_ONLY_GUIDES)
 //
 // A cell is one of:
@@ -38,6 +39,9 @@ export const AGENTS: Record<MatrixAgentId, AgentDef> = {
   "claude-code": { binary: "claude", display: "Claude Code", note: "" },
   opencode: { binary: "opencode", display: "OpenCode", note: "" },
   codex: { binary: "codex", display: "Codex", note: "solo-agent (sem permissions/output styles — regras adaptadas)" },
+  // F31 D8: Copilot (VS Code) — alvos repo-scoped (workspace). Sem enforcement:
+  // guards são Pi-only (F24) — a coluna declara unsupported com motivo.
+  copilot: { binary: "code", display: "Copilot (VS Code)", note: "repo-scoped (workspace); sem enforcement — guards são Pi-only (F24)" },
 };
 
 export type Cell =
@@ -77,6 +81,17 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   codex: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: "~/.codex/AGENTS.md", section: RULES_SECTION },
+    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi" },
+    "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi" },
+    "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi" },
+    guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi (F24: sem enforcement em agentes não-Pi — detect-only)" },
+  },
+  // F31 D8 (aditiva): copilot = taskflow-MCP (servers.taskflow em
+  // .vscode/mcp.json) + rules repo-scoped (.github/copilot-instructions.md)
+  // + 4 células unsupported com o mesmo motivo dos demais não-Pi.
+  copilot: {
+    taskflow: { kind: "mcp", entry: "taskflow" },
+    rules: { kind: "rules", file: ".github/copilot-instructions.md", section: RULES_SECTION },
     subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi" },
