@@ -9,13 +9,12 @@ import * as path from "node:path";
 import { codexHome, type Runtime } from "../config.ts";
 import { resolveBinaryOnPath } from "./shell.ts";
 import { removeSection, upsertSection, RULES_SECTION } from "./rules.ts";
-import { upsertTomlSection, renderMcpServerBlock, readTomlSection, removeTomlSection } from "../toml.ts";
-import { sha256Hex } from "./mcpConfig.ts";
+import { upsertTomlSection, readTomlSection, removeTomlSection } from "../toml.ts";
+import { renderMcpEntry, sha256Hex } from "./mcpConfig.ts";
 import type { AgentAdapter, AgentContext, DetectResult, HostPaths, InjectResult, RemoveResult } from "./types.ts";
 
 const MCP_FILE = "config.toml";
 const MCP_KEY = "taskflow";
-const TOOL_TIMEOUT_SEC = 1800;
 
 export const codexAdapter: AgentAdapter = {
   id: "codex",
@@ -54,9 +53,7 @@ export const codexAdapter: AgentAdapter = {
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: [mcp_servers.taskflow] upsert; conflict rule like the JSON hosts.
-    const commandParts = ctx.mcpBinCommand ?? ["node", ctx.mcpBin];
-    const cmd = commandParts[0] ?? "node";
-    const block = renderMcpServerBlock(MCP_KEY, [cmd, ...commandParts.slice(1)], { tool_timeout_sec: TOOL_TIMEOUT_SEC });
+    const block = renderMcpEntry("codex", ctx) as string;
     const existing = readTomlSection(paths.mcpFile, MCP_KEY);
     const registeredMcp = ctx.targets?.find((t) => t.kind === "mcp" && t.entry === MCP_KEY);
     if (existing !== null && registeredMcp) {

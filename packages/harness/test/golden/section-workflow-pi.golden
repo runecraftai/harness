@@ -1,0 +1,48 @@
+<!-- runecraft:workflow -->
+Runecraft workflow rules (v1)
+
+Four tools overlap. Pick by situation — the wrong pick costs time or breaks the session.
+If a goal is active, it drives the session: see "One driver".
+
+## One driver per session
+- The goal-loop directs the session: it schedules continuations via agent_end.
+- subagents and taskflow run as WORKERS under the active driver.
+- Never have two drivers in one session — two supervisors scheduling continuations
+  into one session produce contradictory turns.
+
+## goal-loop-audit — verifiable contract with an isolated auditor
+- Use when the work can be stated as a goal with a "Done when" contract.
+- Prose closes nothing. The ONLY way to close a goal is a complete_goal tool call
+  that survives the isolated auditor: a fresh session (no extensions/skills/prompts;
+  read/grep/find/ls/bash only) that cannot see your conversation.
+- Evidence is required per contract item: <approved/> without <evidence> is disapproved.
+- Cycle: drafting → active → auditing → complete; continuation via agent_end.
+- /loop requires an honest numeric metric measured with the measure command
+  ("A loop never completes" without one). No honest metric? Use /goal.
+- Contraindicated: no verifiable "Done when"; no honest metric for /loop; work that
+  requires you to drive the session interactively.
+
+## taskflow — multi-phase DAG work
+- Use when the work is a DAG of phases: dependsOn edges ("phase order in the phases
+  array is documentation, not execution order"); FlowIR hashes content per phase.
+- resume (immutable fork) / replay (offline what-if) / recompute (stale frontier only).
+- approvals (human) vs gate (agent); budgets (maxUSD/maxTokens) end a run as blocked.
+- eval (zero tokens) / expect (validated JSON contract, fail closed).
+- Contraindicated: single-file change, interactive debugging, one bash command,
+  a single quick delegation (the plain subagent tool is fine).
+
+## subagents — ad-hoc delegation
+- Use for chains (each step receives {previous}) or parallel (concurrency/failFast).
+- Acceptance gates (auto/attested/checked/verified): verify runs commands —
+  child-reported command success does not count.
+- intercom (contact_supervisor); worktrees (each child in its own worktree; clean
+  tree required); watchdog (adversarial diff review at agent_end).
+- One writer against the active worktree at a time.
+- Contraindicated: multi-phase flows with dependencies and reruns (use taskflow);
+  session-driving work (use goal-loop).
+
+## pr-review — structured review
+- Use for reviewing a diff: structured JSON (verdict; findings P0–nit with
+  blocking/confidence), 5 passes by default, parallel dispatch by tiers, optional
+  verification against the exact head.
+<!-- /runecraft:workflow -->

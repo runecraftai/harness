@@ -1,0 +1,7 @@
+{
+  "type": "local",
+  "command": [
+    "/test/fixtures/bin/opencode-taskflow-mcp"
+  ],
+  "enabled": true
+}

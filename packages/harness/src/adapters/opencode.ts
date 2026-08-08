@@ -10,7 +10,7 @@ import { opencodeHome, type Runtime } from "../config.ts";
 import { resolveBinaryOnPath } from "./shell.ts";
 import { removeSection, upsertSection, RULES_SECTION } from "./rules.ts";
 import { readJsonConfig, upsertJsonKey, removeJsonKey } from "./jsonc.ts";
-import { sha256Hex } from "./mcpConfig.ts";
+import { renderMcpEntry, sha256Hex } from "./mcpConfig.ts";
 import type { AgentAdapter, AgentContext, DetectResult, HostPaths, InjectResult, RemoveResult } from "./types.ts";
 
 const MCP_FILE = "opencode.json";
@@ -53,11 +53,7 @@ export const opencodeAdapter: AgentAdapter = {
     if (rules.changed) written.push(paths.rulesFile);
 
     // MCP: deep merge only at mcp.taskflow; conflict rule like claude (D5).
-    const entry = {
-      type: "local",
-      command: ctx.mcpBinCommand ?? ["node", ctx.mcpBin],
-      enabled: true,
-    };
+    const entry = renderMcpEntry("opencode", ctx) as Record<string, unknown>;
     const cfg = fs.existsSync(paths.mcpFile) ? readJsonConfig(paths.mcpFile, false) : { file: paths.mcpFile, existed: false, indent: "  ", content: {} };
     const mcp = cfg.content.mcp as Record<string, unknown> | undefined;
     const existing = mcp?.[MCP_KEY];

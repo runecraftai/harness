@@ -1,0 +1,3 @@
+# runecraft harness — known failures (may only shrink)
+# formato: testFile<TAB>testName<TAB>mensagemNormalizada
+# gerado por: bun run eval:ratchet --update

@@ -1,0 +1,15 @@
+<!-- runecraft:workflow -->
+Runecraft workflow rules (v1)
+
+You have taskflow-MCP for structured multi-phase work. Pick by situation.
+
+## taskflow — multi-phase DAG work
+- Use when the work is a DAG of phases: dependsOn edges ("phase order in the phases
+  array is documentation, not execution order"); FlowIR hashes content per phase.
+- resume (immutable fork) / replay (offline what-if) / recompute (stale frontier only).
+- approvals (human) vs gate (agent); budgets (maxUSD/maxTokens) end a run as blocked.
+- Review/verification inside a flow: eval (zero tokens) and expect (validated JSON
+  contract, fail closed).
+- Contraindicated: single-file change, interactive debugging, one bash command,
+  a single quick delegation (do it directly in the session).
+<!-- /runecraft:workflow -->

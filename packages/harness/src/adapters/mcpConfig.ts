@@ -8,6 +8,14 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import type { Runtime } from "../config.ts";
+import type { AgentId } from "./types.ts";
+import { renderMcpServerBlock } from "../toml.ts";
+
+/** MCP entry key injected for the taskflow server in every non-Pi host. */
+export const TASKFLOW_MCP_KEY = "taskflow";
+
+/** codex config.toml `tool_timeout_sec` preserved by the adapter (F16 D6). */
+export const CODEX_MCP_TOOL_TIMEOUT_SEC = 1800;
 
 /**
  * Guard anti-upstream (F16 AC 4.2): rejects rendered commands that reference
@@ -150,4 +158,47 @@ export function mcpEntryContentHash(command: string[], environment?: Record<stri
 export function sha256Hex(input: string): string {
   const { createHash } = require("node:crypto") as typeof import("node:crypto");
   return createHash("sha256").update(input).digest("hex");
+}
+
+export interface McpConfigInput {
+  /** resolved taskflow MCP bin path (F15 D4 — last element of the command). */
+  mcpBin: string;
+  /** full command for the MCP entry (defaults to ["node", mcpBin]). */
+  mcpBinCommand?: string[];
+}
+
+/**
+ * Render the taskflow MCP entry for a host — the EXACT value the adapter
+ * injects (F23 D4 golden source). Single source of truth: claude/opencode
+ * get the JSON entry object, codex gets the TOML block body. The adapters
+ * call this on inject; the golden tests serialize it via renderMcpConfig.
+ * Pure: same input → same bytes.
+ */
+export function renderMcpEntry(host: AgentId, input: McpConfigInput): unknown {
+  const command = input.mcpBinCommand ?? ["node", input.mcpBin];
+  switch (host) {
+    case "claude-code": {
+      const [cmd, ...args] = command;
+      return { type: "stdio", command: cmd, ...(args.length > 0 ? { args } : {}) };
+    }
+    case "opencode":
+      return { type: "local", command, enabled: true };
+    case "codex":
+      return renderMcpServerBlock(TASKFLOW_MCP_KEY, command, {
+        tool_timeout_sec: CODEX_MCP_TOOL_TIMEOUT_SEC,
+      });
+  }
+}
+
+/**
+ * Serialized MCP entry bytes as they appear in the injected config file
+ * (F23 D4 — golden files are byte-to-byte drift detectors). claude/opencode
+ * use the jsonc 2-space indent (the entry is nested one level, indentation
+ * is identical to a standalone serialization); codex includes the
+ * `[mcp_servers.taskflow]` header. Always ends with a newline.
+ */
+export function renderMcpConfig(host: AgentId, input: McpConfigInput): string {
+  const entry = renderMcpEntry(host, input);
+  if (host === "codex") return `[mcp_servers.${TASKFLOW_MCP_KEY}]\n${entry}\n`;
+  return `${JSON.stringify(entry, null, 2)}\n`;
 }

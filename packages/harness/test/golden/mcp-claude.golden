@@ -1,0 +1,4 @@
+{
+  "type": "stdio",
+  "command": "/test/fixtures/bin/claude-taskflow-mcp"
+}

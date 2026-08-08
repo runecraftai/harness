@@ -10,7 +10,7 @@ import { claudeCodeHome, type Runtime } from "../config.ts";
 import { resolveBinaryOnPath } from "./shell.ts";
 import { removeSection, upsertSection, RULES_SECTION } from "./rules.ts";
 import { readJsonConfig, upsertJsonKey, removeJsonKey, type JsonFile } from "./jsonc.ts";
-import { mcpEntryContentHash, sha256Hex } from "./mcpConfig.ts";
+import { mcpEntryContentHash, renderMcpEntry, sha256Hex } from "./mcpConfig.ts";
 import type { AgentAdapter, AgentContext, DetectResult, HostPaths, InjectResult, RemoveResult } from "./types.ts";
 
 const MCP_FILE = ".mcp.json";
@@ -58,7 +58,7 @@ export const claudeAdapter: AgentAdapter = {
     // (F15 D5 — a foreign entry is reported, never overwritten). "Ours" = the
     // current entry fingerprints equal the registered target (same formula as
     // remove D7 — not shape-dependent managedEntries).
-    const entry = mcpEntry(ctx);
+    const entry = renderMcpEntry("claude-code", ctx) as Record<string, unknown>;
     const cfg: JsonFile = fs.existsSync(paths.mcpFile) ? readJsonConfig(paths.mcpFile, false) : { file: paths.mcpFile, existed: false, indent: "  ", content: {} };
     const servers = cfg.content.mcpServers;
     const existing = (servers as Record<string, unknown> | undefined)?.[MCP_KEY];
@@ -136,12 +136,9 @@ export const claudeAdapter: AgentAdapter = {
 };
 
 export function mcpEntry(ctx: AgentContext): Record<string, unknown> {
-  const [command, ...args] = ctx.mcpBinCommand ?? ["node", ctx.mcpBin];
-  return {
-    type: "stdio",
-    command,
-    ...(args.length > 0 ? { args } : {}),
-  };
+  // Wrapper F15 (public API preserved): the render lives in mcpConfig.ts so
+  // the golden tests compare against EXACTLY what the adapter injects (F23 D4).
+  return renderMcpEntry("claude-code", ctx) as Record<string, unknown>;
 }
 
 /** Read the current mcpServers.taskflow entry value; undefined when absent. */

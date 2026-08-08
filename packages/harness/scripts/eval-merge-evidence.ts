@@ -34,7 +34,7 @@ function matrixSuiteVersion(): string {
   try {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const match = matrix.match(/MATRIX_VERSION:\s*(\d+)/);
-    return match ? match[1] : "0";
+    return match ? (match[1] ?? "0") : "0";
   } catch {
     return "0";
   }
@@ -164,12 +164,29 @@ function buildLastRun(): Record<string, unknown> {
   };
 }
 
-const stdoutOnly = process.argv.includes("--stdout");
-const payload = JSON.stringify(buildLastRun(), null, 2);
-if (stdoutOnly) {
-  process.stdout.write(`${payload}\n`);
-} else {
+/**
+ * Merge das evidências parciais → last-run.json (contrato AD-015, F23).
+ * Exportado para o runner do ratchet (F23) re-mergear sempre antes de
+ * comparar; o CLI abaixo preserva o comportamento original byte a byte.
+ */
+export function writeLastRun(): string {
+  const payload = JSON.stringify(buildLastRun(), null, 2);
   fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
   fs.writeFileSync(LAST_RUN, `${payload}\n`);
-  process.stdout.write(`last-run.json: ${LAST_RUN}\n`);
+  return LAST_RUN;
+}
+
+/** Payload do merge (sem gravar) — usado pelo ratchet na comparação. */
+export function mergeEvidence(): Record<string, unknown> {
+  return buildLastRun();
+}
+
+if (import.meta.main) {
+  const stdoutOnly = process.argv.includes("--stdout");
+  if (stdoutOnly) {
+    process.stdout.write(`${JSON.stringify(buildLastRun(), null, 2)}\n`);
+  } else {
+    writeLastRun();
+    process.stdout.write(`last-run.json: ${LAST_RUN}\n`);
+  }
 }
