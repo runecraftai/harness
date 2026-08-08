@@ -331,8 +331,10 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
         notes.push(`papéis objetivos materializados em ${roleAgentsDir(rt.cwd)}: ${roleResult.copied.join(", ")} (F32)`);
       }
       notes.push(...roleResult.notes);
-    } catch {
-      // best-effort — a materialização nunca quebra o install
+    } catch (error) {
+      // Fix cleric F32: falha de materialização NUNCA some em silêncio do
+      // relatório (best-effort — o install segue, mas o usuário sabe).
+      notes.push(`papéis objetivos: materialização FALHOU — ${error instanceof Error ? error.message : String(error)} (rode doctor — check 22)`);
     }
   }
 

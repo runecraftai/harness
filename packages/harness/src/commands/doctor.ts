@@ -997,6 +997,17 @@ function checkAgentMatrixOrphans(rt: Runtime): DoctorCheck {
 function checkRoleAgents(rt: Runtime, pi: PiInterop): DoctorCheck {
   const identity = npmIdentity("npm:@runecraft/subagents@0");
   const list = pi.list();
+  // Fix cleric F32: list.error NÃO pode virar "fork ausente" (falso pass) —
+  // a falha de listagem é reportada como warn com o erro.
+  if (list.error !== undefined) {
+    return {
+      id: 22,
+      name: "Role agents (F32)",
+      status: "warn",
+      detail: `não foi possível listar os packages do pi (${list.error}) — estado dos papéis objetivos indeterminado`,
+      remedy: "verifique o binário do pi (RUNECRAFT_PI_BIN) e rode `harness doctor` novamente",
+    };
+  }
   const forkPresent = list.packages.some((spec) => npmIdentity(spec) === identity);
   const stateFile = statePath(rt, "workspace");
   const loaded = loadStateReadonly(stateFile, "workspace");
