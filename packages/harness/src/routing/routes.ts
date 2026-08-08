@@ -151,6 +151,8 @@ export const ROUTE_CATALOG: Record<RouteId, RouteDefinition> = {
         "session",
         "sessions",
         "cors",
+        "csp",
+        "content security policy",
         "oauth",
         "oidc",
         "saml",

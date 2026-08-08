@@ -169,6 +169,12 @@ describe("EVAL-070 — security OBRIGATÓRIA (paladin 'not optional')", () => {
       const weak = classifyRoute({ text: "check the security posture" });
       expect(weak.scores.security).toBe(1);
       expect(weak.route).toBe("direct");
+      // Fix cleric F33: CSP é superfície obrigatória — "csp"/"content security
+      // policy" na lista high (tarefa de CSP nunca pode pular a rota security).
+      const csp = classifyRoute({ text: "set the CSP header and content security policy" });
+      expect(csp.route).toBe("security");
+      expect(csp.reason).toBe("mandatory");
+      expect(csp.mandatoryHits).toContain("csp");
     }, { evalId: "EVAL-070" });
   });
 });

@@ -10,7 +10,7 @@ PASSO 1 — Leia o plano/contexto e o código real antes de editar.
 
 PASSO 2 — Implemente com edições estreitas, verificando cada passo (testes/build/lint).
 
-PASSO 3 — Trate as superfícies sensíveis com cuidado explícito: auth/crypto/tokens/secrets/passwords/sessions/CORS/input validation/.env — sem atalhos, sem segredos em log, sem validação ausente.
+PASSO 3 — Trate as superfícies sensíveis com cuidado explícito: auth/crypto/tokens/secrets/passwords/sessions/CORS/CSP/input validation/.env — sem atalhos, sem segredos em log, sem validação ausente.
 
 Reportar: mudanças implementadas + superfícies sensíveis tocadas.
 ## security
