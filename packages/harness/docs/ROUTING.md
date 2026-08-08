@@ -250,6 +250,40 @@ Required": diff/checks/validação de comportamento/gate decision) e
 | `verify-gate` (tool com `{ok, checks[], warnings[]}`, exec com timeout) | Runner da camada 1 (structural) + shape do report do CLI `--json` | `src/verify/stages/structural.ts` + `src/commands/verify.ts` |
 | (sem enforcement no OpenCode — aviso ignorável) | Bloqueio HARD via `{block:true}` em complete_goal (política halt) + cost caps → HALT | `src/verify/engine.ts` (D7/D8) |
 
+## 8.7 Evals — framework de evals do harness (F26)
+
+O harness tem um framework de evals portado do arcanum (sem tema RPG, zero
+deps novas — AD-026): suites/cases/scenarios são **dados TS** sob
+`test/eval/{suites,cases,scenarios}`; o runner in-process (`src/eval/`)
+carrega (dynamic import), executa e avalia com evidência via `evalTest()`
+(F21 — mesmo contrato dos fluxos da matriz). Referência completa:
+`docs/EVAL-FRAMEWORK.md` (mapeamento arcanum→harness cobrindo TODOS os
+arquivos do framework + tabela de dependência das 5 categorias).
+
+| Conceito | O que é | Onde vive |
+| --- | --- | --- |
+| Suite | manifest TS (id/phase/caseFiles) | `test/eval/suites/*.ts` |
+| Case | caso declarativo (target + executor + evaluators) | `test/eval/cases/*.ts` |
+| Scenario | ScriptedScenario do fixture F21 (escolha fakeada, execução real) | `test/eval/scenarios/*.ts` |
+| Evaluators | 8 determinísticos + trajectory-assertion + llm-judge (2 tiers) + baseline-diff | `src/eval/evaluators/` |
+| Targets | prompt-render (renderRules F19) · single-turn-agent (sessão SDK) | `src/eval/targets/` |
+| Evidência | `evalTest()` → `evidence/partial/*.jsonl` → `last-run.json` (F21) | `test/eval/evidence/` |
+
+- **Constraint-adherence v1 (EVAL-014)** é a única categoria com cases hoje:
+  os guards F24 (write-existing-file-guard, ranger-md-only) como sujeitos,
+  com o trace REAL do transcript (trajectory-assertion + tool-policy) e o
+  adversarial guard-off falhando com diagnóstico (desvio induzido — nunca
+  passa em silêncio). Delta vs EVAL-006/007 documentado nos cases (D6 — sem
+  double-test).
+- **Categorias bloqueadas**: tool-use/routing (F32), compaction (F27),
+  failover (F30) — sem entrada na matriz até os sujeitos existirem (política
+  aditiva F21 D9); a tabela de dependência é o contrato (`docs/EVAL-FRAMEWORK.md` §5).
+- **Judge LLM**: o llm-judge tem tier substring offline (sempre) + tier real
+  SÓ com `RUNECRAFT_VERIFY_LLM_JUDGE=1` via `VerifyDeps.judgeAdapter` (F25) —
+  nunca em CI (env off por construção).
+- **Rodar**: `bun test test/eval` (lane F21/F24/F25 + framework) — offline/$0;
+  o ratchet F23 (piso 14) cobre a evidência nova.
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design

@@ -16,8 +16,12 @@ const MATRIX_PATH = path.join(TEST_ROOT, "EVAL-MATRIX.md");
 const LAYER2_DIR = path.join(TEST_ROOT, "eval", "layer2");
 const GUARDS_DIR = path.join(TEST_ROOT, "guards");
 const VERIFY_DIR = path.join(TEST_ROOT, "verify");
+const SUITES_DIR = path.join(TEST_ROOT, "eval", "suites");
+const FRAMEWORK_DIR = path.join(TEST_ROOT, "eval", "framework");
 
-/** Camada 2 + lane dos guards (F24) + lane da cascata (F25). */
+/** Camada 2 + lane dos guards (F24) + lane da cascata (F25) + lane do
+ *  framework de evals (F26 — EVAL-012..016): dados TS em test/eval/suites
+ *  e testes em test/eval/framework. */
 function layer2TestFiles(): string[] {
   const layer2 = fs
     .readdirSync(LAYER2_DIR)
@@ -38,6 +42,20 @@ function layer2TestFiles(): string[] {
       .map((f) => path.join(VERIFY_DIR, f));
     files.push(...verify);
   }
+  // F26 (v4): lane do framework — dados TS (suites) + testes (framework).
+  if (fs.existsSync(SUITES_DIR)) {
+    const suites = fs
+      .readdirSync(SUITES_DIR)
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => path.join(SUITES_DIR, f));
+    files.push(...suites);
+  }
+  if (fs.existsSync(FRAMEWORK_DIR)) {
+    const framework = (fs.readdirSync(FRAMEWORK_DIR, { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".test.ts"))
+      .map((f) => path.join(FRAMEWORK_DIR, f));
+    files.push(...framework);
+  }
   return files;
 }
 
@@ -46,7 +64,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
     expect(fs.existsSync(MATRIX_PATH)).toBe(true);
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     expect(matrix).toMatch(/MATRIX_VERSION:\s*\d+/);
-    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011"]) {
+    for (const id of ["EVAL-001", "EVAL-002", "EVAL-004", "EVAL-005", "EVAL-005b", "EVAL-006", "EVAL-007", "EVAL-008", "EVAL-009", "EVAL-010", "EVAL-011", "EVAL-012", "EVAL-013", "EVAL-014", "EVAL-015", "EVAL-016"]) {
       expect(matrix).toContain(id);
     }
   });
@@ -54,7 +72,7 @@ describe("EVAL-MATRIX — consistência matriz ↔ testes (D9)", () => {
   test("todo EVAL-<n> da matriz tem teste de fluxo na camada 2 que o referencia", () => {
     const matrix = fs.readFileSync(MATRIX_PATH, "utf8");
     const matrixIds = new Set([...matrix.matchAll(/EVAL-(\d{3}[a-z]?)/gi)].map((m) => m[0].toUpperCase()));
-    expect(matrixIds.size).toBeGreaterThanOrEqual(11); // EVAL-001..011 (EVAL-003 fora)
+    expect(matrixIds.size).toBeGreaterThanOrEqual(16); // EVAL-001..016 (EVAL-003 fora)
     const testTexts = layer2TestFiles().map((f) => ({ file: f, text: fs.readFileSync(f, "utf8") }));
 
     for (const id of matrixIds) {

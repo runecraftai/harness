@@ -50,7 +50,9 @@ bun run eval:ratchet --update   # humano e explícito: congela o estado atual
   runs parciais (`bun test test/eval/layer1`) produzem evidência com menos
   arquivos que o piso → FAIL "evidência INCOMPLETA" (nunca verde falso).
   Bump explícito do piso quando um arquivo de teste novo com `evalTest()`
-  entrar na suite (revisão como golden).
+  entrar na suite (revisão como golden). **F26 (v4):** piso 13 → 14 — o
+  `test/eval/framework/constraint-adherence.test.ts` (EVAL-014/EVAL-012,
+  lane do framework de evals) entrou na evidência.
 
 ## Regras (D3, fail-only-on-worse)
 

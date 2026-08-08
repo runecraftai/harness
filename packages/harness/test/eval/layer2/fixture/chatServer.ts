@@ -21,6 +21,11 @@ export interface SeenRequest {
   conversationText: string;
   /** mensagem do usuário mais recente (truncada) — para diagnóstico. */
   lastUserText: string;
+  /** tool call REPLAYADA pelo fixture neste request (F26 — transcript real
+   *  do framework de evals); null quando o passo responde texto ou o request
+   *  falhou a validação adversarial (sem reply). Aditivo — nenhum teste
+   *  existente depende deste campo. */
+  replyTool: string | null;
 }
 
 const AUDITOR_BUILTINS = ["read", "grep", "find", "ls", "bash"];
@@ -132,6 +137,8 @@ export class ChatServer {
         : [],
       conversationText,
       lastUserText: lastUserText(parsed.messages),
+      // F26: preenchido após a validação — o reply conhecido do passo scriptado.
+      replyTool: null,
     };
     this.seen.push(seen);
 
@@ -145,6 +152,10 @@ export class ChatServer {
       this.fail(res, validationError);
       return;
     }
+
+    // F26 (transcript real do framework de evals): registra qual tool call o
+    // fixture replayou neste request (null para resposta de texto).
+    seen.replyTool = step.reply.kind === "tool" ? step.reply.name : null;
 
     // Resposta SSE com a tool call / texto scriptada (D5/D6).
     res.writeHead(200, {
