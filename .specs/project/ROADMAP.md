@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F24 COMPLETE (2026-08-07; 398 testes; cleric APPROVE + 1 fix) — **Próximo: F25 Verification Cascade** (P1 desbloqueada por AD-022; judge LLM env-gated) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)** · F23 P1 desbloqueada (AD-022)
+**Status:** F25 COMPLETE (2026-08-07; 487 testes; cleric APPROVE + 3 fixes) — **Próximo: F26 Eval Framework Port** ou F23 P1 (ratchet, AD-022) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -180,10 +180,11 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Testes determinísticos offline/$0 na infra do F21 (fixture + materialização de extensões) + EVAL-006/007 na matriz; evidência JSON alimenta o ratchet do F23
 - **Verificado:** sobrescrever arquivo existente em sessão Pi com fixture → tool bloqueado com reason (EVAL-006, alvo intacto); desvio induzido → falha do teste com diagnóstico; EVAL-007 override real no ledger + block em complete_goal; 397→398 testes (fix cleric stale taskList); zero regressão nos EVAL-001/002/004/005
 
-**F25 — Verification Cascade (determinismo de saída)** — PLANNED — Prereq: F24, F21 ✓ (judge LLM env-gated — padrão F22)
+**F25 — Verification Cascade (determinismo de saída)** — **COMPLETE (2026-08-07; 487 testes; cleric APPROVE + 3 fixes 5ceab12)** — Prereq: F24 ✓, F21 ✓ (judge LLM env-gated — padrão F22)
 
 - Cascata cheap→expensive: estrutural → integridade de arquivo → suficiência de mudança → fidelidade de embedding → judge LLM **só** na zona cinza entre limiares; **decisão de escalar é sempre código com limiares explícitos** (decisão 3c), nunca a LLM
 - Port de `verification-reminder` → gate de verificação; RETRY/SKIP/HALT + cost caps; judge LLM env-gated (fora do merge gate)
+- **Verificado:** engine única sessão+CLI (D11); zona cinza min 0.35/max 0.75; distribuição embedding não degenerada; EVAL-008..011 verdes; 485→487 testes (fixes cleric AD-024); zero regressão nos 398 do F24
 
 **F26 — Eval Framework Port (evals do guild)** — PLANNED — Prereq: F21 ✓, F24
 
