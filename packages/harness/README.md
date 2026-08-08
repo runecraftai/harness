@@ -1,5 +1,9 @@
 # @runecraft/companion
 
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Runecraft Harness — multi-agent harness for the Pi coding agent: four tools (subagents, taskflow, goal-loop, pr-review) with guards, verification, evals, resilience, memory and coded routing; a taskflow DAG; and the install command">
+</p>
+
 Runecraft Harness — umbrella meta-package for the [Pi coding agent](https://pi.dev). Installs and wires the four forked components (`@runecraft/subagents`, `@runecraft/taskflow` group, `@runecraft/goal-loop-audit`, `@runecraft/pr-review`) **plus the harness layer** — enforced guards, verification cascade, evals with ratchets/goldens, resilience, event store, memory, persona and coded routing — in a single command.
 
 ## What it is
@@ -17,6 +21,10 @@ The harness ships as a meta-package: the forks are bundled via `bundledDependenc
 The harness layer ships as extensions in the same `pi` manifest: `guards.ts`, `resilience.ts`, `observability.ts`, `memory.ts`, `persona.ts`, `routing.ts` and `harness-status.ts` — plus the shipped skills (`using-runes`, `skill-forge`, `test-driven-development`, `using-agent-skills`, `memory-management`, `spec-driven`).
 
 ## Proof / value
+
+<p align="center">
+  <img src="./assets/readme/proof.svg" width="100%" alt="Evidence: 1193 deterministic tests, 11 golden assets pinned byte-for-byte, 71 E2E offline tests, 23.4s versioned hello-world SDLC run">
+</p>
 
 - **Enforced guards** (F24) — real `{ block: true }` tool-call blocking, not prompt advice.
 - **Verification cascade** (F25) — deterministic cheap→expensive with thresholds in code; judge LLM env-gated.

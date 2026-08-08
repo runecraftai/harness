@@ -12,3 +12,8 @@ tmp/
 # F34 — diretórios locais de sessão (untracked; biome varria e o lint full falhava neles).
 .guild/
 .pi/
+
+# F34 T12 — artefatos de instalação da skill (registros locais; o skill vive em .pi/skills, já ignorado).
+.agents/
+.claude/
+skills-lock.json

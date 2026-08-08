@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">Runecraft Harness</title>
+  <desc id="hero-desc">Multi-agent harness for the Pi coding agent. Four tools — subagents, taskflow, goal-loop, pr-review — orchestrated with guards, verification, evals, resilience, memory and coded routing. Right side shows a real taskflow DAG proof; bottom shows the install command and doctor check.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#3a435c"/>
+    </marker>
+    <linearGradient id="dag-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a2030" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#12151d" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- canvas -->
+  <rect x="0" y="0" width="1200" height="380" rx="26" fill="#0c0e13"/>
+  <rect x="1" y="1" width="1198" height="378" rx="25" fill="none" stroke="#232838"/>
+
+  <!-- left: identity -->
+  <g id="title-block" transform="translate(56 46)">
+    <g stroke="#e3b341" stroke-width="2.5" stroke-linecap="round" fill="none">
+      <path d="M 0 10 L 0 0 L 8 10 M 0 5 L 5 5"/>
+    </g>
+    <text x="20" y="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#8b93a5" letter-spacing="1.5">MULTI-AGENT HARNESS FOR THE PI CODING AGENT</text>
+
+    <text x="0" y="94" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="92" font-weight="800" fill="#e8e6df">Runecraft</text>
+    <path d="M 4 110 L 68 110" stroke="#e3b341" stroke-width="4" stroke-linecap="round"/>
+
+    <text x="0" y="150" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="500" fill="#e8e6df">Your own disciplined multi-agent harness.</text>
+    <text x="0" y="182" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22" fill="#8b93a5">guards · verification · evals · resilience · memory</text>
+
+    <!-- tool pills -->
+    <g id="pills" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#e8e6df">
+      <rect x="0" y="212" width="150" height="42" rx="21" fill="#141824" stroke="#232838"/>
+      <circle cx="22" cy="233" r="5" fill="#e3b341"/>
+      <text x="36" y="238">subagents</text>
+
+      <rect x="162" y="212" width="140" height="42" rx="21" fill="#141824" stroke="#232838"/>
+      <circle cx="184" cy="233" r="5" fill="#62c7e8"/>
+      <text x="198" y="238">taskflow</text>
+
+      <rect x="314" y="212" width="150" height="42" rx="21" fill="#141824" stroke="#232838"/>
+      <circle cx="336" cy="233" r="5" fill="#e3b341"/>
+      <text x="350" y="238">goal-loop</text>
+
+      <rect x="476" y="212" width="150" height="42" rx="21" fill="#141824" stroke="#232838"/>
+      <circle cx="498" cy="233" r="5" fill="#62c7e8"/>
+      <text x="512" y="238">pr-review</text>
+    </g>
+
+    <text x="0" y="310" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8b93a5">1193 tests · 11 goldens · ratchets · coded routing · MIT</text>
+  </g>
+
+  <!-- right: real taskflow DAG proof -->
+  <g id="dag-proof" transform="translate(700 46)">
+    <rect x="0" y="0" width="444" height="252" rx="16" fill="url(#dag-glow)" stroke="#232838"/>
+    <text x="16" y="28" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8b93a5">taskflow — verifiable DAG</text>
+
+    <!-- row 1: explore → plan → implement -->
+    <g id="nodes-r1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#e8e6df">
+      <g transform="translate(16 48)">
+        <rect x="0" y="0" width="134" height="44" rx="10" fill="#1a1f2e" stroke="#2a3142"/>
+        <g stroke="#e3b341" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M 14 16 L 14 28 M 14 22 L 21 16 M 14 22 L 21 28"/>
+        </g>
+        <text x="34" y="27">explore</text>
+      </g>
+
+      <g transform="translate(160 48)">
+        <rect x="0" y="0" width="98" height="44" rx="10" fill="#1a1f2e" stroke="#2a3142"/>
+        <g stroke="#e3b341" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M 14 16 L 14 28 M 14 22 L 21 16 M 14 22 L 21 28"/>
+        </g>
+        <text x="34" y="27">plan</text>
+      </g>
+
+      <g transform="translate(268 48)">
+        <rect x="0" y="0" width="158" height="44" rx="10" fill="#1a1f2e" stroke="#2a3142"/>
+        <g stroke="#e3b341" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M 14 16 L 14 28 M 14 22 L 21 16 M 14 22 L 21 28"/>
+        </g>
+        <text x="34" y="27">implement</text>
+      </g>
+    </g>
+
+    <!-- row 2: verify ← implement; review ← verify -->
+    <g id="nodes-r2" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#e8e6df">
+      <g transform="translate(160 168)">
+        <rect x="0" y="0" width="122" height="44" rx="10" fill="#1a1f2e" stroke="#4cc38a"/>
+        <g stroke="#4cc38a" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M 14 16 L 14 28 M 14 22 L 21 16 M 14 22 L 21 28"/>
+        </g>
+        <text x="34" y="27">verify</text>
+      </g>
+
+      <g transform="translate(298 168)">
+        <rect x="0" y="0" width="122" height="44" rx="10" fill="#1a1f2e" stroke="#2a3142"/>
+        <g stroke="#62c7e8" stroke-width="2" stroke-linecap="round" fill="none">
+          <path d="M 14 16 L 14 28 M 14 22 L 21 16 M 14 22 L 21 28"/>
+        </g>
+        <text x="34" y="27">review</text>
+      </g>
+    </g>
+
+    <!-- edges (dependsOn) -->
+    <g id="edges" fill="none" stroke="#3a435c" stroke-width="2" marker-end="url(#arrow)">
+      <line x1="150" y1="70" x2="158" y2="70"/>
+      <line x1="258" y1="70" x2="266" y2="70"/>
+      <path d="M 347 92 C 347 130 221 130 221 166"/>
+      <line x1="282" y1="190" x2="296" y2="190"/>
+    </g>
+
+    <text x="16" y="236" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8b93a5">resume · replay · recompute — budgets</text>
+  </g>
+
+  <!-- bottom: first action -->
+  <g id="terminal" transform="translate(56 322)">
+    <rect x="0" y="0" width="1088" height="44" rx="12" fill="#05070a" stroke="#232838"/>
+    <text x="20" y="27" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#e8e6df">$ pi install npm:@runecraft/companion</text>
+    <text x="1068" y="27" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#4cc38a">companion doctor → 22 checks ✓</text>
+  </g>
+</svg>

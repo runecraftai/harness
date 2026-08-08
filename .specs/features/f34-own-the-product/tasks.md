@@ -87,11 +87,11 @@
 
 ## T12 — README raiz via skill beautify-github-readme (D11, DOC-06) — GATED na escolha do usuário (QA-7)
 
-- [ ] Instalar a skill: `npx skills add oil-oil/beautify-github-readme` (verificar SKILL.md carregável no ambiente)
-- [ ] Executar a skill no modo escolhido (QA-7 — default **Whole README** sobre o README raiz): a skill LÊ o repo real primeiro (prova: 1193 testes, ratchets/goldens, E2E, guards) e deriva o sistema visual project-native (hero SVG, tipografia/cores do projeto runecraft) — zero capacidades inventadas (regra F8; checklist contra components.md)
-- [ ] **Preview local obrigatório**: assets GitHub-safe (SVG editável como fallback estático; GIF só opt-in; texto pesquisável/copiável preservado; links resolvem); **nenhum commit/push sem aprovação explícita do usuário** (regra da skill)
-- [ ] Após aprovação: commit atômico dos assets + README raiz; escopo = README raiz (umbrella opcional se o usuário pedir no preview — QA-7c)
-- [ ] **Verificar:** preview renderizado localmente (SVG abre no browser); aprovação registrada no corpo do commit; `bun test` verde; links do README resolvem; checklist de capacidade sem invenção
+- [x] Instalar a skill: `npx skills add oil-oil/beautify-github-readme` (verificar SKILL.md carregável no ambiente)
+- [x] Executar a skill no modo escolhido (QA-7c — **Whole README raiz + umbrella**): a skill LÊ o repo real primeiro (prova: 1193 testes, ratchets/goldens, E2E, guards) e deriva o sistema visual project-native (hero SVG, tipografia/cores do projeto runecraft) — zero capacidades inventadas (regra F8; checklist contra components.md)
+- [x] **Preview local obrigatório**: assets GitHub-safe (SVG editável como fallback estático; GIF só opt-in; texto pesquisável/copiável preservado; links resolvem); **nenhum commit/push sem aprovação explícita do usuário** (regra da skill — aprovado 2026-08-08)
+- [x] Após aprovação: commit atômico dos assets + README raiz; escopo = README raiz + umbrella (QA-7c)
+- [x] **Verificar:** preview renderizado localmente (SVG abre no browser); aprovação registrada no corpo do commit; `bun test` verde; links do README resolvem; checklist de capacidade sem invenção
 
 ## Traceability → tasks
 

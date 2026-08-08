@@ -1,5 +1,9 @@
 # Runecraft Harness
 
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Runecraft Harness — multi-agent harness for the Pi coding agent: four tools (subagents, taskflow, goal-loop, pr-review) with guards, verification, evals, resilience, memory and coded routing; a taskflow DAG; and the install command">
+</p>
+
 Your own multi-agent harness for the [Pi coding agent](https://pi.dev) — with
 **enforced execution guards, a deterministic verification cascade, evals with
 ratchets and goldens, resilience, a typed event store, persistent memory and
@@ -11,6 +15,10 @@ The command is `companion` (alias `harness`); the package is
 `@runecraft/companion`.
 
 ## Proof / value
+
+<p align="center">
+  <img src="./assets/readme/proof.svg" width="100%" alt="Evidence: 1193 deterministic tests, 11 golden assets pinned byte-for-byte, 71 E2E offline tests, 23.4s versioned hello-world SDLC run">
+</p>
 
 A harness that verifies its own work, at every layer:
 
