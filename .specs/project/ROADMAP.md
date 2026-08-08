@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M5 — Evals & Guarantees (F22/F23) · **M7 — Garantias** em andamento
-**Status:** F32 COMPLETE (2026-08-08; 1056 testes; cleric APPROVE + 3 fixes) — **Próximo: F33 Coded Routing** (plano AD-033 — último do M8) · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
+**Status:** M8 COMPLETO — F33 COMPLETE (2026-08-08; 1152 testes) — **Próximo: F10 Upstream Sync** (plano AD-034) → barreiras F8/F9/F22 · F22 E2E **aguardando aprovação explícita do usuário (custo de tokens)**
 
 Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14}** · **{F15, F16} → F17 → F18** · **F19 → F20** · **{F21, F22} → F23** · **F8 → F9** · F10 ∥ F7 · **{F15, F20, F21} → F24 → F25** · **{F21, F24} → {F26, F27}** · **{F13, F21} → {F28, F29}** · **{F15, F17, F24} → F30** · **{F15, F16, F17} → F31** · **{F24, F30} → F32** · **{F19, F27, F30, F32} → F33**
 
@@ -213,7 +213,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 
 ---
 
-## M8 — Pi First-Class & Multi-Agent Expansion
+## M8 — Pi First-Class ## M8 — Pi First-Class & Multi-Agent Expansion Multi-Agent Expansion — ✅ COMPLETE (2026-08-08)
 
 **Goal:** Pi vira cidadão de primeira classe (persona objetiva, roteamento de modelo por agente, assets SDD), adapters crescem (copilot/vscode), os 8 agentes RPG do guild viram papéis profissionais objetivos e o roteamento vira código (decisões 1 e 2). Expansão só depois das garantias (decisão 4).
 
@@ -233,7 +233,7 @@ Dependency chain: **F1 → {F2–F5} → F6 → F7** · **F11 → {F12, F13, F14
 - Port dos 8 agentes RPG → papéis objetivos: planner (wizard), builder (fighter), reviewer (cleric), auditor (ranger), scout (rogue), researcher (warlock), security (paladin); bard = lógica de orquestração → F33 (não vira subagente)
 - Infra de agentes: prompt-loader/prompt-utils/dynamic-prompt-builder/agent-builder/custom-agent-factory/builtin-agents; review-orchestrator/review-resolver/review-model-variants (reviewer); `guild_spawn_wizard` → delegação via prompt template
 
-**F33 — Coded Routing & Pilot Coordination** — PLANNED — Prereq: F19 ✓, F27, F30, F32
+**F33 — Coded Routing **F33 — Coded Routing & Pilot Coordination** — PLANNED — Prereq: F19 ✓, F27, F30, F32 Pilot Coordination** — **COMPLETE (2026-08-08; 1152 testes; cleric APPROVE + 1 fix 9b3091c)** — Prereq: F19 ✓, F27 ✓, F30 ✓, F32 ✓
 
 - Port de `keyword-detector` (input → roteamento codificado), lógica de orquestração do bard, workflow engine do guild → chains/prompt templates; `call_guild_agent` → tool `subagent` nativa (F2)
 - Two-driver rules (F7/F19) + fallback chains (F27) + roteamento de modelo por agente (F30)
