@@ -2,10 +2,12 @@
 //
 // (a) unit: `.ts` bloqueia para agente da lista; `.md`/`.MD`/`.Markdown`
 //     passam (case-insensitive — edge da spec); agente fora da lista passa;
-//     lista vazia (default v1) → inerte (D5); config inválida → fail-closed
-//     (todo agente md-only — D10); sem extensão → bloqueia (só .md é .md).
+//     lista vazia → inerte (D5); config inválida → fail-closed (todo agente
+//     md-only — D10); sem extensão → bloqueia (só .md é .md).
 // (b) integração com fixture: agente `ranger` (RUNECRAFT_AGENT_ID) na lista
-//     → write `.ts` bloqueado e `.md` passa no loop REAL do Pi.
+//     → write `.ts` bloqueado e `.md` passa no loop REAL do Pi. F32 (D7): o
+//     DEFAULT da lista agora é ["auditor"] — agentes fora da lista (ranger)
+//     seguem inertes; o papel auditor é o alvo do guard.
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import { setupEvalFixture, type EvalFixture } from "../eval/helpers/evalFixture.ts";
@@ -123,11 +125,11 @@ describe("ranger-md-only — integração com fixture (agente md-only real)", ()
     });
   });
 
-  test("lista vazia (default): agente ranger NÃO bloqueia .ts (inerte — D5)", async () => {
-    await evalTest("lista vazia (default): agente ranger NÃO bloqueia .ts (inerte — D5)", async () => {
+  test("agente fora da lista default (ranger; default F32 = [auditor]) → não bloqueia .ts", async () => {
+    await evalTest("agente fora da lista default (ranger) → não bloqueia .ts (inerte — D5/F32)", async () => {
       const scenario: ScriptedScenario = {
         id: "F24-ranger-inert",
-        description: "mdOnlyAgents vazio → inerte (não é fluxo da matriz)",
+        description: "agente fora da lista default → inerte (não é fluxo da matriz)",
         ...script([
           { expect: { toolsSubset: ["write"] }, reply: { kind: "tool", name: "write", args: { path: "src/feature.ts", content: "const x = 1" } } },
           { expect: { toolsSubset: ["read"] }, reply: { kind: "text", text: "done" } },

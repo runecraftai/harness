@@ -22,6 +22,25 @@ Claude Code (`claude-code`), OpenCode (`opencode`), Codex (`codex`) e
 (`servers.taskflow`, host reusado `@runecraft/taskflow-claude`). Detalhes e
 two-driver com o gentle-ai em `docs/ROUTING.md` §8.12.
 
+**Papéis objetivos (F32):** o harness entrega 7 papéis profissionais como
+agentes-dados materializados em `<cwd>/.pi/agents/` via `harness install`/`sync`
+(escopo projeto; three-way por conteúdo — edições do usuário preservadas):
+
+| Papel | Identidade | Tools (allowlist) | Delegação |
+| --- | --- | --- | --- |
+| planner | planos apenas (nunca implementa) | read, grep, find, ls, intercom | nunca |
+| builder | executa o plano, verifica antes de reportar | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | ÚNICO: scout + reviewer |
+| reviewer | veredito `[APPROVE]/[REJECT]` + ≤3 blocking issues (read-only) | read, grep, find, ls, bash, intercom | nunca |
+| auditor | auditoria de conformidade (write só `.md` — guard F24) | read, grep, find, ls, bash, write, intercom | nunca |
+| scout | recon read-only, reporta no retorno | read, grep, find, ls, intercom | nunca |
+| researcher | pesquisa externa com fontes (read-only) | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | nunca |
+| security | revisão de segurança read-only (triage + fast-exit) | read, grep, find, ls, bash, intercom | nunca |
+
+Os papéis shadowam os builtins homônimos do fork (planner/reviewer/scout/
+researcher — compatível+endurecido) e são consumíveis por
+`state.models.agents.<id>.fallbackChain` (F30). Detalhes em
+`docs/ROUTING.md` §8.13.
+
 **Nota sobre deps compartilhadas:** npm não instala deps transitivas de pacotes bundled. Por isso as deps de runtime não-peer dos forks (jiti/yaml do subagents, typescript do taskflow-dsl) são declaradas como `dependencies` regulares deste package — o npm as baixa do registry no `pi install`. O `prepack` materializa cópias reais dos 6 forks em `node_modules/@runecraft/*` antes do pack (os symlinks do bun geram paths `..` no tarball).
 
 ## Instalação

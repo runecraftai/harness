@@ -187,11 +187,25 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   }
 
   const filesTouched = filesTouchedByInstall(rt, scope);
-  // Alvos dos agentes não-Pi entram no snapshot pré-write (F15 passo 5).
+  // Alvos dos agentes não-Pi entram no snapshot pré-write (F15 passo 5);
+  // F32 (T5): os papéis objetivos materializados (.pi/agents/) também.
   const agentTargetFiles = nonPiAgents.flatMap((id) => {
     const p = ADAPTERS[id as keyof typeof ADAPTERS].paths(rt);
     return [p.rulesFile, p.mcpFile];
   });
+  const roleAgentFiles =
+    scope === "workspace"
+      ? (() => {
+          const dir = path.join(rt.cwd, ".pi", "agents");
+          try {
+            return fs.existsSync(dir)
+              ? fs.readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => path.join(dir, f))
+              : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
 
   // Colisão com upstreams — scan é somente leitura (CLI-09).
   const installedBefore = wantPi ? opts.pi.list().packages : [];
@@ -260,7 +274,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   let snapshot: SnapshotResult | undefined;
   try {
     snapshot = createSnapshot({
-      files: [...filesTouched, ...agentTargetFiles],
+      files: [...filesTouched, ...agentTargetFiles, ...roleAgentFiles],
       destDir: backupsDir(rt, scope),
       reason: "install",
       scope,
@@ -301,6 +315,26 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     }
   }
   // State dos agentes é gravado junto com o do Pi no passo 6 (mesmo arquivo).
+
+  // 5c. F32 (T5): papéis objetivos — materialização three-way para
+  // <cwd>/.pi/agents/ (escopo projeto — QA-2a; workspace apenas: o state
+  // global não mistura targets repo-scoped). Best-effort — nunca falha o
+  // install; o reporte leva as notas. Usa o MESMO objeto state do passo 6.
+  if (scope === "workspace") {
+    try {
+      const { planRoleAgents, applyRoleAgents, roleAgentsDir } = await import("../agents/materialize.ts");
+      const rolePlans = planRoleAgents(rt.cwd, state0.piAgents);
+      const piAgents = state0.piAgents ?? {};
+      const roleResult = applyRoleAgents(rt.cwd, piAgents, rolePlans);
+      if (roleResult.changed) state0.piAgents = piAgents;
+      if (roleResult.copied.length > 0) {
+        notes.push(`papéis objetivos materializados em ${roleAgentsDir(rt.cwd)}: ${roleResult.copied.join(", ")} (F32)`);
+      }
+      notes.push(...roleResult.notes);
+    } catch {
+      // best-effort — a materialização nunca quebra o install
+    }
+  }
 
   // 6. State upsert — só packages instalados com sucesso (CLI-10). O state já
   //    carregado em 5b é o mesmo objeto — não recarregar.

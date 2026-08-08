@@ -498,6 +498,113 @@ desvio documentado do F23 D4: nesting 2 níveis `servers.taskflow`); evals
 EVAL-049..056 (matriz v9); F19 dono do conteúdo das regras (`renderRules`
 intocado — copilot recebe o NON_PI_RULES existente).
 
+## 8.13 Objective Role Agents — papéis objetivos do harness (F32)
+
+O harness entrega 7 papéis profissionais objetivos como **agentes-dados**
+(`agents/*.md` versionados no pacote → materializados em `<cwd>/.pi/agents/`
+via `harness install/sync` — escopo projeto, QA-2a). O fork `@runecraft/subagents`
+descobre `.pi/agents/*.md` nativamente (`resolveNearestProjectAgentDirs` +
+`loadAgentsFromDir` — agents.ts) e o arquivo de escopo projeto **shadowa** o
+builtin homônimo (`mergeAgentsForScope` — projeto > builtin). Agentes são
+DADOS: extensíveis por construção (qualquer `.md` novo no dir é descoberto) e
+editáveis pelo usuário (o sync faz three-way por conteúdo — F19 D7: edição
+preservada, nunca auto-cura). Zero tema de fantasia (decisão 2 — deny-list nos
+evals).
+
+### Os 7 papéis (D3 — allowlist fail-closed: o que não está na lista não existe)
+
+| Papel | Identidade | Tools (allowlist) | Constraints | Delegação |
+| --- | --- | --- | --- | --- |
+| planner | planos apenas, 2 modos (interactive/automatic), clarificação por escopo, NUNCA implementa | read, grep, find, ls, intercom | read-only; `acceptanceRole: read-only`; `output: plan.md` (persistido pelo runtime) | nunca |
+| builder | executa o plano, verifica antes de reportar; único papel escritor | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | writer; `defaultReads: plan.md` | ÚNICO papel com `subagent` (QA-5a): spawna scout (recon) + reviewer (verificação) |
+| reviewer | veredito `[APPROVE]/[REJECT]` + resumo + ≤3 blocking issues, approval bias; plan review + work review | read, grep, find, ls, bash, intercom | read-only (SEM edit/write — endurecido vs builtin); in-loop | nunca |
+| auditor | auditoria de conformidade; write restrito a `.md` (guard F24) | read, grep, find, ls, bash, write, intercom | md-only (default `guards.rangerMdOnly.mdOnlyAgents=[auditor]` — D7) | nunca |
+| scout | recon de codebase, reporta no retorno | read, grep, find, ls, intercom | read-only; `output: context.md` | nunca |
+| researcher | pesquisa externa, cita fontes | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | read-only; `output: research.md` | nunca |
+| security | revisão de segurança/conformidade, triage + fast-exit, classes de vulnerabilidade | read, grep, find, ls, bash, intercom | read-only; veredito estruturado | nunca |
+
+### Mapeamento honesto builtin ↔ papel (D2 — QA-1)
+
+| Papel objetivo | Builtin do fork | Relação |
+| --- | --- | --- |
+| planner | planner | **shadow compatível** — o builtin já era read-only com `output: plan.md` sem tool write |
+| reviewer | reviewer | **shadow endurecido** — o builtin tinha edit/write; o papel remove (allowlist read-only ENFORÇA o que os fluxos do fork já pedem por instrução — "Reviewers must not edit files") |
+| scout | scout | **shadow endurecido** — o builtin tinha bash/write; o papel remove (`output: context.md` persistido pelo runtime) |
+| researcher | researcher | **shadow endurecido** — o builtin tinha write; o papel remove (`output: research.md`) |
+| builder | — | **novo** (sem builtin homônimo; papel escritor — semântica extraída do default.ts do arcanum) |
+| auditor | — | **novo** (AD-022 decisão 3: papel de auditoria; guard md-only assina o papel) |
+| security | — | **novo** (revisão de segurança — semântica extraída do default.ts do arcanum) |
+| worker/oracle/advisor/context-builder/delegate | — | **preservados** (sem contraparte objetiva — fluxos genéricos do fork continuam) |
+
+Artefatos `output:` (plan.md/context.md/research.md) são **persistidos pelo
+runtime do fork**, não pelo agente (single-output.ts: agente sem tool de
+mutação → "Return the complete artifact… The runtime will persist it").
+
+### Delegação (D5 — QA-5a)
+
+O mecanismo de spawn do planejador do arcanum (spawn-wizard) vira um
+**template renderizado**
+(`src/agents/delegation.ts` — `renderDelegationPrompt`): instrui o delegador a
+usar a tool `subagent` (F2 — a delegação observada no F28) com `agent:
+"<papel>"` e lista os alvos válidos (`buildKeyTriggersSection` — D4). Política
+v1: **só o builder spawna** (scout + reviewer); os demais papéis NÃO têm a
+tool `subagent` no allowlist (fail-closed — não spawnam; espelho da política
+de spawn do planejador do arcanum: o planejador nunca spawna). A orquestração
+codificada (keyword-detector) é o F33 — consumindo estes papéis por dados
+(outline).
+
+### Composição de review (D6)
+
+O reviewer é um agente **read-only in-loop** (veredito `[APPROVE]/[REJECT]` +
+≤3 blocking issues). O fluxo de review de PR continua com o **pr-review (F5)**
++ **receipts (F20)** — fronteira explícita (loop tools do pr-review são gated
+fora de `/pr-review` ativo — F21 AD-021; o reviewer NÃO é wrapper). Variantes
+de modelo do reviewer (`review_models` → `reviewer-review-<key>`) são
+**interface de dados F30** (`models.agents.reviewer.review_models` /
+`models.agents.security.review_models`) — fan-out/collation permanece no fork
+pr-review.
+
+### Modelos (D8 — QA-4a)
+
+Os 7 ids de papel são ids válidos de `state.models.agents.<id>.fallbackChain`
+(F30 D5/D11) — **nenhum chain default no código** (F30 D4: zero IDs
+inventados; modelos vêm do models.json do SDK via `harness models generate`).
+Exemplo de config do USUÁRIO com a semântica de classes do arcanum
+(AGENT_MODEL_REQUIREMENTS — lido no Execute; NUNCA default):
+
+```jsonc
+{ "models": { "agents": {
+  "planner":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
+  "researcher":{ "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
+  "security":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
+  "builder":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "leve-1" }] },
+  "scout":     { "fallbackChain": [{ "providers": ["provider-a"], "model": "leve-1" }] },
+  "reviewer":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "medio-1" }] },
+  "auditor":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "medio-1" }] }
+} } }
+```
+
+(pesado = planner/researcher/security · leve = builder/scout · médio =
+reviewer/auditor — semântica extraída do arcanum.)
+
+### Fronteiras (D10)
+
+- **F24** é o dono do guard `rangerMdOnly` — F32 muda só o **default de
+  config** (`mdOnlyAgents += "auditor"` em guardKit.ts); o guard fica INTOCADO.
+- **F30** é o dono de `src/models/` — F32 consome por contrato de ids.
+- **F33** é o dono da orquestração codificada — F32 entrega agentes +
+  templates (outline).
+- **F19** é o dono do renderRules — F32 não toca `rulesContent.ts`.
+- **F5/F20** donos do review de PR/receipts — o reviewer é in-loop.
+- Fork subagents consumido READ-ONLY (zero mudança).
+- Identidade: o fork seta `PI_SUBAGENT_CHILD_AGENT` (não `RUNECRAFT_AGENT_ID`)
+  — a bridge documentada (adendo before_agent_start do F28,
+  `src/agents/identity.ts`) traduz a identidade do child para o env que o
+  guard lê (validado no Execute F32).
+
+Evals: EVAL-057..066 (matriz v10 — categorias tool-use correctness e routing
+completeness desbloqueadas).
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` (source of truth: design
@@ -647,6 +754,22 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   user-level × repo-level (sobreposição SEMÂNTICA — owners + gate MXST-04),
   coluna na matriz (mcp+rules + 4 unsupported Pi-only), doctor check 21,
   golden `mcp-copilot.golden` + EVAL-049..056 (matriz v9).
+- **2026-08-12**: Role agents (F32, section 8.13) verified in the Execute —
+  fork subagents descobre `.pi/agents/*.md` nativamente (`loadAgentsFromDir`
+  agents.ts:1306; `resolveNearestProjectAgentDirs` agents.ts:1493; shadowing
+  projeto > builtin via `mergeAgentsForScope` agent-selection.ts); frontmatter
+  aceito = flat `key: value` (parseFrontmatter frontmatter.ts); tools
+  observadas nos builtins = `read,grep,find,ls,bash,edit,write,intercom,
+  contact_supervisor,web_search,fetch_content,get_search_content` + `subagent`
+  (review-loop.md) — `glob` NÃO é tool do fork; `output:` é persistido pelo
+  runtime para agentes sem tool de mutação (single-output.ts
+  formatOutputPathInstruction); o fork NÃO seta `RUNECRAFT_AGENT_ID` por
+  dispatch (seta `PI_SUBAGENT_CHILD_AGENT` — pi-args.ts:26/354) → bridge
+  documentada no design (adendo before_agent_start do F28 —
+  src/agents/identity.ts) SEM tocar o guard; `contact_supervisor` é
+  bridge-gated (não registrado em sessão sem canal de supervisor — fora do
+  tool-policy do EVAL-060); o default `guards.rangerMdOnly.mdOnlyAgents`
+  agora é `["auditor"]` (D7 — guard intocado); EVAL-057..066 (matriz v10).
 - **Revalidation checklist** (on fork bumps via F10, or new limitations found
   in F7/F22): table facts → section 3; injected text → section 9 +
   `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry

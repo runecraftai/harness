@@ -166,7 +166,8 @@ describe("migração aditiva (AD-013: schemaVersion 1, sem bump)", () => {
       expect(result.created).toBe(true);
       const guards = (result.state as unknown as { guards: Record<string, unknown> }).guards;
       expect(guards.writeExistingFile).toEqual({ enabled: true });
-      expect(guards.rangerMdOnly).toEqual({ enabled: true, options: { mdOnlyAgents: [] } });
+      // F32 (D7): o papel auditor é registrado por default na lista md-only.
+      expect(guards.rangerMdOnly).toEqual({ enabled: true, options: { mdOnlyAgents: ["auditor"] } });
       expect(guards.todoDescriptionOverride).toEqual({ enabled: true });
       expect(guards.todoContinuationEnforcer).toEqual({ enabled: true });
     } finally {

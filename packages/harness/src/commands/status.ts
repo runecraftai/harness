@@ -43,6 +43,8 @@ import { effectiveModels, modelsKillSwitch, modelOverrideEnv } from "../models/c
 import { resolveAvailableModels } from "../models/registry.ts";
 import { agentsForList, chainForAgent } from "../models/cli.ts";
 import { resolveAgentModel } from "../models/resolution.ts";
+import { planRoleAgents } from "../agents/materialize.ts";
+import { ROLE_IDS } from "../agents/catalog.ts";
 
 export type RowState = "ok" | "ausente" | "colisão" | "órfão" | "upstream";
 
@@ -116,6 +118,25 @@ export interface StatusReport {
   verification: VerificationStatus;
   /** F30: model routing (config efetiva + kill switch + resolução por agente). */
   models: ModelsStatus;
+  /** F32: papéis objetivos (materialização .pi/agents/ + registros do state). */
+  roleAgents: RoleAgentsStatusReport;
+}
+
+/** F32 (T5): seção dos papéis objetivos do status — file-level (arquivo
+ *  presente/preservado/ausente) × state-level (registrado com contentHash) +
+ *  dependência do componente subagents (fork ausente → dados inertes — F17). */
+export interface RoleAgentsStatusReport {
+  /** componente subagents presente no state/pi list (fork disponível?). */
+  forkPresent: boolean;
+  /** papéis cujo arquivo materializado == asset (instalados). */
+  installed: string[];
+  /** papéis com arquivo editado pelo usuário (preservados — F19 D7). */
+  preserved: string[];
+  /** papéis sem arquivo materializado. */
+  missing: string[];
+  /** papéis registrados no state com contentHash. */
+  registered: string[];
+  total: number;
 }
 
 /** F24: seção guards do status (D9 — Pi-only honesto: guards são extensão Pi). */
@@ -284,7 +305,36 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     verification: computeVerificationStatus(rt, scope, state),
     // F30: models do SCOPE (workspace > global > default) + kill switch + resolução.
     models: computeModelsStatus(rt, scope, state),
+    // F32 (T5): papéis objetivos — materialização file-level × registros do
+    // state + dependência do componente subagents (fork ausente → inertes).
+    roleAgents: computeRoleAgentsStatus(rt, scope, state, identities),
   };
+}
+
+/** F32 (T5): estado dos papéis objetivos no status (file × state × fork). */
+export function computeRoleAgentsStatus(
+  rt: Runtime,
+  scope: Scope,
+  state: HarnessState,
+  identities: Set<string>,
+): RoleAgentsStatusReport {
+  const forkPresent = identities.has("npm:@runecraft/subagents");
+  if (scope !== "workspace") {
+    // Papéis são repo-scoped (QA-2a) — o status global reporta a dependência
+    // apenas; sem alvos no scope.
+    return { forkPresent, installed: [], preserved: [], missing: [...ROLE_IDS], registered: [], total: ROLE_IDS.length };
+  }
+  const plans = planRoleAgents(rt.cwd, state.piAgents);
+  const installed: string[] = [];
+  const preserved: string[] = [];
+  const missing: string[] = [];
+  for (const plan of plans) {
+    if (plan.status === "missing") missing.push(plan.roleId);
+    else if (plan.status === "edited") preserved.push(plan.roleId);
+    else installed.push(plan.roleId);
+  }
+  const registered = Object.keys(state.piAgents ?? {});
+  return { forkPresent, installed, preserved, missing, registered, total: ROLE_IDS.length };
 }
 
 /** F30: estado efetivo do roteamento de modelos para o scope (mesmo merge do
@@ -687,6 +737,20 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
       if (note) lines.push(`    note: ${note}`);
     }
   }
+  // F32 (T5): seção Role agents — papéis objetivos (file × state × fork).
+  lines.push("");
+  lines.push("Role agents (F32):");
+  const ra = report.roleAgents;
+  if (!ra.forkPresent) {
+    lines.push("  dependência: fork subagents NÃO presente — papéis são dados inertes (matriz F17)");
+  } else if (report.scope !== "workspace") {
+    lines.push("  escopo global: papéis são repo-scoped (instale no workspace — .pi/agents/)");
+  } else {
+    lines.push(`  instalados (${ra.installed.length}/${ra.total}): ${ra.installed.join(", ") || "—"}`);
+    if (ra.preserved.length > 0) lines.push(`  preservados (editados — sync nunca sobrescreve): ${ra.preserved.join(", ")}`);
+    if (ra.missing.length > 0) lines.push(`  ausentes (rode \`harness sync\`): ${ra.missing.join(", ")}`);
+    lines.push(`  registrados no state: ${ra.registered.join(", ") || "—"}`);
+  }
   if (!report.piDetected) lines.push("warn: binário `pi` não detectado — a coluna Instalado pode estar incompleta");
   if (report.piListError) lines.push(`warn: \`pi list\` falhou (${report.piListError}) — coluna Instalado usa o fallback de settings.json`);
   if (report.nothingManaged) {
@@ -731,6 +795,14 @@ export function renderStatusJson(report: StatusReport): string {
         killSwitch: report.guards.killSwitch,
         killSwitchValue: report.guards.killSwitchValue,
         guards: report.guards.guards,
+      },
+      roleAgents: {
+        forkPresent: report.roleAgents.forkPresent,
+        installed: report.roleAgents.installed,
+        preserved: report.roleAgents.preserved,
+        missing: report.roleAgents.missing,
+        registered: report.roleAgents.registered,
+        total: report.roleAgents.total,
       },
       verification: report.verification,
       models: {

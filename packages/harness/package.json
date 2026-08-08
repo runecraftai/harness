@@ -30,6 +30,7 @@
     "docs/",
     "skills/",
     "assets/",
+    "agents/",
     "README.md"
   ],
   "engines": {

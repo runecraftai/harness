@@ -29,6 +29,7 @@ import type { ModelsConfig } from "./models/config.ts";
 import { defaultModelsConfig } from "./models/config.ts";
 import type { PersonaConfig } from "./persona/config.ts";
 import { defaultPersonaConfig } from "./persona/config.ts";
+import type { RoleAgentRecord } from "./agents/materialize.ts";
 
 export interface InstalledEntry {
   /** logical component group, e.g. "taskflow" (taskflow-core/pi/dsl share it) */
@@ -111,6 +112,10 @@ export interface HarnessState {
   preInstall: PreInstallRecord[];
   /** managed non-Pi agents (F15/F17 D2; aditivo, schemaVersion permanece 1). */
   agents: Record<string, AgentRecord>;
+  /** papéis objetivos materializados em <cwd>/.pi/agents/ (F32 D1/T5 —
+   *  contentHash por papel; aditivo, schemaVersion permanece 1 — o
+   *  materialize.ts valida em runtime; ausente = nada materializado). */
+  piAgents?: Record<string, RoleAgentRecord>;
   /** execution guards config (F24 D2; aditivo, schemaVersion permanece 1 — o
    *  guardKit valida em runtime; ausente = defaults fail-closed). */
   guards?: GuardsConfig;
@@ -145,6 +150,7 @@ export function emptyState(scope: Scope): HarnessState {
     settingsChanges: [],
     preInstall: [],
     agents: {},
+    piAgents: {},
     // F24: fail-closed por padrão — o estado declara os guards LIGADOS (D10).
     guards: defaultGuardsConfig(),
     // F25: fail-closed por padrão — o estado declara a cascata de verificação LIGADA (D9).
@@ -199,6 +205,7 @@ function parseState(file: string, scope: Scope): HarnessState | null {
     settingsChanges: Array.isArray(raw.settingsChanges) ? (raw.settingsChanges as SettingsChange[]) : [],
     preInstall: Array.isArray(raw.preInstall) ? (raw.preInstall as PreInstallRecord[]) : [],
     agents: raw.agents && typeof raw.agents === "object" ? (raw.agents as Record<string, AgentRecord>) : {},
+    piAgents: raw.piAgents && typeof raw.piAgents === "object" ? (raw.piAgents as Record<string, RoleAgentRecord>) : {},
   };
 }
 

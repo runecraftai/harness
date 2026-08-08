@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 9
+MATRIX_VERSION: 10
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -27,6 +27,32 @@ coluna matriz F17, two-driver gentle-ai user-level × repo-level, sync/state)
 Copilot). Nota datada 2026-08-10: os cases puros (EVAL-049..056) são
 unit/fixture do framework (mesmo padrão EVAL-017..020 do F27 — o adapter é
 mecanismo, sem fluxo SDLC novo); tool-use/routing (F32) segue SEM entradas.
+
+**v10 (F32, AD-032):** entradas aditivas EVAL-057..066 (Objective Role
+Agents — 7 papéis objetivos como agentes-dados `.pi/agents/*.md` (planner/
+builder/reviewer/auditor/scout/researcher/security), allowlists fail-closed
+por papel (D3), descoberta/shadowing reais do fork (project > builtin),
+delegação via template (só o builder spawna scout/reviewer — QA-5a),
+auditor registrado no default `guards.rangerMdOnly.mdOnlyAgents` (D7 — guard
+F24 intocado), interface de modelos F30 por contrato de ids (D8)) — política
+aditiva D9; as categorias **tool-use correctness** (EVAL-059/060/061) e
+**routing completeness** (EVAL-062/063/064) do eval-coverage do F26 foram
+DESBLOQUEADAS (ver docs/EVAL-FRAMEWORK.md); o teste de consistência agora
+também varre `test/eval/framework/roles` + `test/eval/suites/roles` +
+`test/eval/cases/roles-*` + `test/eval/scenarios/roles-*` (lane dos papéis).
+Nota datada 2026-08-12: os cases puros (EVAL-057/058/062..066) são
+unit/fixture do framework (mesmo padrão EVAL-017..020 do F27); os cases
+trajectory são EVAL-059/060 (allowlists reais dos papéis via target.tools +
+tool-policy sobre o registry REAL) e EVAL-061 (auditor md-only em sessão
+real com RUNECRAFT_AGENT_ID=auditor — identidade do harness, F24
+currentAgentId). Limitação honesta (Execute F32): o fork NÃO seta
+`RUNECRAFT_AGENT_ID` por dispatch (seta `PI_SUBAGENT_CHILD_AGENT` —
+pi-args.ts) — a bridge documentada no design (adendo before_agent_start do
+F28, src/agents/identity.ts) traduz a identidade do child no env que o guard
+lê; a delegação real de `subagent` em sessão scriptada com completion do
+child não é viável de forma determinística (script único do fixture) — o
+routing é provado pelo delegation event tipado do F28 (EVAL-062/063/064,
+fallback documentado no design D9).
 
 **v2 (F24, AD-022):** entradas aditivas EVAL-006 (write guard) e EVAL-007 (todo enforcer) — política aditiva D9; o teste de consistência agora também varre `test/guards/` (lane dos guards).
 
@@ -147,6 +173,19 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-046 | sdd scope + chains (F30 PFC-08 — D8) | eval (framework/pi) | 1. scope.ts limiares (quick/medium/large — casos tabelados); 2. chains sdd-*.chain.md existem e parseiam no formato do fork (parseChain real — chain-serializer.ts:101: front-matter name+description + seções `## <agente>` worker/reviewer); 3. 2 runs idênticos | formato validado contra o parser REAL do fork (não o f3-taskflow histórico) |
 | EVAL-047 | templates SDD (F30 PFC-08 — D8) | eval (framework/pi) | 1. sdd new → scaffold .specs/features/x/ no shape da casa (confere vs templates); 2. goldens dos templates (F23); 3. deny-list de termos RPG ausente do conteúdo renderizado (persona/templates/chains) | decisão 2 verificável (objetivo, sem lore) |
 | EVAL-048 | config/kill switches (F30 PFC-05 — D5) | eval (framework/pi) | 1. state `models`+`persona` defaults/freeze (fail-closed); 2. `RUNECRAFT_MODELS=0`/`RUNECRAFT_PERSONA=0` → camadas inertes + CLI recusa (exit 0, nada criado); 3. 2 runs idênticos | padrão F24/F25/F27/F28/F29 (F20) |
+
+| ID | Fluxo (evidência F32) | Ferramentas | Script esperado (tool calls por turno) | Notas |
+| --- | --- | --- | --- | --- |
+| EVAL-057 | render/goldens dos 7 papéis (F32 D3 — ROLE-02/04) | eval (framework/roles) | 1. assets `agents/*.md` existem e validam (frontmatter flat espelho do fork; name == filename; keys ⊆ KNOWN_FIELDS; tools ⊆ vocabulário verificado); 2. deny-list RPG ausente (substring — precedente F30 EVAL-047); 3. determinismo 2 runs | unit do framework (mesmo padrão EVAL-017..020); delta vs EVAL-012/015 (goldens — F32 prova a ADIÇÃO dos assets de papéis, não o mecanismo) |
+| EVAL-058 | discovery real do fork (F32 D1/D2 — ROLE-01/03) | eval (framework/roles) + fixture | 1. `.pi/agents/` com os 7 → `subagent({action:"list"})` em sessão REAL → os 7 aparecem como `(project`; 2. shadowing: planner project > builtin (mergeAgentsForScope do fork — validado no Execute); 3. sem diagnóstico adversarial | delta vs EVAL-002/005 (discovery de builtins já provada — F32 prova a ADIÇÃO dos papéis project) |
+| EVAL-059 | tool-use: scout read-only (F32 D3 — ROLE-02) | eval (suites/roles) | 1. sessão com allowlist do scout (read,grep,find,ls,intercom) → read→grep→find→ls→done; 2. tool-policy sobre registry REAL: write/edit/bash/subagent ausentes | categoria **tool-use correctness DESBLOQUEADA** (F26); delta vs EVAL-014 (mecanismo já provado — F32 prova a ADIÇÃO da allowlist do papel) |
+| EVAL-060 | tool-use: builder writer (F32 D3 — ROLE-02) | eval (suites/roles) | 1. sessão com allowlist do builder → read→write→bash→done; 2. tool-policy: write/edit/bash/subagent presentes e legítimos; contact_supervisor bridge-gated (validado no Execute) | tool-use; QA-5a (único papel com subagent); delta vs EVAL-014/059 |
+| EVAL-061 | tool-use: auditor md-only (F32 D7 — ROLE-07) | eval (framework/roles) + fixture | 1. sessão REAL com RUNECRAFT_AGENT_ID=auditor + allowlist do auditor: write `src/feature.ts` → BLOQUEADO (ranger-md-only — default `mdOnlyAgents=[auditor]`); 2. write `docs/audit.md` → passa e escreve; 3. env restaurado | identidade via env do harness (F24 currentAgentId — validado no Execute); o guard NÃO muda (config-gated D7) |
+| EVAL-062 | routing: planner→builder (F32 D5 — ROLE-05) | eval (framework/roles) + fixture | 1. sessão REAL: `subagent({agent:"builder", async:true})` → evento `delegation` no event store do F28 com agent="builder"; 2. delegação observada pela tool subagent (F2/F28) | categoria **routing completeness DESBLOQUEADA** (F26); fallback honesto do design D9: o trace só expõe nomes de tools — o alvo vive no delegation event tipado (EVAL-024 provou o evento; F32 prova o ALVO papel) |
+| EVAL-063 | routing: builder→reviewer (F32 D5/D6 — ROLE-05/06) | eval (framework/roles) + fixture | 1. `subagent({agent:"reviewer"})` → delegation event agent="reviewer"; 2. reviewer.md define o veredito estruturado ([APPROVE]/[REJECT] + ≤3 blocking issues — cleric D3/D6) | routing; pr-review (F5) + receipts (F20) donos do fluxo PR (fronteira D6) |
+| EVAL-064 | routing: builder→scout (F32 D5 — ROLE-05) | eval (framework/roles) + fixture | 1. `subagent({agent:"scout"})` → delegation event agent="scout" (recon pré-build); 2. scout.md read-only (sem write) | routing; delta vs EVAL-024 (evento de delegação já provado — F32 prova o ALVO papel) |
+| EVAL-065 | delegation-template (F32 D4/D5 — ROLE-04/05) | eval (framework/roles) | 1. `renderDelegationPrompt` 2 runs byte-idênticos (F21 D10); 2. lista os 7 papéis (buildKeyTriggersSection); 3. papel sem `subagent` no allowlist → null (fail-closed QA-5a) | unit do framework; spawn-wizard do arcanum portado como template (sem runtime novo) |
+| EVAL-066 | models interface (F32 D8 — ROLE-08) | eval (framework/roles) | 1. `resolveAgentModel` com ids de papel via custom chain do state (precedência override → custom > builtin → default → null + warn); 2. fim-de-chain → null + warn (nada inventado — F30 D4); 3. `validateModelsConfig` aceita os 7 ids | contrato F30 D5/D11 (F32 consome, não implementa); delta vs EVAL-042 (resolução já provada — F32 prova a ADIÇÃO dos ids de papel) |
 
 **Limitações declaradas** (espelho do gentle-ai): a sequência scriptada prova
 que o harness ORQUESTRA as ferramentas na ordem certa e que cada passo é

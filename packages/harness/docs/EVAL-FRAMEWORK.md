@@ -18,7 +18,7 @@
 | Testes do framework (port adaptado dos testes do arcanum) | `packages/harness/test/eval/framework/` |
 | Evidência (F21 — dono): `evalTest()` → `evidence/partial/*.jsonl` → merge → `last-run.json` | `test/eval/evidence/` |
 | Ratchets (F23 — dono): baselines + goldens | `test/eval/baselines/`, `test/golden/` |
-| Registro de governo | `test/EVAL-MATRIX.md` (v4 — EVAL-012..016) |
+| Registro de governo | `test/EVAL-MATRIX.md` (v10 — EVAL-057..066) |
 
 ## 2. Mapeamento arcanum → harness (fonte real do checkout `~/Projects/arcanum`)
 
@@ -40,7 +40,7 @@
 | `executors/trajectory-run.ts` (mock-text) | `src/eval/executors/trajectory-run.ts` (transcript REAL do ScriptedScenario — QA-2) | D3 |
 | `executors/model-response.ts` | NÃO portado (custo por chamada; reavaliar com F22/F32) | D9 |
 | `executors/github-models-api.ts` / `openrouter-api.ts` | NÃO portados (custo) | D9 |
-| `evals/suites/*.jsonc` (3) | `test/eval/suites/*.ts` (TS — v1: `constraint-adherence.ts`) | D2/D5 |
+| `evals/suites/*.jsonc` (3) | `test/eval/suites/*.ts` (TS — v1: `constraint-adherence.ts`; F32: `roles.ts`) | D2/D5 |
 | `evals/cases/*.jsonc` (8) | `test/eval/cases/*.ts` (v1: write-guard-block, ranger-md-only, adversarial-guard-off) | D2/D5 |
 | `evals/scenarios/*.jsonc` (6) | `test/eval/scenarios/*.ts` (ScriptedScenario do fixture F21) | D2/D3 |
 | testes do framework (`loader.test.ts`, `runner.test.ts`, `schema.test.ts`, `reporter.test.ts`, `baseline.test.ts`, `evaluators/*.test.ts`, `targets/*.test.ts`, `executors/*.test.ts`) | `test/eval/framework/*.test.ts` (port adaptado) | T1..T7 |
@@ -81,8 +81,8 @@
 | Categoria | Sujeito (feature) | Status | Casos v1 F26 | Quando |
 | --- | --- | --- | --- | --- |
 | Constraint adherence | Guards F24 (write-existing-file-guard, ranger-md-only, todo-*) | ✅ disponível | EVAL-014 (write-guard, ranger, adversarial) | AGORA |
-| Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | 🔒 bloqueada | — (outline) | após F32 |
-| Routing completeness | Agentes F32 (orquestração → papéis) | 🔒 bloqueada | — (outline) | após F32 |
+| Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | ✅ disponível (v10) | EVAL-059..061 (scout read-only, builder writer, auditor md-only) | AGORA (F32) |
+| Routing completeness | Agentes F32 (orquestração → papéis via delegação) | ✅ disponível (v10) | EVAL-062..064 (planner→builder, builder→reviewer, builder→scout) | AGORA (F32) |
 | Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
 | Model failover | F30 (port model-resolution, fallback chain) | ✅ disponível (v8) | EVAL-042..043 (resolução por agente via models.json fixture; modelSwitch leve→forte→halt+humano) | AGORA (F30) |
 | Memory | F29 (port runes — tools `rune_*` + runes.db) | ✅ disponível (v7) | EVAL-030..038 (round-trip, 10 tools no fixture, cross-session, semântica search/context, compaction, bridge F28, config/kill switch, determinismo, privacidade) | AGORA (F29) |
@@ -93,6 +93,21 @@ EVAL-042..043 na matriz (nota datada 2026-08-10): model-resolution portado
 + modelSwitch F27 implementado (leve→forte via getNextFallbackModel; chain
 esgotada → halt + escalação humana) com a prova da categoria via models.json
 fixture (F21). Tool-use/routing (F32) seguem bloqueadas (política aditiva).
+
+**v10 (F32, AD-032):** as categorias **Tool-use correctness** e **Routing
+completeness foram DESBLOQUEADAS** — EVAL-057..066 na matriz (nota datada
+2026-08-12): os 7 papéis objetivos como agentes-dados `.pi/agents/*.md` com
+allowlists fail-closed (D3) provadas via tool-policy sobre o registry REAL
+da sessão (EVAL-059/060 — allowlist do papel via target.tools) e via o guard
+ranger-md-only com o auditor no default (EVAL-061 — sessão real com
+RUNECRAFT_AGENT_ID=auditor, F24 currentAgentId); a delegação (routing) é
+provada pelo delegation event tipado do F28 (EVAL-062/063/064 — fallback
+documentado no design D9: o trace do trajectory-run só expõe nomes de tools;
+o alvo `agent` vive no evento `delegation` do observability). Limitação
+honesta (Execute F32): o fork NÃO seta RUNECRAFT_AGENT_ID por dispatch
+(pi-args.ts seta PI_SUBAGENT_CHILD_AGENT) — a bridge documentada no design
+(adendo before_agent_start do F28 — src/agents/identity.ts) traduz a
+identidade do child para o env que o guard lê, SEM tocar o guard.
 
 **v7 (F29, AD-029):** a categoria Memory foi ADICIONADA — EVAL-030..038 na
 matriz (nota datada 2026-08-09). Tool-use/routing (F32) seguem sem entrada

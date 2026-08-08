@@ -51,6 +51,7 @@ import { effectiveVerification, readStateVerification, verifyKillSwitch } from "
 import { judgeEnvEnabled } from "../verify/stages/judge.ts";
 import { effectiveModels, modelsKillSwitch, modelOverrideEnv, readStateModels } from "../models/config.ts";
 import { modelsJsonPath, resolveAvailableModels } from "../models/registry.ts";
+import { planRoleAgents } from "../agents/materialize.ts";
 
 /** Free-space threshold for the disk check (design F12: 50 MB — same as the backup fail-safe). */
 export const DISK_WARN_THRESHOLD_BYTES = BACKUP_MIN_FREE_BYTES;
@@ -383,6 +384,10 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   // F31: check 21 (Copilot VS Code) — independente do Pi (detecção bin/
   // extensão + configs parseáveis + estado gerenciado).
   checks.push(checkCopilot(rt));
+  // F32: check 22 (papéis objetivos) — read-only (LIFE-01); INFORMATIVO (D1/T5:
+  // "check informativo"): warn quando o fork subagents está presente e papéis
+  // estão ausentes (remedy: `harness sync` — re-inject three-way F19 D7).
+  checks.push(checkRoleAgents(rt, pi));
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
@@ -989,6 +994,42 @@ function checkAgentMatrixOrphans(rt: Runtime): DoctorCheck {
  * fornece ambos; prioridade personal > repo) — documentado, nunca removido;
  * o state file ~/.gentle-ai/state.json + marcadores são domínio do check 14.
  */
+function checkRoleAgents(rt: Runtime, pi: PiInterop): DoctorCheck {
+  const identity = npmIdentity("npm:@runecraft/subagents@0");
+  const list = pi.list();
+  const forkPresent = list.packages.some((spec) => npmIdentity(spec) === identity);
+  const stateFile = statePath(rt, "workspace");
+  const loaded = loadStateReadonly(stateFile, "workspace");
+  const registered = loaded.ok ? Object.keys(loaded.state.piAgents ?? {}) : [];
+  const plans = planRoleAgents(rt.cwd, loaded.ok ? loaded.state.piAgents : undefined);
+  const missing = plans.filter((p) => p.status === "missing").map((p) => p.roleId);
+  const preserved = plans.filter((p) => p.status === "edited").map((p) => p.roleId);
+
+  if (!forkPresent) {
+    return {
+      id: 22,
+      name: "Role agents (F32)",
+      status: "pass",
+      detail: "fork subagents não presente — os 7 papéis objetivos são dados inertes (matriz F17); instale via `harness install`",
+    };
+  }
+  if (missing.length > 0) {
+    return {
+      id: 22,
+      name: "Role agents (F32)",
+      status: "warn",
+      detail: `papéis ausentes em .pi/agents/: ${missing.join(", ")} (fork presente) · registrados: ${registered.join(", ") || "—"}`,
+      remedy: "rode `harness sync` no workspace — re-inject three-way por conteúdo (F19 D7; edições do usuário preservadas)",
+    };
+  }
+  return {
+    id: 22,
+    name: "Role agents (F32)",
+    status: "pass",
+    detail: `7 papéis materializados em .pi/agents/ · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""}`,
+  };
+}
+
 function checkCopilot(rt: Runtime): DoctorCheck {
   const detection = detectCopilotSync(rt.env);
   if (!detection.installed) {

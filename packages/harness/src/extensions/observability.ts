@@ -57,6 +57,7 @@ import {
   type CaptureLessonInput,
 } from "../observability/lessons.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
+import { propagateForkAgentIdentity } from "../agents/identity.ts";
 import { guardLog } from "../guards/guardKit.ts";
 import { GUARD_REASON_IDS, type GuardId } from "../guards/guardKit.ts";
 import { VERIFY_REASON_ID } from "../verify/verdict.ts";
@@ -364,6 +365,17 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   // ---------------------------------------------------------------
   // before_agent_start — adendo encadeado (D6 — marker; NÃO sobrescreve)
   // ---------------------------------------------------------------
+  // F32 (D7 — ponte de identidade, adendo do F28): o fork subagents NÃO seta
+  // RUNECRAFT_AGENT_ID no child (seta PI_SUBAGENT_CHILD_AGENT — pi-args.ts);
+  // a bridge propaga a identidade do child para o env que o harness lê
+  // (guard ranger-md-only currentAgentId; observability agentIdOf). Registrada
+  // ANTES do adendo e NÃO gated pelo kill switch (a identidade serve aos
+  // guards, não à observabilidade). Só atua em env de child do fork.
+  pi.on("before_agent_start", () => {
+    propagateForkAgentIdentity(process.env);
+    return undefined;
+  });
+
   pi.on("before_agent_start", (event: BeforeAgentStartEvent, ctx: ExtensionContext): { systemPrompt?: string } | undefined => {
     const frozen = sessionConfig.frozen(ctx.cwd);
     if (frozen.killSwitch || !frozen.config.enabled) return undefined;

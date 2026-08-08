@@ -39,11 +39,13 @@ export interface GuardsConfig {
   todoContinuationEnforcer?: GuardEntry;
 }
 
-/** Default fail-closed (D10): todos ligados; ranger v1 inerte (lista vazia — D5). */
+/** Default fail-closed (D10): todos ligados; ranger v1 inerte (lista vazia —
+ *  D5) → F32 (D7): o papel auditor é registrado por default — auditoria só
+ *  escreve .md (reports); o guard em si NÃO muda (config-gated). */
 export function defaultGuardsConfig(): GuardsConfig {
   return {
     writeExistingFile: { enabled: true },
-    rangerMdOnly: { enabled: true, options: { mdOnlyAgents: [] } },
+    rangerMdOnly: { enabled: true, options: { mdOnlyAgents: ["auditor"] } },
     todoDescriptionOverride: { enabled: true },
     todoContinuationEnforcer: { enabled: true },
   };

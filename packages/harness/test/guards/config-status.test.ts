@@ -134,7 +134,7 @@ describe("guardKit — unit (T1)", () => {
 });
 
 describe("doctor — check 18 Guards (GUARD-06 AC 4.1/4.3)", () => {
-  test("defaults (sem config) → pass listando os guards ligados e o ranger inerte", async () => {
+  test("defaults (sem config) → pass listando os guards ligados e o ranger com o auditor", async () => {
     const sb = makeSandbox();
     try {
       writeSettings(sb, []); // check 2 exige settings.json global válido
@@ -143,7 +143,8 @@ describe("doctor — check 18 Guards (GUARD-06 AC 4.1/4.3)", () => {
       expect(result.stdout).toContain("[18] Guards");
       expect(result.stdout).toContain("writeExistingFile (enabled");
       expect(result.stdout).toContain("rangerMdOnly (enabled");
-      expect(result.stdout).toContain("mdOnlyAgents: []");
+      // F32 (D7): o default lista o papel auditor (md-only por construção).
+      expect(result.stdout).toContain("mdOnlyAgents: [auditor]");
       expect(result.stdout).toContain("kill switch RUNECRAFT_GUARDS off");
     } finally {
       sb.cleanup();
