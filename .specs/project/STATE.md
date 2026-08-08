@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-08-07
-**Current Work:** **M7 — F25 Verification Cascade COMPLETE** (cascata 5 camadas com limiares em código; 487 testes; cleric APPROVE + 3 fixes). **Próximo: F26 Eval Framework Port** (runner/evaluators do guild; dono das 5 categorias do eval-coverage) ou F23 P1 (ratchet, AD-022). F22 continua **aguardando aprovação explícita** (custo de tokens). Roadmap com M7 (Garantias) e M8 (Multi-Agent) — ver AD-008..011, AD-016..022, AD-023 (QAs F25), AD-024 (fixes cleric F25).
+**Current Work:** **LOOP AUTORIZADO ATÉ O FIM** (decisão do usuário 2026-08-07) — ordem registrada abaixo; checkpoints viram relatórios (sem parar), barreiras continuam parando. **F25 COMPLETE** (487 testes). **EM EXECUÇÃO: F23 P1 — Ratchet** (spec/design prontos; P2 presa no F22). F22 segue **aguardando aprovação explícita** (custo de tokens).
 **Specs criadas:** F2 (SUBA, Medium), F3 (TFLW, Large — 3 pkgs + workspace dep), F4 (GLLA, Medium), F5 (PREV, Medium — dispatch a mapear), F6 (UMBR, Large — **design.md obrigatório**: mecanismo de agregação de extensões Pi, hipóteses H1/H2/H3), F7 (COEX, Medium — two-driver é o risco central), F8 (DOCS), F9 (PUBL), F10 (SYNC — three-way merge sobre vendor.json).
 
 ### Handoff
@@ -190,6 +190,26 @@
 **Reason:** Três fragilidades reais encontradas na revisão independente: hang em vez de fail-closed (1), metadado mentiroso no log (2), drift de config entre o guard em tempo de tool e a verificação em tempo de conclusão (3).
 **Trade-off:** SIGKILL após 5s de graça pode matar um check legítimo lento que ignore SIGTERM — aceito (gate não pendura; timeout configurável no `structural.commands`).
 **Impact:** 487 testes (+2 de regressão: timeout real com processo que ignora SIGTERM; stage do judge no veredito pass); TSC limpo; zero regressão nos 485 do F25.
+
+## Ordem de execução aprovada (2026-08-07 — "defina a ordem e rode o loop até o final")
+
+Garantias primeiro (decisão 4 do usuário), depois multi-agente, M6 por último (barreiras param):
+
+1. **F23 P1 — Ratchet** (spec/design prontos; P1 desbloqueada por AD-022; P2 = pass-rate E2E presa no F22)
+2. **F26 — Eval Framework Port** (runner/evaluators do guild; dono das 5 categorias do eval-coverage)
+3. **F27 — Resilience & Continuity** (compaction-recovery, work-continuation, stall detection, fallback, classificação de falha)
+4. **F28 — Observability & Lessons** (event store, harness bundles, cognition lessons)
+5. **F29 — Memory** (runes → Pi; Engram só fallback)
+6. **F30 — Pi First-Class & SDD Assets** (persona objetiva, model routing por agente, assets SDD)
+7. **F31 — Copilot/VSCode Adapter**
+8. **F32 — Objective Role Agents** (planner/builder/reviewer/auditor/scout/researcher/security)
+9. **F33 — Coded Routing & Pilot Coordination**
+10. **F10 — Upstream Sync Workflow** (∥ qualquer momento)
+11. **F8 — Docs** — **BARREIRA: AD-002 (licença) — parar e perguntar**
+12. **F9 — Publishing** — **BARREIRA: aprovação explícita — parar e perguntar**
+13. **F22 — E2E modelos reais** — **BARREIRA: custo de tokens — parar e perguntar** (necessário para F23 P2)
+
+Dívidas conhecidas fora do loop: BUG-1/BUG-2 (taskflow) — avaliar com o usuário na entrada do F10.
 
 ## Active Blockers
 
