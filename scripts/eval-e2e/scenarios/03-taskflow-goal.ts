@@ -35,9 +35,13 @@ function applyBug2Workaround(agentDir: string): string | null {
 }
 
 /** Evidência do DAG: runs do taskflow com fases done (.pi/taskflows/runs). */
-function taskflowRunDone(repoDir: string): { done: boolean; detail: string } {
+function taskflowRunDone(repoDir: string): {
+	done: boolean;
+	detail: string;
+	unknownAgent: boolean;
+} {
 	const runsDir = path.join(repoDir, ".pi", "taskflows", "runs");
-	if (!fs.existsSync(runsDir)) return { done: false, detail: "sem runs dir" };
+	if (!fs.existsSync(runsDir)) return { done: false, detail: "sem runs dir", unknownAgent: false };
 	const traces: string[] = [];
 	const walk = (dir: string): void => {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -49,21 +53,35 @@ function taskflowRunDone(repoDir: string): { done: boolean; detail: string } {
 	try {
 		walk(runsDir);
 	} catch {
-		return { done: false, detail: "runs dir ilegível" };
+		return { done: false, detail: "runs dir ilegível", unknownAgent: false };
 	}
 	let donePhases = 0;
+	let unknownAgent = false;
 	for (const trace of traces) {
 		for (const line of fs.readFileSync(trace, "utf8").split("\n")) {
 			if (line.trim() === "") continue;
 			try {
-				const evt = JSON.parse(line) as { kind?: string; status?: string; phaseId?: string };
+				const evt = JSON.parse(line) as {
+					kind?: string;
+					status?: string;
+					phaseId?: string;
+					error?: string;
+				};
 				if (evt.kind === "phase-end" && evt.status === "done") donePhases += 1;
+				// Fix cleric F22 #7: a fonte do erro BUG-2 É o trace do DAG
+				// ("Unknown agent" no evento de erro da fase) — detectado aqui,
+				// escopado, nunca no ledger inteiro.
+				if (typeof evt.error === "string" && /unknown agent/i.test(evt.error)) unknownAgent = true;
 			} catch {
 				// linha malformada — ignora (fail-open do sink)
 			}
 		}
 	}
-	return { done: donePhases >= 2, detail: `fases done=${donePhases}, traces=${traces.length}` };
+	return {
+		done: donePhases >= 2,
+		detail: `fases done=${donePhases}, traces=${traces.length}`,
+		unknownAgent,
+	};
 }
 
 const scenario: ScenarioModule = {
@@ -104,7 +122,9 @@ const scenario: ScenarioModule = {
 		// workaround, é comportamento documentado do fork → limit, nunca fail.
 		const ledger = checkLedgerGoal(ctx.repoDir);
 		const runEvidence = taskflowRunDone(ctx.repoDir);
-		if (!runEvidence.done && /unknown agent/i.test(JSON.stringify(ledger))) {
+		if (!runEvidence.done && runEvidence.unknownAgent) {
+			// Fix cleric F22 #7: BUG-2 detectado no evento de erro do trace do
+			// DAG (fonte escopada) — qualquer outra falha vira fail real.
 			return {
 				...outcome,
 				statusOverride: "limit",

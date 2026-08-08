@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 // Sem RUNECRAFT_E2E → skip explícito + exit 0 (padrão gentle-ai — D5): CI
 // normal fica verde, ZERO tokens. O runner NUNCA roda em bun test/turbo/CI.
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "./config.ts";
@@ -167,6 +168,20 @@ async function main(argv: string[]): Promise<number> {
 			} catch {
 				// nada a fazer
 			}
+		}
+		// Fix cleric F22 #1 (segurança): o exit(130) bypassava o finally do
+		// executeRound — o agentDir temp com auth.json (key crua, 0600) ficava
+		// no /tmp. Remove todos os agentDirs da rodada (prefixo próprio) antes
+		// de sair; SIGKILL continua sendo o limite documentado (README).
+		try {
+			const tmp = os.tmpdir();
+			for (const entry of fs.readdirSync(tmp)) {
+				if (entry.startsWith("runecraft-e2e-agent-")) {
+					fs.rmSync(path.join(tmp, entry), { recursive: true, force: true });
+				}
+			}
+		} catch {
+			// best-effort — nunca bloqueia a saída do sinal
 		}
 		process.exit(130);
 	};

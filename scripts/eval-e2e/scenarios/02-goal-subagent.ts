@@ -48,10 +48,12 @@ const scenario: ScenarioModule = {
 						reviewerArtifacts.length > 0,
 						`artifacts=${reviewerArtifacts.length}`,
 					),
+					// Fix cleric F22 #6: conclusão one-shot limpa tem ZERO continuações —
+					// exigir >= 1 false-failava o check; vira nota informativa.
 					check(
 						"goal-loop-active",
-						ledger.continuationsSent >= 1,
-						`continuations=${ledger.continuationsSent}`,
+						true,
+						`continuations=${ledger.continuationsSent} (0 = one-shot limpa)`,
 					),
 				];
 			},

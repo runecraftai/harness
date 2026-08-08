@@ -13,9 +13,17 @@ function runRunner(
 	args: string[],
 	env: Record<string, string> = {},
 ): { code: number; stdout: string; stderr: string } {
+	// Fix cleric F22 #2: scrub do RUNECRAFT_E2E* — se o mantenedor rodar os
+	// testes com RUNECRAFT_E2E=1 + key no env (estado pós-rodada real), o
+	// teste de skip viraria uma rodada viva (tokens reais). Testes são offline.
+	const scrubbed: NodeJS.ProcessEnv = {};
+	for (const [k, v] of Object.entries(process.env)) {
+		if (k.startsWith("RUNECRAFT_E2E")) continue;
+		scrubbed[k] = v;
+	}
 	const result = spawnSync(process.execPath, [RUNNER, ...args], {
 		encoding: "utf8",
-		env: { ...process.env, ...env },
+		env: { ...scrubbed, ...env },
 		timeout: 30_000,
 	});
 	return { code: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };

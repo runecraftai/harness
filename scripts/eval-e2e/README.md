@@ -62,8 +62,10 @@ RUNECRAFT_E2E=1 RUNECRAFT_E2E_PROVIDER=custom RUNECRAFT_E2E_API=openai-completio
   RUNECRAFT_E2E_BASE_URL=https://... RUNECRAFT_E2E_API_KEY=sk-... bun run eval:e2e
 ```
 
-Flag `--keep` preserva os repos de teste (debug); `--verbose` imprime o
-transcript da sessão.
+Flag `--keep` preserva os repos de teste (debug). Flag `--verbose` é RESERVADA
+(fix cleric F22 #4): o runner observa usage/compaction/confounders mas não
+emite transcript da sessão in-process — implementação de transcript fica para
+uma rodada futura; a flag não muda o comportamento hoje.
 
 ## Cenários (cobertura — contrato F7)
 

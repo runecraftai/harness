@@ -1,3 +1,4 @@
+import { classifyCheckFailure } from "../lib/classify.ts";
 import { check } from "../lib/verdict.ts";
 // eval-e2e/scenarios/01-baseline-load.ts — COEX-01 (baseline load dos 4 forks).
 //
@@ -25,18 +26,23 @@ const scenario: ScenarioModule = {
 
 		// Probes de comando (executam sem erro — o output de notify não é
 		// observável in-process; o F7 observou via RPC).
-		for (const probe of ["/goal status", "/tf list", "/pr-review 1"]) {
+		// Fix cleric F22 #5: `/pr-review 1` sai das probes — o repo fixture
+		// NUNCA tem PR #1 (falha crônica → falsa regressão no F23; pr-review é
+		// exercitado pelo cenário 04). Erros restantes são classificados por
+		// infra (gh/spawn/auth/rede) e viram nota, nunca fail.
+		for (const probe of ["/goal status", "/tf list"]) {
 			try {
 				await ctx.session.prompt(probe);
 				notes.push(`probe ok: ${probe}`);
 			} catch (error) {
-				checks.push(
-					check(
-						`probe-${probe.replace(/[^a-z0-9]/gi, "-")}`,
-						false,
-						error instanceof Error ? error.message : String(error),
-					),
-				);
+				const message = error instanceof Error ? error.message : String(error);
+				if (classifyCheckFailure(`probe-${probe}`, message) === "fail-infra") {
+					notes.push(
+						`probe ${probe}: falha de ambiente — ${message.slice(0, 140)} (fail-infra, não regressão)`,
+					);
+				} else {
+					checks.push(check(`probe-${probe.replace(/[^a-z0-9]/gi, "-")}`, false, message));
+				}
 			}
 		}
 

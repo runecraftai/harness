@@ -37,6 +37,7 @@ const PROVIDER_API_KEY_ENV: Record<string, string> = {
 	gemini: "GEMINI_API_KEY",
 	openrouter: "OPENROUTER_API_KEY",
 	opencode: "OPENCODE_API_KEY",
+	"opencode-go": "OPENCODE_API_KEY",
 };
 
 function providerApiKeyEnv(provider: string): string | undefined {
