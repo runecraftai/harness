@@ -60,6 +60,23 @@ export function canonicalFlagName(flag: string): string | null {
 }
 
 /** Cobertura canônica: comando limpo + nomes de flags ordenados e dedupados. */
+/** Número de arquivos de teste DISTINTOS com evidência (piso de completude —
+ *  fix cleric F23: evidência parcial de uma sub-suite não prova que a suite
+ *  inteira rodou; comparar contra baselines com evidência incompleta daria
+ *  verde falso). */
+export function distinctEvidenceFiles(results: RatchetEvidence["results"]): number {
+  return new Set(results.map((r) => r.testFile)).size;
+}
+
+/** Checa o piso: retorna mensagem de erro ou null (completa). */
+export function assertEvidenceComplete(results: RatchetEvidence["results"], minFiles: number): string | null {
+  const files = distinctEvidenceFiles(results);
+  if (files < minFiles) {
+    return `evidência INCOMPLETA — ${files}/${minFiles} arquivos de teste com evidência; rode a SUITE COMPLETA (evidência parcial não compara)`;
+  }
+  return null;
+}
+
 export function canonicalCoverage(command: string, flags: string[]): { command: string; flags: string[] } {
   const names = new Set<string>();
   for (const flag of flags) {

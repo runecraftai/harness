@@ -12,7 +12,7 @@
 // roda DEPOIS da suite no script `test` do package (chain com preservação de
 // exit code) — sequenciamento determinístico integrado ao turbo test.
 import { writeLastRun, mergeEvidence } from "../../scripts/eval-merge-evidence.ts";
-import { runRatchet, type RatchetEvidence } from "./ratchet.ts";
+import { runRatchet, assertEvidenceComplete, type RatchetEvidence } from "./ratchet.ts";
 import { updateAll, assertUpdateAllowed, UpdateRefusedError } from "./update.ts";
 import { GOLDEN_DIR } from "./goldens.ts";
 import * as path from "node:path";
@@ -20,6 +20,10 @@ import { fileURLToPath } from "node:url";
 
 const BASELINE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "baselines");
 const EVIDENCE_MISSING_MSG = "evidência não encontrada — suite F21 não rodou? (rode `bun test` ou `bun run test:eval` antes do ratchet)";
+// Piso de completude (fix cleric F23): nº de arquivos de teste com evalTest()
+// na suite completa (13 hoje — contagem em test/eval/evidence/partial/).
+// Bump explícito quando um arquivo novo entra na evidência (revisão como golden).
+const MIN_EVIDENCE_FILES = 13;
 
 function print(lines: string[]): void {
   for (const line of lines) process.stdout.write(`${line}\n`);
@@ -66,6 +70,18 @@ function main(): void {
   if (evidence.results.length === 0) {
     print(["runecraft harness — ratchet de não-regressão (métricas a/b/c, F23 P1)"]);
     print([`FAIL: ${EVIDENCE_MISSING_MSG}`]);
+    print(["→ VERMELHO (exit 1)"]);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Piso de completude: suite parcial (ex.: só layer1) tem resultados mas não
+  // prova que tudo rodou — comparar com baselines nesse estado daria verde
+  // falso (fix cleric F23).
+  const incomplete = assertEvidenceComplete(evidence.results, MIN_EVIDENCE_FILES);
+  if (incomplete !== null) {
+    print(["runecraft harness — ratchet de não-regressão (métricas a/b/c, F23 P1)"]);
+    print([`FAIL: ${incomplete}`]);
     print(["→ VERMELHO (exit 1)"]);
     process.exitCode = 1;
     return;

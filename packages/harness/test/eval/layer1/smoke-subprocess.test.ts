@@ -50,7 +50,7 @@ describe("smoke — bin real via subprocess (F21 D1)", () => {
 
   test("install sem pi → fail-closed: exit ≠ 0 + stderr com o hint de instalação", async () => {
     await evalTest("install sem pi → fail-closed: exit ≠ 0 + stderr com o hint de instalação", async () => {
-      recordCoverage("install", []);
+      recordCoverage("install", ["--json"]); // fix cleric F23: a flag --json é parte da identidade (D1)
       const sb = makeSandbox();
       try {
         // RUNECRAFT_PI_BIN aponta para um caminho inexistente (fail-closed — D3).

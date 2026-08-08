@@ -7,11 +7,13 @@ import * as os from "node:os";
 import { compareCodePoints, sortLines } from "./sort.ts";
 import { diffLines, unifiedDiff } from "./diff.ts";
 import {
+  assertEvidenceComplete,
   canonicalCoverage,
   canonicalFlagName,
   compareSets,
   COVERAGE_HEADER,
   coverageIdentity,
+  distinctEvidenceFiles,
   failureIdentity,
   KNOWN_FAILURES_HEADER,
   parseBaselineLines,
@@ -479,6 +481,30 @@ describe("update — --update (D6/RCTH-02)", () => {
       fs.rmSync(base, { recursive: true, force: true });
       goldens.cleanup();
     }
+  });
+});
+
+describe("ratchet — piso de completude da evidência (fix cleric F23)", () => {
+  test("evidência parcial (menos arquivos que o piso) → incompleta com mensagem", () => {
+    const results: RatchetEvidence["results"] = [
+      { testFile: "test/eval/layer1/smoke-subprocess.test.ts", testName: "a", status: "pass", message: "" },
+      { testFile: "test/eval/layer1/smoke-subprocess.test.ts", testName: "b", status: "pass", message: "" },
+      { testFile: "test/eval/layer2/sdk-session.test.ts", testName: "c", status: "pass", message: "" },
+    ];
+    expect(distinctEvidenceFiles(results)).toBe(2);
+    const err = assertEvidenceComplete(results, 13);
+    expect(err).not.toBeNull();
+    expect(err).toContain("2/13");
+  });
+
+  test("evidência completa (>= piso) → null", () => {
+    const results: RatchetEvidence["results"] = Array.from({ length: 13 }, (_, i) => ({
+      testFile: `test/eval/f${i}.test.ts`,
+      testName: "x",
+      status: "pass",
+      message: "",
+    }));
+    expect(assertEvidenceComplete(results, 13)).toBeNull();
   });
 });
 

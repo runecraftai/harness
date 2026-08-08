@@ -45,9 +45,12 @@ bun run eval:ratchet --update   # humano e explícito: congela o estado atual
   parcial antes da suite terminar (raça). `ratchet.test.ts`/`goldens.test.ts`/
   `normalize.test.ts` são os testes UNIT do núcleo (fixtures em temp, sem
   dependência de evidência).
-- **Rode a suite completa antes de comparar.** Runs parciais
-  (`bun test test/eval/layer1`) produzem evidência incompleta → o ratchet
-  acusa cobertura faltando (correto: a evidência não representa a suite).
+- **Rode a suite completa antes de comparar.** O ratchet tem piso de
+  completude (`MIN_EVIDENCE_FILES` no `ratchet-run.ts` — fix cleric F23):
+  runs parciais (`bun test test/eval/layer1`) produzem evidência com menos
+  arquivos que o piso → FAIL "evidência INCOMPLETA" (nunca verde falso).
+  Bump explícito do piso quando um arquivo de teste novo com `evalTest()`
+  entrar na suite (revisão como golden).
 
 ## Regras (D3, fail-only-on-worse)
 
