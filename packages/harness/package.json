@@ -18,11 +18,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/runecraft-ai/harness.git"
+    "url": "git+https://github.com/runecraftai/harness.git"
   },
-  "homepage": "https://github.com/runecraft-ai/harness/tree/main/packages/harness#readme",
+  "homepage": "https://github.com/runecraftai/harness/tree/main/packages/harness#readme",
   "bugs": {
-    "url": "https://github.com/runecraft-ai/harness/issues"
+    "url": "https://github.com/runecraftai/harness/issues"
   },
   "files": [
     "bin/",
