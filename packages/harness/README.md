@@ -12,9 +12,8 @@ taskflow backbone, via the `companion` CLI.
 ecosystem](https://github.com/runecraftai/harness): it installs and wires four
 tools (`@runecraft/subagents`, the `@runecraft/taskflow` group,
 `@runecraft/goal-loop-audit`, `@runecraft/pr-review`) **plus the harness
-layer** — enforced guards, verification cascade, evals with ratchets and
-goldens, resilience, a typed event store, persistent memory, persona and
-coded routing — in a single command.
+layer** — enforced guards, verification cascade, resilience, a typed event
+store, persistent memory, persona and coded routing — in a single command.
 
 ## The problem
 
@@ -40,34 +39,13 @@ yourself.
 | **Task DAG** (`/tf`) | verifiable DAG workflows: `dependsOn`, FlowIR, resume/replay/recompute, approvals vs gates, budgets — the same engine served to non-Pi agents via MCP |
 | **Goal loop** (`/goal`) | goals with a "Done when" contract, supervised to verified completion by an isolated auditor (regression shield); `/loop` with an honest metric |
 | **PR review** (`/pr-review`) | parallel tiered review of GitHub PRs, with a receipt gate at commit/push time |
-| **Execution guards** (F24) | real `{ block: true }` tool-call blocking — `write` on existing files, read-only roles writing non-`.md`, todo discipline — not prompt advice |
-| **Verification cascade** (F25) | deterministic cheap→expensive verification (structural → integrity → sufficiency → embedding → judge), thresholds in code, cost caps, fail-closed |
-| **Evals + ratchets** (F21/F23/F26) | deterministic eval framework, fail-only-on-worse ratchets, golden assets pinned byte-for-byte |
-| **Resilience** (F27) | compaction recovery, continuation re-injection, stall/repetition detection, quota classification |
-| **Typed event store** (F28) | append-only `.jsonl` events with a prevHash chain, guard-block observation, lessons capture |
-| **Memory** (F29) | persistent cross-session SQLite+FTS5 memory with 10 `rune_*` tools and the `using-runes` skill |
-| **Coded routing** (F33) | tasks routed by pure code with explicit thresholds — never by the LLM |
-| **Persona & models** (F30) | persona + rules injection, per-agent model resolution, SDD chains |
-
-## Proof
-
-<p align="center">
-  <img src="./assets/readme/proof.svg" width="100%" alt="Evidence: 1193 deterministic tests, 11 golden assets pinned byte-for-byte, 71 E2E offline tests, 23.4s versioned hello-world SDLC run">
-</p>
-
-- **1193 deterministic tests**, offline, zero tokens — with ratchets and 11
-  pinned goldens (F21/F23/F26).
-- **Guards that actually block** (F24) — real `{ block: true }` tool-call
-  blocks, not prompt advice.
-- **Verification cascade with thresholds in code** (F25) — judge LLM
-  env-gated, never in CI.
-- **Resilience with stall detection** (F27) — the goal-loop-audit's proven
-  thresholds.
-- **Typed event store** (F28) — prevHash chain, guard-block observation,
-  lessons.
-- **Coded router** (F33) — route by code, never by LLM.
-- **E2E benchmark** (F22) — real models, env-gated, cost-capped, versioned
-  committed rounds.
+| **Execution guards** | real `{ block: true }` tool-call blocking — `write` on existing files, read-only roles writing non-`.md`, todo discipline — not prompt advice |
+| **Verification cascade** | deterministic cheap→expensive verification (structural → integrity → sufficiency → embedding → judge), thresholds in code, cost caps, fail-closed |
+| **Resilience** | compaction recovery, continuation re-injection, stall/repetition detection, quota classification |
+| **Typed event store** | append-only `.jsonl` events with a prevHash chain, guard-block observation, lessons capture |
+| **Memory** | persistent cross-session SQLite+FTS5 memory with 10 `rune_*` tools and the `using-runes` skill |
+| **Coded routing** | tasks routed by pure code with explicit thresholds — never by the LLM |
+| **Persona & models** | persona + rules injection, per-agent model resolution, SDD chains |
 
 ## Install
 
@@ -113,18 +91,17 @@ companion install --agent claude-code,opencode,codex   # or: copilot
 They receive the taskflow-MCP layer (the same DAG engine as `/tf`) plus
 workflow rules — see [docs/agents.md](docs/agents.md) for the full matrix.
 
-## Core workflow
+## How work is routed
 
-| Tool | What it does | When to use it | When not |
-| --- | --- | --- | --- |
-| **goal-loop-audit** (`/goal`) | goal with a "Done when" contract, verified by an isolated auditor (regression shield) | closable by a verifiable contract; iteration with an honest metric (`/loop`) | no verifiable "Done when"; interactive driving |
-| **taskflow** (`/tf`) | DAG with `dependsOn`, resume/replay/recompute, approvals vs gates, budgets | multi-phase flows with dependencies; reproducibility; a defined budget | single-file change; interactive debugging |
-| **subagents** | chains, parallel, acceptance gates, intercom, worktrees, watchdog | ad-hoc delegation; independent parallelism; evidence via acceptance gates | multi-phase flows with dependencies (→ taskflow); session-driving work (→ goal-loop) |
-| **pr-review** (`/pr-review`) | structured verdict, parallel tiers, gate inside a flow | reviewing a diff; pre-commit/pre-push gate | — |
+| Situation | What the harness does |
+| --- | --- |
+| A small, already understood change | keeps it direct and inline |
+| Exploration across many files, or broad research | delegates to a read-only scout or researcher |
+| Multi-phase work with dependencies | runs a taskflow DAG with budgets and approvals |
+| Long-running work closable by a verifiable contract | runs a goal loop with an isolated auditor |
+| A diff ready for review | dispatches parallel PR review and gates the delivery |
 
-Two-driver rule: only one supervisor drives `agent_end` continuations per
-session; with a goal active, subagents and taskflow are workers under the
-goal-loop. Full mental model, the 7 objective roles and routing rules:
+One supervisor per session (two-driver rule). Full mental model:
 [`docs/ROUTING.md`](docs/ROUTING.md).
 
 ## Intended usage
