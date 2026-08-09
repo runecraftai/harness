@@ -1,7 +1,7 @@
 # @runecraft/companion
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Runecraft Harness — multi-agent harness for the Pi coding agent: four tools (subagents, taskflow, goal-loop, pr-review) with guards, verification, evals, resilience, memory and coded routing; a taskflow DAG; and the install command">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Runecraft Harness — multi-agent harness for AI coding agents: four tools (subagents, taskflow, goal-loop, pr-review) with guards, verification, evals, resilience, memory and coded routing, served to Pi and to Claude Code, OpenCode, Codex and VS Code Copilot; a taskflow DAG; and the first CLI action">
 </p>
 
 Runecraft Harness — umbrella meta-package for the [Pi coding agent](https://pi.dev). Installs and wires the four forked components (`@runecraft/subagents`, `@runecraft/taskflow` group, `@runecraft/goal-loop-audit`, `@runecraft/pr-review`) **plus the harness layer** — enforced guards, verification cascade, evals with ratchets/goldens, resilience, event store, memory, persona and coded routing — in a single command.

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="hero-title hero-desc">
   <title id="hero-title">Runecraft Harness</title>
-  <desc id="hero-desc">Multi-agent harness for the Pi coding agent. Four tools — subagents, taskflow, goal-loop, pr-review — orchestrated with guards, verification, evals, resilience, memory and coded routing. Right side shows a real taskflow DAG proof; bottom shows the install command and doctor check.</desc>
+  <desc id="hero-desc">Multi-agent harness for AI coding agents. Four tools — subagents, taskflow, goal-loop, pr-review — with guards, verification, evals, resilience, memory and coded routing, served to Pi (full) and to Claude Code, OpenCode, Codex and VS Code Copilot via the taskflow-MCP layer. Right side shows a real taskflow DAG proof; bottom shows the first CLI action.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
       <path d="M 0 1 L 9 5 L 0 9 z" fill="#3a435c"/>
@@ -20,7 +20,7 @@
     <g stroke="#e3b341" stroke-width="2.5" stroke-linecap="round" fill="none">
       <path d="M 0 10 L 0 0 L 8 10 M 0 5 L 5 5"/>
     </g>
-    <text x="20" y="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#8b93a5" letter-spacing="1.5">MULTI-AGENT HARNESS FOR THE PI CODING AGENT</text>
+    <text x="20" y="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#8b93a5" letter-spacing="1.5">MULTI-AGENT HARNESS FOR AI CODING AGENTS</text>
 
     <text x="0" y="94" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="92" font-weight="800" fill="#e8e6df">Runecraft</text>
     <path d="M 4 110 L 68 110" stroke="#e3b341" stroke-width="4" stroke-linecap="round"/>
@@ -115,7 +115,7 @@
   <!-- bottom: first action -->
   <g id="terminal" transform="translate(56 322)">
     <rect x="0" y="0" width="1088" height="44" rx="12" fill="#05070a" stroke="#232838"/>
-    <text x="20" y="27" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#e8e6df">$ pi install npm:@runecraft/companion</text>
-    <text x="1068" y="27" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#4cc38a">companion doctor → 22 checks ✓</text>
+    <text x="20" y="27" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#e8e6df">$ companion install --agent claude-code</text>
+    <text x="1068" y="27" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" fill="#4cc38a">→ doctor: 22 checks ✓</text>
   </g>
 </svg>
