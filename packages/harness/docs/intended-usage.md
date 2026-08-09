@@ -36,16 +36,16 @@ driver — never run two drivers in the same session. See [ROUTING.md](ROUTING.m
 
 ## Hello world SDLC — proof of real use
 
-The canonical example (F7 COEX-05, executed 2026-08-06): a trivial goal with
-a "Done when" contract, implemented directly, verified by the isolated
-auditor and closed end to end with one command.
+The canonical example (executed 2026-08-06): a trivial goal with a "Done
+when" contract, implemented directly, verified by the isolated auditor and
+closed end to end with one command.
 
-- **Flow (F7)**: a trivial goal with a "Done when" contract → implementation
-  (directly by the model in the goal loop — COEX-05; dispatch via subagents
-  or taskflow also works) → the isolated auditor verifies with evidence
+- **Flow**: a trivial goal with a "Done when" contract → implementation
+  (directly by the model in the goal loop; dispatch via subagents or taskflow
+  also works) → the isolated auditor verifies with evidence
   (regression_shield) → review → the cycle closes (complete_goal survives
   the auditor).
-- **Result F7 (COEX-05)**: **PASS** — 2026-08-06.
+- **Result**: **PASS** — 2026-08-06.
   - One prompt: `/goal "Create a file greeting.txt whose content is the exact
     text 'hello harness'. Done when: greeting.txt exists in the repo root and
     its content is exactly 'hello harness'."`

@@ -1,84 +1,87 @@
-# Memory (F29) — Persistent cross-session memory (runes → Pi)
+# Memory — Persistent cross-session memory (runes → Pi)
 
-A camada de memória persistente do harness (M7, pilar 7 do doc do usuário —
-"memória durável consultável por tool") é o port do pacote `runes` do arcanum
-para MECANISMOS REAIS do Pi 0.81.0: **10 agent tools
-`rune_*` registradas via `pi.registerTool(defineTool(...))`**, SQLite local
-via `bun:sqlite` (zero deps novas) no runtime Bun e `node:sqlite` no runtime Node — o runtime de produção do pi (F35: driver duplo em `src/memory/client.ts`), **o arquivo `.runecraft/memory/runes.db`
-É a memória cross-session** (D2 — resolução honesta do wording do roadmap:
-`appendEntry` do SDK é log de sessão e não persiste entre sessões; o DB em
-arquivo persiste por construção; state F13 carrega a CONFIG, não conteúdo).
+The harness persistent memory layer ("durable memory queryable by tool")
+ports the `runes` package into REAL mechanisms of the Pi SDK 0.81.0:
+**10 agent tools `rune_*` registered via `pi.registerTool(defineTool(...))`**,
+a local SQLite database via `bun:sqlite` (zero new dependencies) on the Bun
+runtime and `node:sqlite` on the Node runtime — the production runtime of Pi
+(dual driver in `src/memory/client.ts`). **The file
+`.runecraft/memory/runes.db` IS the cross-session memory**: the SDK's
+`appendEntry` is a session log and does not persist between sessions, while
+a file database persists by construction; the state loads CONFIG, not
+content.
 
-## Storage & concurrency (D1/D4)
+## Storage & concurrency
 
-- **Local**: `<gitRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
+- **Location**: `<gitRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
   override `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI).
-- **Escopo por repo**: o slug vem do remote git normalizado
-  (`remote.origin.url`, regex SSH/HTTPS, strip `.git` — port de
-  `lib/project.ts`); sem remote → path absoluto do cwd; sem git root → path
-  absoluto do cwd. Worktrees do mesmo repo compartilham o mesmo `.runecraft`
-  → mesma memória. Override determinístico: `RUNECRAFT_MEMORY_PROJECT_SLUG`.
+- **Per-repo scope**: the slug comes from the normalized git remote
+  (`remote.origin.url`, SSH/HTTPS regex, strip `.git`); no remote → absolute
+  cwd path; no git root → absolute cwd path. Worktrees of the same repo share
+  the same `.runecraft` → the same memory. Deterministic override:
+  `RUNECRAFT_MEMORY_PROJECT_SLUG`.
 - **WAL** (`PRAGMA journal_mode = WAL`) + `foreign_keys = ON` +
-  `busy_timeout = 5000`: leitores concorrentes + escritor serializado
-  (multi-sessão no mesmo repo). Abertura com retry 1×/100ms (port
-  `db/client.ts`); falha persistente → tools ausentes + aviso (fail-closed —
-  a sessão segue sem memória; `harness memory doctor` diagnostica).
+  `busy_timeout = 5000`: concurrent readers + serialized writer
+  (multi-session in the same repo). Open with a 1×/100ms retry; persistent
+  failure → tools absent + warning (fail-closed — the session continues
+  without memory; `harness memory doctor` diagnoses).
 
-## Schema (D4 — AS-IS do runes v1)
+## Schema (AS-IS from runes v1)
 
-`schema.sql` portado integral (verificado executável em bun:sqlite — D12; F35: também em node:sqlite, node v26.5 + FTS5):
+`schema.sql` ported in full (verified executable in bun:sqlite — and in
+node:sqlite on Node ≥22.19 with FTS5):
 
 - `projects` (id, slug UNIQUE, root_path, remote_url, created_at)
 - `sessions` (id, project_id FK, agent, started_at, ended_at, summary)
 - `memories` (id UNIQUE, project_id, session_id, category, title, what, why,
   where_ref, learned, importance, soft_deleted, created_at, updated_at)
-- `memories_fts` — FTS5 `tokenize='unicode61 remove_diacritics 2'` (match
-  "café" e "cafe") com triggers `memories_ai/ad/au/soft_delete_au` (soft-delete
-  remove do índice)
-- `schema_meta` — `SCHEMA_VERSION = 1` (migração idempotente; mudanças
-  futuras são ADITIVAS — política F13)
+- `memories_fts` — FTS5 `tokenize='unicode61 remove_diacritics 2'` (matches
+  "café" and "cafe") with triggers `memories_ai/ad/au/soft_delete_au`
+  (soft-delete removes from the index)
+- `schema_meta` — `SCHEMA_VERSION = 1` (idempotent migration; future changes
+  are ADDITIVE)
 
-## Tools (D3 — 10/10 portadas, MESMOS nomes)
+## Tools (10/10 ported, SAME names)
 
-| Tool | O que faz |
+| Tool | What it does |
 | --- | --- |
-| `rune_save` | salva memória (categoria/título/what/why/where_ref/learned/importance) + sinal de compaction |
-| `rune_search` | FTS5 sobre títulos/conteúdo, ordenado por rank; filtro de categoria; soft-deleted excluído |
-| `rune_get` | busca por id (NOT_FOUND quando soft-deleted) |
-| `rune_update` | patch de campos (importance clamp [1,10]; NOT_FOUND) |
-| `rune_delete` | soft-delete (some de search/get/context; `doctor --purge` hard-deleta) |
-| `rune_context` | snapshot: project + sessão ativa + 10 recentes + relevantes (query) por importância |
-| `rune_timeline` | sessões recentes (started_at DESC) |
-| `rune_stats` | totais por categoria + last activity |
-| `rune_session_start` | inicia sessão (idempotente — reusa ativa) |
-| `rune_session_end` | encerra sessão com summary opcional |
+| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal |
+| `rune_search` | FTS5 over titles/content, ordered by rank; category filter; soft-deleted excluded |
+| `rune_get` | fetch by id (NOT_FOUND when soft-deleted) |
+| `rune_update` | field patch (importance clamp [1,10]; NOT_FOUND) |
+| `rune_delete` | soft-delete (disappears from search/get/context; `doctor --purge` hard-deletes) |
+| `rune_context` | snapshot: project + active session + 10 recent + relevant (query) by importance |
+| `rune_timeline` | recent sessions (started_at DESC) |
+| `rune_stats` | totals per category + last activity |
+| `rune_session_start` | starts a session (idempotent — reuses the active one) |
+| `rune_session_end` | ends a session with an optional summary |
 
-Adaptações do port (tabela D3): `tool()` de `@opencode-ai/plugin` →
-`defineTool` do SDK; zod → TypeBox `parameters` (shape REAL do defineTool —
-validado no Execute) + validação manual em `src/memory/validate.ts` com os
-MESMOS códigos do source (INVALID_CATEGORY, EMPTY_TITLE, TITLE_TOO_LONG,
-EMPTY_WHAT, WHAT_TOO_LONG, INVALID_TITLE, INVALID_WHAT); agent hardcoded
-`"opencode"` (rune_context/rune_session_start) → `RUNECRAFT_AGENT_ID` ?? `"pi"`
-(F24); retorno = mesmas strings JSON do source.
+Port adaptations: `tool()` of `@opencode-ai/plugin` → `defineTool` of the Pi
+SDK; zod → TypeBox `parameters` (the real defineTool shape) + manual
+validation in `src/memory/validate.ts` with the SAME error codes of the
+source (INVALID_CATEGORY, EMPTY_TITLE, TITLE_TOO_LONG, EMPTY_WHAT,
+WHAT_TOO_LONG, INVALID_TITLE, INVALID_WHAT); the hardcoded agent `"opencode"`
+(rune_context/rune_session_start) → `RUNECRAFT_AGENT_ID` ?? `"pi"`; returns =
+the same JSON strings of the source.
 
-## Categorias (8)
+## Categories (8)
 
 `project_rules` · `architecture` · `constraints` · `config_values` · `naming`
-· `decisions` · `corrections` · `learnings` — o guia de uso (o que salvar em
-cada uma) vive na skill `skills/using-runes/SKILL.md`.
+· `decisions` · `corrections` · `learnings` — the usage guide (what to save
+in each) lives in the skill `skills/using-runes/SKILL.md`.
 
 ## Compaction
 
-`rune_save` enforça o cap por categoria (`categoryCap`, default 10 — config
-`memory` do state). Acima do softCap → sinal com candidatos (≤5) para
-curadoria; acima do hardCap (2×) → poda transacional
-(`importance ASC, created_at ASC, rowid ASC` — D6 tie-break) dos mais
-antigos de menor importância. Sinal `compaction.pruned_count > 0` = dado
-podado sem curadoria.
+`rune_save` enforces the per-category cap (`categoryCap`, default 10 — config
+`memory` of the state). Above the softCap → signal with candidates (≤5) for
+curation; above the hardCap (2×) → transactional pruning
+(`importance ASC, created_at ASC, rowid ASC` tie-break) of the oldest
+lowest-importance memories. Signal `compaction.pruned_count > 0` = data
+pruned without curation.
 
-## Config (D5 — MEM-05)
+## Config
 
-Seção `memory` ADITIVA no state.json (F13, schemaVersion 1 — ao lado de
+Additive `memory` section in state.json (schemaVersion 1 — next to
 guards/verification/resilience/observability):
 
 ```jsonc
@@ -92,75 +95,77 @@ guards/verification/resilience/observability):
 }
 ```
 
-- **Freeze por sessão**: snapshot no init da extensão (padrão F24 D12) —
-  mudança mid-session não afeta.
-- **Kill switch**: `RUNECRAFT_MEMORY=0|false|off` → camada INERTE (nenhum
-  tool registrado, nenhum arquivo criado; CLI recusa com mensagem — exit 0).
-- **Fail-closed por módulo (F24 D10)**: config inválida → defaults seguros +
-  problema reportado (warn no stderr da extensão).
-- Campos do source NÃO portados: `importance_floor` (achado honesto —
-  parsed, nunca enforced no source), `disabled_skills` (skill-system do
-  OpenCode, n/a no Pi), `data_dir` JSONC (→ env + state).
+- **Frozen per session**: snapshot at extension init — a mid-session change
+  has no effect.
+- **Kill switch**: `RUNECRAFT_MEMORY=0|false|off` → INERT layer (no tool
+  registered, no file created; the CLI refuses with a message — exit 0).
+- **Fail-closed per module**: invalid config → safe defaults + reported
+  problem (warning on the extension stderr).
+- Source fields NOT ported (honest findings): `importance_floor` (parsed but
+  never enforced in the source), `disabled_skills` (the OpenCode skill
+  system, n/a on Pi), `data_dir` JSONC (→ env + state).
 
-## Bridge F28 (D7 — MEM-06)
+## Bridge from observability
 
-`harness memory import-lessons [--dry-run]` importa
-`.runecraft/lessons/promoted.jsonl` (memória de time VERSIONADA — DONO do
-F28) para memórias `learnings`:
+`harness memory import-lessons [--dry-run]` imports
+`.runecraft/lessons/promoted.jsonl` (versioned team memory — OWNED by the
+observability layer) into `learnings` memories:
 
-- `title` = trigger · `what` = "Anti-padrão: …\nPadrão preferido: …" ·
-  `where_ref = "lesson:<lessonId>"` (chave de idempotência) ·
-  importance = priority mapeado (low=3 / med=5 / high=8).
-- **Idempotente**: 2º import → zero inserts (colisão de `where_ref` → skip —
-  nunca sobrescreve memória do usuário). **Fonte nunca reescrita** (abre
-  read-only; teste asserta hash byte-a-byte).
-- `importLessonsOnStart: true` → import no init da extensão (após registrar
-  tools). `--dry-run` → relatório sem escrever. Arquivo ausente/vazio →
-  no-op (exit 0).
+- `title` = trigger · `what` = "Anti-pattern: …\nPreferred pattern: …" ·
+  `where_ref = "lesson:<lessonId>"` (idempotency key) · importance = mapped
+  priority (low=3 / med=5 / high=8).
+- **Idempotent**: a 2nd import → zero inserts (where_ref collision → skip —
+  never overwrites user memory). **Source never rewritten** (opened
+  read-only; a test asserts byte-for-byte hash).
+- `importLessonsOnStart: true` → import at extension init (after registering
+  tools). `--dry-run` → report without writing. Missing/empty file → no-op
+  (exit 0).
 
-## CLI (D8 — MEM-07)
+## CLI
 
 ```
 harness memory search <query>            # markdown table (FTS, all projects)
-harness memory stats                     # contagens por categoria + last activity
-harness memory doctor [--purge]          # drift memories vs memories_fts; --purge hard-deleta + rebuild
-harness memory import-lessons [--dry-run] # bridge F28 (idempotente)
+harness memory stats                     # counts per category + last activity
+harness memory doctor [--purge]          # drift memories vs memories_fts; --purge hard-deletes + rebuild
+harness memory import-lessons [--dry-run] # observability bridge (idempotent)
 ```
 
-Exit codes (port do bin): 0 ok · 1 erro/drift sem `--purge`/store inacessível
-· 2 uso errado. `--json` → shape estável por subcomando. Kill switch → recusa
-fail-visible (nada criado).
+Exit codes (port of the bin): 0 ok · 1 error/drift without `--purge`/
+inaccessible store · 2 wrong usage. `--json` → stable shape per subcommand.
+Kill switch → fail-visible refusal (nothing created).
 
-## Determinismo (D6)
+## Determinism
 
-- DI no `Repository`: `clock`/`idGen` injetáveis (defaults `Date.now`/
-  `randomUUID`) — evals injetam sequências fixas (F21 D10: timestamps são
-  payload informacional, nunca identidade).
-- Tie-breaks explícitos em ordenações sem chave total (corrige bug latente
-  do source — documentado): `recentMemories` → `created_at DESC, rowid DESC`;
+- DI in the `Repository`: injectable `clock`/`idGen` (defaults `Date.now`/
+  `randomUUID`) — evals inject fixed sequences (timestamps are informational
+  payload, never identity).
+- Explicit tie-breaks in orderings without a total key (fixes a latent source
+  bug — documented): `recentMemories` → `created_at DESC, rowid DESC`;
   `selectOldestLowestPriority` → `importance ASC, created_at ASC, rowid ASC`;
   `listSessions` → `started_at DESC, id DESC`.
-- FTS5 `rank` é determinístico para o mesmo corpus+query no mesmo runtime
-  (Bun) — EVAL-037 compara resultados completos com relógio/id injetados.
+- FTS5 `rank` is deterministic for the same corpus+query on the same runtime
+  (Bun) — the memory eval compares complete results with injected
+  clock/id.
 
-## Privacidade (D10 — MEM-09)
+## Privacy
 
-- Conteúdo de memória (title/what/why/…) vive **SÓ no DB**
-  (`.runecraft/memory/runes.db` — gitignored). Nunca é gravado cru em
-  events/ (F28 recorder usa `argsHash` — sha256 normalizado), state.json,
-  continuation.json, lessons.jsonl ou logs (log da camada memory só com
-  metadados: ids/contagens).
-- O retorno das tools para o agente é o mecanismo (transcript — inerente à
-  função de memória); o CLI escreve no stdout do TERMINAL (inspeção
-  explícita — propósito do port).
-- **Não salvar secrets** (skill é o aviso soft; docs o aviso explícito).
+- Memory content (title/what/why/…) lives **ONLY in the DB**
+  (`.runecraft/memory/runes.db` — gitignored). It is never written raw into
+  events/ (the recorder uses `argsHash` — normalized sha256), state.json,
+  continuation.json, lessons.jsonl or logs (the memory layer logs only
+  metadata: ids/counts).
+- The tool returns to the agent are the mechanism (transcript — inherent to
+  the memory function); the CLI writes to the TERMINAL stdout (explicit
+  inspection — the purpose of the port).
+- **Do not save secrets** (the skill is the soft warning; this doc is the
+  explicit warning).
 
-## Fronteiras
+## Boundaries
 
-| Sink | Dono |
+| Sink | Owner |
 | --- | --- |
-| `events/` + `lessons.jsonl` + `lessons/promoted.jsonl` | F28 (F29 lê promoted read-only) |
-| `continuation.json` + `resilience-events.jsonl` | F27 |
-| `verify-verdicts.jsonl` | F25 |
-| ledger `.pi-glla/` | F24/F27 |
-| `.runecraft/memory/` | **F29** |
+| `events/` + `lessons.jsonl` + `lessons/promoted.jsonl` | observability (memory reads promoted read-only) |
+| `continuation.json` + `resilience-events.jsonl` | resilience |
+| `verify-verdicts.jsonl` | verification |
+| ledger `.pi-glla/` | guards/resilience |
+| `.runecraft/memory/` | **memory** |

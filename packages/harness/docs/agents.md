@@ -4,7 +4,7 @@ The harness works with two families of agents: **7 objective role agents**
 (Pi-native, data-driven) and **non-Pi agents** managed through their matrix
 column.
 
-## The 7 objective roles (F32)
+## The 7 objective roles
 
 The harness ships 7 professional roles, materialized as data-driven agents in
 `<cwd>/.pi/agents/` via `companion install`/`sync` (project scope; three-way
@@ -28,13 +28,13 @@ Properties:
   (extensible by construction); user edits are preserved by the three-way
   sync (never auto-healed).
 - **Fail-closed allowlist**: what is not in the list does not exist.
-- **Delegation v1**: only `builder` spawns (scout + reviewer); the other
-  roles do not have the `subagent` tool.
+- **Delegation**: only `builder` spawns (scout + reviewer); the other roles
+  do not have the `subagent` tool.
 - **Models**: the 7 role ids are valid `state.models.agents.<id>` ids
   (fallback chains are user config, never hardcoded — see
   [PI.md](PI.md) / [ROUTING.md](ROUTING.md) §8.13).
 
-## Non-Pi agents (F15/F17/F31)
+## Non-Pi agents
 
 The CLI manages non-Pi agents in the same detect/inject/remove pattern. Each
 agent has a matrix column: taskflow-MCP + workflow rules (Claude Code,
@@ -47,8 +47,8 @@ OpenCode, Codex) or repo-scoped rules + MCP (Copilot for VS Code).
 | Codex (`codex`) | `codex` on PATH | ✅ `taskflow-codex` (config.toml) | ✅ `AGENTS.md` (solo) | ❌ refused |
 | Copilot for VS Code (`copilot`; aliases `vscode`, `vscode-copilot`, `github-copilot`) | `code`/`code-insiders` or `github.copilot*` extension dir | ✅ `servers.taskflow` in `.vscode/mcp.json` (reuses `@runecraft/taskflow-claude` host) | ✅ `.github/copilot-instructions.md` (repo-scoped) | ❌ refused |
 
-- **Detection is informative, never blocking** (F15 ADPT-02): binary on PATH =
-  installed; config dir presence alone does not gate.
+- **Detection is informative, never blocking**: binary on PATH = installed;
+  config dir presence alone does not gate.
 - **Fail-closed install**: installing without detection refuses with a hint
   (zero writes to the targets).
 - **Unsupported components** are refused with the reason ("is a Pi

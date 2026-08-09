@@ -1,149 +1,121 @@
-# Runecraft Harness — Eval Framework (F26)
+# Runecraft Harness — Eval Framework
 
-> Framework de evals portado do arcanum (supersedido — AD-001) para o harness
-> (F26, AD-026). Suites/cases/scenarios são **dados TS** (QA-1); o trace de
-> trajetória é o **transcript REAL** do fixture F21 (QA-2); o judge LLM tem
-> **dois tiers** (QA-3); constraint-adherence v1 usa os **guards F24** (QA-4);
-> baseline-diff é **implementado** vs o ratchet F23 (QA-5). Zero deps novas,
-> RPG-free, offline/$0 por construção.
+> Eval framework of the harness. Suites/cases/scenarios are **TS data**; the
+> trajectory trace is the **real transcript** of the harness fixture; the LLM
+> judge has **two tiers**; constraint adherence uses the **execution guards**
+> as subjects; baseline-diff compares against the **ratchet**. Zero new
+> dependencies, fantasy-free, offline and free by construction.
 
-## 1. Onde vive
+## 1. Where it lives
 
-| Artefato | Path |
+| Artifact | Path |
 | --- | --- |
 | Framework (runner/loader/schema/reporter/evaluators/targets/executors) | `packages/harness/src/eval/` |
-| Dados TS — suites | `packages/harness/test/eval/suites/` |
-| Dados TS — cases | `packages/harness/test/eval/cases/` |
-| Dados TS — cenários (ScriptedScenario do fixture F21) | `packages/harness/test/eval/scenarios/` |
-| Testes do framework (port adaptado dos testes do arcanum) | `packages/harness/test/eval/framework/` |
-| Evidência (F21 — dono): `evalTest()` → `evidence/partial/*.jsonl` → merge → `last-run.json` | `test/eval/evidence/` |
-| Ratchets (F23 — dono): baselines + goldens | `test/eval/baselines/`, `test/golden/` |
-| Registro de governo | `test/EVAL-MATRIX.md` (v11 — EVAL-067..078) |
+| TS data — suites | `packages/harness/test/eval/suites/` |
+| TS data — cases | `packages/harness/test/eval/cases/` |
+| TS data — scenarios (scripted scenarios of the fixture) | `packages/harness/test/eval/scenarios/` |
+| Framework tests | `packages/harness/test/eval/framework/` |
+| Evidence: `evalTest()` → `evidence/partial/*.jsonl` → merge → `last-run.json` | `test/eval/evidence/` |
+| Ratchets: baselines + goldens | `test/eval/baselines/`, `test/golden/` |
+| Governance registry | `test/EVAL-MATRIX.md` |
 
-## 2. Mapeamento arcanum → harness (fonte real do checkout `~/Projects/arcanum`)
+## 2. Provenance
 
-| Arcanum (`packages/guild/src/features/evals/`) | Harness (`packages/harness`) | Onde |
+The framework ports the eval subsystem of the predecessor project this
+harness was ported from. The port keeps the same concepts —
+suites, cases, scenarios, deterministic evaluators, trajectory assertions, an
+LLM judge and baseline diffing — while adapting them to the harness runtime:
+
+- Schemas are hand-rolled with zero dependencies (the source used zod).
+- Suites/cases/scenarios load as TypeScript modules via dynamic import.
+- Evidence is produced by the harness fixture via `evalTest()` — the eval
+  runner has no storage of its own.
+- Executors that called paid model APIs (model-response, github-models-api,
+  openrouter-api) are NOT ported (per-call cost). The two deterministic
+  targets are prompt rendering and a single-turn agent session (in-process
+  SDK session).
+
+## 3. Semantic adaptations
+
+- **TrajectoryTrace**: `delegationSequence` = names of the tool calls of the
+  real transcript (fixture reply tool); `delegationTargets` = tool calls
+  BLOCKED by the guards (derived from the reason in the conversation —
+  guard reason-id patterns); `turns.agent` = the session agent ("main").
+- **tool-policy**: the registry = the union of the tools seen in the REAL
+  fixture requests; an absent tool = disabled (false). A mismatch is
+  documented in the message (`expected X, received undefined`).
+- **llm-judge**: substring tier WITHOUT alias normalization (the source
+  normalized fantasy role aliases — this framework has no aliases); real tier
+  ONLY with `RUNECRAFT_VERIFY_LLM_JUDGE=1`, strict parse reuses the verify
+  judge response parser; invalid/timeout → fail-closed; empty output →
+  deterministic fail.
+- **baseline-diff**: a case failing with a NEW identity vs the ratchet's
+  `known-failures.txt` → regression; frozen → pass; case passed →
+  no-regression; missing baseline → degraded. Identity is 2-part
+  `caseId<TAB>normalizedMessage` (distinct from the 3-part evidence
+  identity); reuses the shared `normalizeMessage`/`parseBaselineLines`
+  (single source in `src/eval/baselines.ts`).
+
+## 4. Evaluator subset (honest)
+
+| Kind | Status | Rationale |
 | --- | --- | --- |
-| `index.ts` | `src/eval/index.ts` | D1 |
-| `types.ts` (404 ln) | `src/eval/types.ts` (RPG-free — sem aliases thread→rogue etc.; sem agentes guild pré-F32) | D1/D8 |
-| `schema.ts` (zod) | `src/eval/schema.ts` (hand-rolled, zero deps — zod NÃO está no dep tree, validado no Execute) | D1/D2 |
-| `loader.ts` (JSONC hand-rolled) | `src/eval/loader.ts` (TS modules via dynamic import — QA-1) | D2 |
-| `runner.ts` | `src/eval/runner.ts` (evidência via `evalTest()` — sem storage próprio) | D1/D6/D7 |
-| `reporter.ts` | `src/eval/reporter.ts` | D1 |
-| `storage.ts` (`.guild/evals/runs`) | → helpers F21 `evalTest()` — NÃO portado (F21 é o dono da evidência) | D6 |
-| `baseline.ts` | `src/eval/evaluators/baseline-diff.ts` (implementado — vs ratchet F23, reusa normalize/sort) | D4/D6 |
-| `evaluators/deterministic.ts` (8 kinds) | `src/eval/evaluators/deterministic.ts` (8 kinds, mensagens RPG-free) | D4 |
-| `evaluators/llm-judge.ts` (substring + normalizeAliases RPG) | `src/eval/evaluators/llm-judge.ts` (substring SEM aliases + tier real env-gated via VerifyDeps.judgeAdapter — F25) | D4/D9 |
-| `evaluators/trajectory-assertion.ts` | `src/eval/evaluators/trajectory-assertion.ts` (sobre o HarnessTrace do transcript REAL) | D3/D4 |
-| `targets/builtin-agent-target.ts` | `src/eval/targets/prompt-render.ts` (renderRules() do F19) + `src/eval/targets/single-turn-agent.ts` (sessão SDK in-process) | D3 |
-| `executors/prompt-renderer.ts` | `src/eval/targets/prompt-render.ts` (thin — executor no target) | D3 |
-| `executors/trajectory-run.ts` (mock-text) | `src/eval/executors/trajectory-run.ts` (transcript REAL do ScriptedScenario — QA-2) | D3 |
-| `executors/model-response.ts` | NÃO portado (custo por chamada; reavaliar com F22/F32) | D9 |
-| `executors/github-models-api.ts` / `openrouter-api.ts` | NÃO portados (custo) | D9 |
-| `evals/suites/*.jsonc` (3) | `test/eval/suites/*.ts` (TS — v1: `constraint-adherence.ts`; F32: `roles.ts`) | D2/D5 |
-| `evals/cases/*.jsonc` (8) | `test/eval/cases/*.ts` (v1: write-guard-block, ranger-md-only, adversarial-guard-off) | D2/D5 |
-| `evals/scenarios/*.jsonc` (6) | `test/eval/scenarios/*.ts` (ScriptedScenario do fixture F21) | D2/D3 |
-| testes do framework (`loader.test.ts`, `runner.test.ts`, `schema.test.ts`, `reporter.test.ts`, `baseline.test.ts`, `evaluators/*.test.ts`, `targets/*.test.ts`, `executors/*.test.ts`) | `test/eval/framework/*.test.ts` (port adaptado) | T1..T7 |
+| contains-all / contains-any / excludes-all / ordered-contains / min-length | ported as-is | central content/order vocabulary |
+| section-contains-all / xml-sections-present | ported as-is, ZERO v1 cases | XML prompts of the predecessor agents do not exist here — documented dead weight until the role agents provide them |
+| tool-policy | ported adapted | real session registry (enumeration validated at execution) |
+| trajectory-assertion | ported adapted | real trace, not the source's mock-text |
+| llm-judge | two tiers | substring offline + real env-gated |
+| baseline-diff | IMPLEMENTED | reserved in the source; vs the ratchet |
 
-## 3. Adaptações semânticas (documentadas no Execute)
+## 5. Eval-coverage categories — dependency table
 
-- **TrajectoryTrace** (QA-2): `delegationSequence` = nomes das tool calls do
-  transcript REAL (replyTool do fixture); `delegationTargets` = tool calls
-  BLOQUEADOS pelos guards F24 (derivados do reason na conversa — padrões
-  `GUARD_REASON_IDS` do F24); `turns.agent` = agente da sessão ("main").
-- **tool-policy** (D4/Execute): o registry = união dos tools vistos nos
-  requests REAIS do fixture; tool ausente = desabilitada (false). Mismatch
-  documentado na mensagem (`expected X, received undefined`).
-- **llm-judge** (QA-3): tier substring SEM normalizeAliases (o arcanum
-  normalizava thread→rogue etc. — F26 não tem aliases); tier real SÓ com
-  `RUNECRAFT_VERIFY_LLM_JUDGE=1`, parse estrito reusa o `parseJudgeResponse`
-  do F25; inválido/timeout → fail-closed; output vazio → fail determinístico.
-- **baseline-diff** (QA-5): falha de case com identidade NOVA vs o
-  `known-failures.txt` do F23 → regression; congelada → pass; case passou →
-  no-regression; baseline ausente → degraded. Identidade 2-partes
-  `caseId<TAB>mensagemNormalizada` (namespace F26, distinto da identidade
-  3-partes da evidência F21); reusa `normalizeMessage`/`parseBaselineLines` (fonte única src/eval/baselines.ts — fix cleric F26)
-  `parseBaselineLines` do F23 (sem duplicação).
+| Category | Subject | Status | When |
+| --- | --- | --- | --- |
+| Constraint adherence | execution guards (write-existing-file-guard, ranger-md-only, todo-*) | ✅ available | now |
+| Tool-use correctness | role agents (single-turn-agent with the real tools of the roles) | ✅ available | now |
+| Routing completeness | role agents + coded router (classification → delegation) | ✅ complete | now |
+| Compaction recovery | resilience layer (continuation, todo preserver, stall, classify+fallback, recovery flow) | ✅ available | now |
+| Model failover | persona & models layer (model resolution, fallback chain) | ✅ available | now |
+| Memory | memory layer (rune_* tools + runes.db) | ✅ available | now |
 
-## 4. Subset v1 de evaluators (D4 — honesto)
+All six categories are covered. Notable case themes:
 
-| Kind | Status | Justificativa |
-| --- | --- | --- |
-| contains-all / contains-any / excludes-all / ordered-contains / min-length | portado as-is | vocabulário central de conteúdo/ordem |
-| section-contains-all / xml-sections-present | portados as-is, ZERO cases v1 | prompts XML dos agentes guild não existem pré-F32 — dead weight documentado; desbloqueado pelo F32 |
-| tool-policy | portado adaptado | registry real da sessão (enumeração validada no Execute) |
-| trajectory-assertion | portado adaptado | trace REAL (QA-2), não o mock-text do arcanum |
-| llm-judge | dois tiers | substring offline + real env-gated (F25) |
-| baseline-diff | IMPLEMENTADO | reservado no arcanum; vs ratchet F23 |
+- **Constraint adherence** uses the guards as subjects (write-guard-block,
+  ranger-md-only, adversarial guard-off) with the REAL transcript trace
+  (trajectory-assertion + tool-policy); the adversarial guard-off case fails
+  with a diagnostic (induced deviation — never passes silently).
+- **Tool-use correctness** proves the role allowlists via tool-policy over
+  the REAL session registry (scout read-only, builder writer, auditor
+  md-only) and via the ranger-md-only guard with the auditor in the default
+  (a real session with `RUNECRAFT_AGENT_ID=auditor`).
+- **Routing completeness** proves the coded router: a pure classifier
+  (thresholds in constants — route by CODE, never by LLM; route catalog as
+  data mapped to the roles), pilot coordination via 5 `.chain.md` chains with
+  a verdict gate, `before_agent_start` hook with per-session freeze, kill
+  switch `RUNECRAFT_ROUTING=0` and the one-driver rule. Routing is proven by
+  real trajectory (fixture sessions with the routing extension materialized
+  → delegation via the `subagent` tool in the transcript + the typed
+  `delegation` event) and by pure unit/fixture tests. Honest limitation: the
+  trajectory-run trace only exposes tool names — the target agent lives in
+  the `delegation` event of the observability layer.
+- **Model failover** proves model resolution (precedence override → custom
+  chain > builtin → systemDefault → null + warn) and the model switch
+  (light→strong via getNextFallbackModel; exhausted chain → halt + human
+  escalation) via the models.json fixture.
+- **Memory** proves round-trip, the 10 tools in the fixture, cross-session,
+  search/context semantics, compaction, the observability bridge, config/kill
+  switch, determinism and privacy (no raw args in the event store).
 
-## 5. Categorias do eval-coverage — tabela de dependência (D5)
+**Extensibility**: a new case = 1 suite/case/scenario TS + 1 additive entry
+in the matrix. The runner/loader/evaluators do NOT change.
 
-| Categoria | Sujeito (feature) | Status | Casos v1 F26 | Quando |
-| --- | --- | --- | --- | --- |
-| Constraint adherence | Guards F24 (write-existing-file-guard, ranger-md-only, todo-*) | ✅ disponível | EVAL-014 (write-guard, ranger, adversarial) | AGORA |
-| Tool-use correctness | Agentes F32 (single-turn-agent com tools reais dos papéis) | ✅ disponível (v10) | EVAL-059..061 (scout read-only, builder writer, auditor md-only) | AGORA (F32) |
-| Routing completeness | F32 (papéis) + F33 (roteador codificado — classificação → delegação) | ✅ COMPLETA (v11) | EVAL-062..064 (delegação via evento) + EVAL-067..078 (classificador puro, chains, extensão, fronteiras) | AGORA (F33) |
-| Compaction recovery | F27 (port compaction-recovery + CONTINUATION_MARKER) | ✅ disponível (v5) | EVAL-017..021 (continuation builder, todo preserver, stall, classify+fallback, recovery-flow) | AGORA (F27) |
-| Model failover | F30 (port model-resolution, fallback chain) | ✅ disponível (v8) | EVAL-042..043 (resolução por agente via models.json fixture; modelSwitch leve→forte→halt+humano) | AGORA (F30) |
-| Memory | F29 (port runes — tools `rune_*` + runes.db) | ✅ disponível (v7) | EVAL-030..038 (round-trip, 10 tools no fixture, cross-session, semântica search/context, compaction, bridge F28, config/kill switch, determinismo, privacidade) | AGORA (F29) |
+## 6. Determinism and evidence
 
-**v8 (F30, AD-030):** a categoria **Model failover foi DESBLOQUEADA** —
-EVAL-042..043 na matriz (nota datada 2026-08-10): model-resolution portado
-(precedência override → custom chain > builtin → systemDefault → null + warn)
-+ modelSwitch F27 implementado (leve→forte via getNextFallbackModel; chain
-esgotada → halt + escalação humana) com a prova da categoria via models.json
-fixture (F21). Tool-use/routing (F32) seguem bloqueadas (política aditiva).
-
-**v10 (F32, AD-032):** as categorias **Tool-use correctness** e **Routing
-completeness foram DESBLOQUEADAS** — EVAL-057..066 na matriz (nota datada
-2026-08-12): os 7 papéis objetivos como agentes-dados `.pi/agents/*.md` com
-allowlists fail-closed (D3) provadas via tool-policy sobre o registry REAL
-da sessão (EVAL-059/060 — allowlist do papel via target.tools) e via o guard
-ranger-md-only com o auditor no default (EVAL-061 — sessão real com
-RUNECRAFT_AGENT_ID=auditor, F24 currentAgentId); a delegação (routing) é
-provada pelo delegation event tipado do F28 (EVAL-062/063/064 — fallback
-documentado no design D9: o trace do trajectory-run só expõe nomes de tools;
-o alvo `agent` vive no evento `delegation` do observability). Limitação
-honesta (Execute F32): o fork NÃO seta RUNECRAFT_AGENT_ID por dispatch
-(pi-args.ts seta PI_SUBAGENT_CHILD_AGENT) — a bridge documentada no design
-(adendo before_agent_start do F28 — src/agents/identity.ts) traduz a
-identidade do child para o env que o guard lê, SEM tocar o guard.
-
-
-**v11 (F33, AD-033):** a categoria **Routing completeness está COMPLETA** —
-EVAL-067..078 na matriz (nota datada 2026-08-13): o roteador codificado
-(classificador determinístico puro `src/routing/` com thresholds em
-constantes — decisão 3c: rota por CÓDIGO, nunca LLM; catálogo de rotas como
-dados mapeado aos papéis F32; pilot coordination via 5 chains `.chain.md`
-com gate de veredito; hook before_agent_start com freeze por sessão, kill
-switch RUNECRAFT_ROUTING=0 e two-driver F19) fecha a ÚLTIMA categoria do
-eval-coverage do F26 (todas as 5 categorias agora cobertas: constraint
-adherence, tool-use, routing, compaction recovery, model failover). O
-roteamento é provado por trajectory REAL (sessões do fixture com a extensão
-routing materializada → delegação via tool subagent no transcript + evento
-delegation tipado do F28) e por unit/fixture puro (EVAL-067..071/076..078).
-
-**v7 (F29, AD-029):** a categoria Memory foi ADICIONADA — EVAL-030..038 na
-matriz (nota datada 2026-08-09). Tool-use/routing (F32) seguem sem entrada
-(política aditiva).
-
-**v5 (F27, AD-027):** a categoria Compaction recovery foi DESBLOQUEADA —
-EVAL-017..021 na matriz (nota datada 2026-08-07). Tool-use/routing (F32) e
-Model failover (F30) seguem sem entrada (política aditiva — F30 desbloqueou a
-failover na v8).
-
-**Extensibilidade (D5):** caso novo = 1 suite/case/scenario TS + 1 entrada
-aditiva na matriz. Runner/loader/evaluators NÃO mudam. As categorias
-bloqueadas NÃO têm entrada na matriz (política aditiva F21 D9 — nada sai sem
-AD); F26 NÃO inventa o design de F27/F30/F32 (outline apenas).
-
-## 6. Determinismo e evidência (D8/D6)
-
-- Mensagens sem path absoluto/timestamp (F21 D10); aliases RPG removidos.
-- Determinismo provado por teste: 2 runs da suite (sintética E real) →
-  vereditos idênticos (status/score/mensagens).
-- Evidência via `evalTest()` nos testes de fluxo (EVAL-014/EVAL-012) →
-  `evidence/partial/*.jsonl` → merge → `last-run.json`; ratchet F23 cobre
-  (piso de completude 14 — bump F26).
-- Judge LLM nunca em CI: env off por construção (preloads F21/F24/F25);
-  spy nos testes prova zero invocação sem env.
+- Messages without absolute paths/timestamps; fantasy aliases removed.
+- Determinism proven by test: 2 runs of the suite (synthetic AND real) →
+  identical verdicts (status/score/messages).
+- Evidence via `evalTest()` in the flow tests →
+  `evidence/partial/*.jsonl` → merge → `last-run.json`; the ratchet covers it
+  (see [testing.md](testing.md)).
+- The LLM judge is never in CI: env off by construction (preloads); spies in
+  the tests prove zero invocations without env.

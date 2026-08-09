@@ -1,10 +1,10 @@
 # Runecraft Harness — Routing & Mental Model
 
-> Canonical routing guide of the Runecraft harness (design F19, D1). It is the
-> human-facing companion of the injected `runecraft:workflow` rules section
-> (appendix, section 9): the injected text is rendered by `renderRules()` from
-> the same source of truth, and the golden test keeps render × appendix in sync
-> byte for byte (D9 — divergence is red).
+> Canonical routing guide of the Runecraft harness. This document is the
+> human-facing companion of the injected `runecraft:workflow` rules
+> (appendix, section 9): the injected text is rendered by `renderRules()`
+> from the same source of truth, and the golden test keeps the rendered
+> output and the appendix in sync byte for byte.
 
 ## 1. Purpose & 30-second usage
 
@@ -12,22 +12,23 @@ The Runecraft harness loads four forked tools into a Pi session —
 `subagents` (ad-hoc delegation), `taskflow` (multi-phase DAG work),
 `goal-loop-audit` (verifiable contract with an isolated auditor) and
 `pr-review` (structured review) — and manages non-Pi agents (Claude Code,
-OpenCode, Codex) through their matrix column: taskflow-MCP + workflow rules.
+OpenCode, Codex, Copilot) through their matrix column: taskflow-MCP +
+workflow rules.
 
 The four tools overlap; picking the wrong one costs time and, in the worst
 case, breaks the session (two-driver rule — section 2). Use this document in
 30 seconds:
 
-1. **Is a goal active?** → the goal-loop drives the session (sections 2/4;
+1. **Is a goal active?** → the goal-loop drives the session (sections 2 and 4;
    `harness status` shows the driver).
 2. **Table first** (section 3) — what each tool does, when to use it, when not.
 3. **Quick reference** (section 8) — the 5 common cases.
 4. **What your agent actually sees** — the injected text (section 9).
 
-Terminology — two senses of "gate" (reviewed 2026-08-05):
+Terminology — two senses of "gate":
 
 - **gate** (lowercase) — a machine check phase of a taskflow (eval/expect).
-- **gates** (hooks, F20) — the delivery hooks (pre-commit/pre-push) of the
+- **gates** (hooks) — the delivery hooks (pre-commit/pre-push) of the
   harness.
 
 The routing rules are **advisory** in v1: the harness documents and injects
@@ -51,32 +52,32 @@ Definitions:
 
 Rule: with a goal active, subagents and taskflow enter as **workers** under
 the goal-loop driver. Never run two drivers in the same session.
-`harness status` shows the active driver (`driver: goal-loop` /
-`driver: sessão (direto)`); `harness doctor` check 16 reports it.
+`harness status` shows the active driver (goal-loop, or direct session when
+no goal is active); `harness doctor` check 16 reports it.
 
 ## 3. Tool table
 
-Facts verified 2026-08-05 in the fork sources (pins: subagents 0.37.2 ·
-taskflow 0.2.6 · goal-loop-audit 0.28.34 · pr-review 1.11.4 — AD-003). Each
-row cites real capabilities only; rows marked *(derivado do roteamento —
-validar no Execute)* derive from the routing of the other tools, not from an
-explicit contraindication in the fork docs.
+Facts verified 2026-08-05 against the fork sources (pins: subagents 0.37.2 ·
+taskflow 0.2.6 · goal-loop-audit 0.28.34 · pr-review 1.11.4). Each row cites
+real capabilities only; rows marked *(derived from routing)* derive from the
+routing of the other tools, not from an explicit contraindication in the fork
+docs.
 
 | Tool | What it does (facts) | When to use it | Contraindication |
 | --- | --- | --- | --- |
 | **goal-loop-audit** | goal with a contract "Done when"; "Prose closes nothing... The ONLY way to close it is a complete_goal tool call that survives the isolated auditor"; isolated auditor (fresh session, no extensions/skills/prompts, read/grep/find/ls/bash only, cannot see the implementer's conversation); regression_shield: evidence required per contract item (`<approved/>` without `<evidence>` → disapproval); drafting → active → auditing → complete cycle; continuation via `agent_end`; `/loop` requires a numeric metric via the `measure` command ("A loop never completes") | closable by a verifiable contract ("Done when"); iteration with an honest metric (`/loop`); work that can be handed to an isolated auditor | no verifiable "Done when"; no honest metric for `/loop` (→ use `/goal`); work that requires you to drive the session interactively |
 | **taskflow** | DAG with `dependsOn` ("Phase order in the phases array is documentation, not execution order"); FlowIR with content hash per phase; resume (immutable fork) / replay (offline what-if) / recompute (stale frontier only); approvals (human) vs gate (agent); budgets maxUSD/maxTokens (a run ends blocked); eval (zero tokens) / expect (validated JSON contract, fail closed) | multi-phase flows with dependencies; fan-out; reproducibility (resume/replay/recompute); a defined budget | single-file change; interactive debugging; one bash command; "single quick delegation... the plain subagent tool is fine" |
-| **subagents** | chains (sequential; each step receives `{previous}`); parallel (concurrent; concurrency/failFast); acceptance gates auto/attested/checked/verified (verify runs commands; "Child-reported command success does not count"); intercom (`contact_supervisor`); worktrees (each child in its own worktree; clean tree required); watchdog (adversarial diff review at `agent_end`); "Use only one writer against the active worktree at a time" | ad-hoc delegation; a simple dependent sequence; independent parallelism; concurrent editing with worktrees; evidence via acceptance gates | multi-phase flows with dependencies and re-execution (→ taskflow); session-driving work (→ goal-loop). *(derivado do roteamento — validar no Execute: the fork docs list no explicit contraindication.)* |
-| **pr-review** | structured validated JSON (verdict; findings P0–nit with blocking/confidence); 5 passes by default; parallel dispatch by tiers; optional verification against the exact head; gate inside a flow (F20, AD-011) | reviewing a diff; pre-commit/pre-push gate inside a flow | *(derivado do roteamento — validar no Execute: no contraindication documented in the fork.)* |
+| **subagents** | chains (sequential; each step receives `{previous}`); parallel (concurrent; concurrency/failFast); acceptance gates auto/attested/checked/verified (verify runs commands; "Child-reported command success does not count"); intercom (`contact_supervisor`); worktrees (each child in its own worktree; clean tree required); watchdog (adversarial diff review at `agent_end`); "Use only one writer against the active worktree at a time" | ad-hoc delegation; a simple dependent sequence; independent parallelism; concurrent editing with worktrees; evidence via acceptance gates | multi-phase flows with dependencies and re-execution (→ taskflow); session-driving work (→ goal-loop). *(derived from routing)* |
+| **pr-review** | structured validated JSON (verdict; findings P0–nit with blocking/confidence); 5 passes by default; parallel dispatch by tiers; optional verification against the exact head; gate inside a flow | reviewing a diff; pre-commit/pre-push gate inside a flow | *(derived from routing: no contraindication documented in the fork.)* |
 
 ## 4. Two-driver in depth
 
-- **Goal active** (`harness status` → `driver: goal-loop`): the goal-loop
+- **Goal active** (`harness status` → goal-loop driver): the goal-loop
   schedules the session's continuations via `agent_end`. subagents and
   taskflow are still usable — as **workers**. Their completions do not
   schedule continuations; the goal-loop remains the single driver.
-- **No active goal** (`driver: sessão (direto)`): the session is driven
-  directly (you or the model); subagents and taskflow are compatible workers.
+- **No active goal** (direct session): the session is driven directly (you
+  or the model); subagents and taskflow are compatible workers.
 - **Violation signals**: two supervisors scheduling continuations into one
   session produce contradictory turns — duplicated follow-ups, clobbered
   session handles, or both loops fighting over the turn.
@@ -86,18 +87,18 @@ explicit contraindication in the fork docs.
 
 ## 5. Hello world SDLC
 
-The canonical example (F7 COEX-05, executed 2026-08-06): a trivial goal with
-a "Done when" contract, implemented directly, verified by the isolated
-auditor and closed end to end with one command.
+The canonical example (executed 2026-08-06): a trivial goal with a "Done
+when" contract, implemented directly, verified by the isolated auditor and
+closed end to end with one command.
 
 ### Hello world SDLC — v2026-08-06
 
-- **Flow (F7)**: a trivial goal with a "Done when" contract → implementation
-  (directly by the model in the goal loop — COEX-05; dispatch via subagents
-  or taskflow also works) → the isolated auditor verifies with evidence
+- **Flow**: a trivial goal with a "Done when" contract → implementation
+  (directly by the model in the goal loop; dispatch via subagents or taskflow
+  also works) → the isolated auditor verifies with evidence
   (regression_shield) → review → the cycle closes (complete_goal survives
   the auditor).
-- **Result F7 (COEX-05)**: **PASS** — 2026-08-06.
+- **Result**: **PASS** — 2026-08-06.
   - One prompt: `/goal "Create a file greeting.txt whose content is the exact
     text 'hello harness'. Done when: greeting.txt exists in the repo root and
     its content is exactly 'hello harness'."`
@@ -105,44 +106,43 @@ auditor and closed end to end with one command.
     **10.6s** (deepseek-v4-flash, thinking high).
   - Tokens (5 model turns): input **22,445** · output **896** · cacheRead
     **109,824** · cost **≈ US$ 0.004**.
-  - Cycle (transcript `.pi-glla/active.jsonl`, repo `coex05`):
-    `goal_created` → `goal_continuation_sent` → implementation (3× bash;
-    greeting.txt, 13 bytes) → `complete_goal` (status auditing) → isolated
-    auditor (read-only tools: ls, stat, od -c, wc -c, cmp;
-    `regressionShieldPassed: true`, `<approved/>`) → `goal_archived`
-    complete (`stopReason: auditor deepseek-v4-flash approved`,
-    `reviewer_fired`).
-- **Reproduction**: disposable test repo; exact commands/times/tokens in
-  `.specs/features/f7-coexistence-validation/scenarios.md` (COEX-05).
+  - Cycle (transcript `.pi-glla/active.jsonl`): `goal_created` →
+    `goal_continuation_sent` → implementation (3× bash; greeting.txt, 13
+    bytes) → `complete_goal` (status auditing) → isolated auditor (read-only
+    tools: ls, stat, od -c, wc -c, cmp; `regressionShieldPassed: true`,
+    `<approved/>`) → `goal_archived` complete (`stopReason: auditor
+    deepseek-v4-flash approved`, `reviewer_fired`).
+- **Reproduction**: disposable test repo with the same one-line goal; the
+  transcript is stored in `.pi-glla/active.jsonl`.
 
 **Version history:**
 
 | Version | Date | Result | Delta |
 | --- | --- | --- | --- |
-| v2026-08-06 | 2026-08-06 | COEX-05 PASS — 1 prompt, 23.4s wall, auditor 10.6s, ≈ US$ 0.004 | first canonical entry (F7) |
+| v2026-08-06 | 2026-08-06 | PASS — 1 prompt, 23.4s wall, auditor 10.6s, ≈ US$ 0.004 | first canonical entry |
 
 Rule: any flow/command change between versions produces a new versioned
 entry — never silently edit the current example.
 
 ## 6. Limits per agent
 
-What each matrix column (F17) actually has — the injected rules (section 9)
-never cite a tool outside the column.
+What each matrix column actually has — the injected rules (section 9) never
+cite a tool outside the column.
 
 | Agent | Column |
 | --- | --- |
 | **Pi** | full column: subagents + taskflow + goal-loop-audit + pr-review (extensions) + rules (native). The injected rules cover all 4 tools + two-driver + worker rule. |
 | **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md). No goal-loop/subagents/pr-review — Pi extensions only. |
 | **OpenCode** | taskflow-MCP + workflow rules (AGENTS.md). Same limits. |
-| **Codex** | taskflow-MCP + workflow rules (AGENTS.md). Solo agent (no permissions/output styles — F17); the injected rules are the shared non-Pi template. |
-| **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped (F31). Same limits; the injected rules are the shared non-Pi template (reuso F19). |
+| **Codex** | taskflow-MCP + workflow rules (AGENTS.md). Solo agent (no permissions/output styles); the injected rules are the shared non-Pi template. |
+| **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped. Same limits; the injected rules are the shared non-Pi template. |
 | **Other agents (cursor, grok, …)** | detect-only with a manual MCP guide (no adapter in v1). |
 
 ## 7. Coexistence
 
 - The harness manages exactly the `runecraft:workflow` block: append on
-  insert, in-place update by the stable id, nothing beyond the markers (F18
-  section engine).
+  insert, in-place update by the stable id, nothing beyond the markers
+  (section engine).
 - **Other installers**: `gentle-ai:` marker sections are third-party content —
   the harness never touches them (append/upsert only of the runecraft: block;
   detected in `harness status` Owners / `harness doctor` check 14).
@@ -154,8 +154,7 @@ never cite a tool outside the column.
 
 ## 8. Quick reference (5 cases)
 
-Verified against the D2 capability table (section 3) — the Independent Test
-of the spec (ROUT-01).
+Verified against the capability table (section 3).
 
 | Case | Route |
 | --- | --- |
@@ -165,540 +164,499 @@ of the spec (ROUT-01).
 | Close a task with a verifiable contract + isolated auditor | goal-loop (`/goal`) |
 | Review a diff before merge | pr-review |
 
-## 8.5 Guards — execution guards do harness (F24)
+## 8.5 Guards — execution guards
 
-Os guards são extensões Pi do harness que BLOQUEIAM/REESCREVEM tool calls de
-verdade no loop do agente (`pi.on("tool_call")` + `{ block: true, reason }`)
-— diferente do OpenCode/guild, onde o mesmo guard era um aviso no prompt que
-a LLM podia ignorar. Só rodam em sessões gerenciadas pelo harness (agentDir
-materializado pelo install); agentes não-Pi (Claude Code/OpenCode/Codex) NÃO
-têm enforcement — a coluna deles na matriz é detect-only com guia (ADPT-03).
+Guards are harness Pi extensions that really BLOCK or REWRITE tool calls in
+the agent loop (`pi.on("tool_call")` + `{ block: true, reason }`). They only
+run in harness-managed sessions (agentDir materialized by the install);
+non-Pi agents (Claude Code/OpenCode/Codex) have no enforcement — their matrix
+column is detect-only with a guide.
 
-| Guard (config `guards.<id>` no state.json) | O que bloqueia/reescreve | Config |
+| Guard (config `guards.<id>` in state.json) | What it blocks/rewrites | Config |
 | --- | --- | --- |
-| `write-existing-file-guard` (`writeExistingFile`) | `write` sobre arquivo JÁ EXISTENTE → `{ block: true, reason: "write-existing-file-guard: ..." }` (path relativo ao cwd — nunca absoluto). Arquivo novo passa. `edit` NÃO é bloqueado (é mutation de arquivo existente — validado no Execute). | `options.allow: string[]` (paths relativos) · `options.force: boolean` (libera tudo) |
-| `ranger-md-only` (`rangerMdOnly`) | `write`/`edit` de não-`.md` (case-insensitive: `.MD`/`.Markdown` contam) para agentes da lista `mdOnlyAgents` → block. v1: lista VAZIA por default (guarda ativo, inerte — F32 registra o papel auditor). | `options.mdOnlyAgents: string[]` · agente atual = `RUNECRAFT_AGENT_ID` (default `main`) |
-| `todo-description-override` (`todoDescriptionOverride`) | Reescreve o input de `propose_task_list` do glla para o formato canônico `"<título> — Done when: ..."` (nunca bloqueia — a reescrita É a política). | `enabled` |
-| `todo-continuation-enforcer` (`todoContinuationEnforcer`) | `complete_goal` com tarefas pendentes no ledger do glla (`.pi-glla/active.jsonl`) → block listando os itens (id + título). | `enabled` |
+| `write-existing-file-guard` (`writeExistingFile`) | `write` over an EXISTING file → `{ block: true, reason: "write-existing-file-guard: ..." }` (path relative to the cwd — never absolute). New files pass. `edit` is NOT blocked (it mutates an existing file). | `options.allow: string[]` (relative paths) · `options.force: boolean` (allows everything) |
+| `ranger-md-only` (`rangerMdOnly`) | `write`/`edit` of non-`.md` files (case-insensitive: `.MD`/`.Markdown` count) for agents in the `mdOnlyAgents` list → block. Default list: `["auditor"]`. | `options.mdOnlyAgents: string[]` · current agent = `RUNECRAFT_AGENT_ID` (default `main`) |
+| `todo-description-override` (`todoDescriptionOverride`) | Rewrites the input of the goal-loop `propose_task_list` tool to the canonical `"<title> — Done when: ..."` format (never blocks — the rewrite IS the policy). | `enabled` |
+| `todo-continuation-enforcer` (`todoContinuationEnforcer`) | `complete_goal` with pending tasks in the goal-loop ledger (`.pi-glla/active.jsonl`) → block listing the items (id + title). | `enabled` |
 
-**Operação:**
+**Operation:**
 
-- **Fail-closed por padrão**: guards LIGADOS em sessões gerenciadas; desligar é
-  config explícita (`guards.<id>.enabled: false`). Config inválida de UM guard
-  → ele opera fail-closed (bloqueia, não libera) e os demais seguem (D10); o
-  doctor reporta.
-- **Kill switch**: `RUNECRAFT_GUARDS=0` (env) → todos os guards inativos.
-- **Congelado por sessão**: a config é lida no `session_start` e vale durante
-  a sessão (sem drift mid-turn).
-- **Config**: seção aditiva `guards` do state.json (F13, schemaVersion 1) —
-  sem arquivo novo; `harness status` mostra o estado por guard, `harness
-  doctor` check 18 valida, `harness sync` re-aplica os defaults quando a
-  seção está ausente.
-- **Tool names do glla (validado no Execute F24)**: NÃO existe
-  `todowrite`/`todoresolve` no fork goal-loop-audit — a task list é
-  `propose_task_list`, o status é `update_task_status`/`complete_task` e a
-  conclusão é `complete_goal`. O enforcer usa `tool_call` de `complete_goal`
-  (turn_end/agent_end NÃO bloqueiam no Pi 0.81.0 — runner.js).
+- **Fail-closed by default**: guards are ON in managed sessions; turning them
+  off is explicit config (`guards.<id>.enabled: false`). Invalid config of ONE
+  guard → it operates fail-closed (blocks, never opens) and the others
+  continue; the doctor reports.
+- **Kill switch**: `RUNECRAFT_GUARDS=0` (env) → all guards inactive.
+- **Frozen per session**: config is read at `session_start` and holds for the
+  session (no mid-turn drift).
+- **Config**: additive `guards` section of state.json (schemaVersion 1) — no
+  new file; `harness status` shows the state per guard, `harness doctor`
+  check 18 validates, `harness sync` re-applies the defaults when the section
+  is absent.
+- **Goal-loop tool names**: the fork has no `todowrite`/`todoresolve` — the
+  task list is `propose_task_list`, the status tools are
+  `update_task_status`/`complete_task`, and the conclusion is
+  `complete_goal`. The enforcer hooks the `complete_goal` tool call
+  (turn_end/agent_end do not block in the Pi SDK 0.81.0).
 
-## 8.6 Verification — cascata de verificação do harness (F25)
+## 8.6 Verification — verification cascade
 
-A cascata de verificação (determinismo de SAÍDA — AD-022 d6) roda no
-`complete_goal` do enforcer F24 (DEPOIS do check de pendências — ordem
-determinística D11) e via CLI `harness verify` (MESMA engine pura
-`runVerificationCascade` — D1). Cascata cheap→expensive com short-circuit:
+The verification cascade (deterministic OUTPUT) runs on the `complete_goal`
+tool call of the todo enforcer (section 8.5) — AFTER the pending-tasks check,
+in a deterministic order — and via the CLI `harness verify` (the SAME pure
+engine `runVerificationCascade`). The cascade goes cheap→expensive with
+short-circuiting:
 
-| Camada (config `verification.policy.onFail.<id>`) | O que verifica | Falha → |
+| Layer (config `verification.policy.onFail.<id>`) | What it verifies | Failure → |
 | --- | --- | --- |
-| `structural` | scripts do repo (lint/typecheck/test — `bun run <script>`, timeout 120s; defaults detectados no package.json da raiz git; override `structural.commands`) | skip (veredito + sugestão — QA-1) |
-| `integrity` | arquivos protegidos = domínio do write-guard F24 (rastreados no HEAD, realpath; exceções `allow`/`force` do F24) — DELETE ou SUBSTITUIÇÃO INTEGRAL → reason-id F24 (`write-existing-file-guard`) | halt (bloqueia — QA-1) |
-| `sufficiency` | QA-2: escopo de arquivos (`thresholds.sufficiency.scopePaths`; vazio = não aplica) + proporção `added+deleted tokens ∈ [minRatio, maxRatio] × |spec|` → `empty`/`oversized`/`scope-violation` | halt (bloqueia — QA-1) |
-| `embedding` | similaridade local determinística (char n-gram n=3 TF + cosseno, zero deps/rede — D4): `score ≥ max → pass`, `≤ min → fail`, meio → gray | skip (veredito + sugestão) |
-| `judge` | LLM env-gated SÓ na zona cinza (`RUNECRAFT_VERIFY_LLM_JUDGE=1`); prompt de faithfulness versionado (spec derivado, nunca auto-avaliação); JSON estrito `{verdict, confidence, reasons[]}`; inválido/timeout → fail-closed contabilizado no cap | skip (veredito + sugestão) |
+| `structural` | repo scripts (lint/typecheck/test — `bun run <script>`, timeout 120s; defaults detected in the git root package.json; override `structural.commands`) | skip (verdict + suggestion) |
+| `integrity` | protected files = the write-guard domain (section 8.5) (tracked in HEAD, realpath; exceptions `allow`/`force` of the write guard) — DELETE or FULL REPLACEMENT → guard reason-id | halt (blocks) |
+| `sufficiency` | file scope (`thresholds.sufficiency.scopePaths`; empty = does not apply) + ratio `added+deleted tokens ∈ [minRatio, maxRatio] × |spec|` → `empty`/`oversized`/`scope-violation` | halt (blocks) |
+| `embedding` | local deterministic similarity (char n-gram n=3 TF + cosine, zero deps/network): `score ≥ max → pass`, `≤ min → fail`, middle → gray | skip (verdict + suggestion) |
+| `judge` | LLM env-gated ONLY in the gray zone (`RUNECRAFT_VERIFY_LLM_JUDGE=1`); versioned faithfulness prompt (never self-evaluation); strict JSON `{verdict, confidence, reasons[]}`; invalid/timeout → fail-closed counted against the cap | skip (verdict + suggestion) |
 
-**Operação:**
+**Operation:**
 
-- **Fail-closed por padrão**: cascata LIGADA em sessões gerenciadas
-  (defaults QA-1: integrity/sufficiency halt; structural/embedding/judge skip).
-- **Kill switch**: `RUNECRAFT_VERIFY=0` → cascata inativa (sessão e CLI — exit 0).
-- **Congelado por sessão**: config lida no `session_start` (D12 — sem drift mid-turn).
-- **Cost caps** (`verification.costCaps`): `maxCascadeRuns`/`maxJudgeCalls`/`maxJudgeTokens`
-  por execução; cap esgotado → HALT sem judge (reason com contabilidade).
+- **Fail-closed by default**: the cascade is ON in managed sessions (defaults:
+  integrity/sufficiency halt; structural/embedding/judge skip).
+- **Kill switch**: `RUNECRAFT_VERIFY=0` → cascade inactive (session and CLI —
+  exit 0).
+- **Frozen per session**: config read at `session_start` (no mid-turn drift).
+- **Cost caps** (`verification.costCaps`): `maxCascadeRuns`/`maxJudgeCalls`/
+  `maxJudgeTokens` per execution; a spent cap → HALT without judge (reason
+  with accounting).
 - **Degrade** (`verification.degrade`): `embeddingUnavailable` default `skip`
-  (veredito degraded registrado — sem essa evidência não é violação);
-  `grayZoneNoJudge` default `fail` (fail-closed: CI não certifica caso duvidoso
-  sem judge — CLI exit 1).
-- **Config**: seção aditiva `verification` do state.json (F13, schemaVersion 1) —
-  sem arquivo novo; inválida → fail-closed (sessão bloqueia com motivo; CLI exit 3);
-  `harness status` mostra a seção, `harness doctor` check 19 valida.
-- **CLI `harness verify`**: exit codes 0 pass/skip/degraded · 1 fail · 2 halt ·
-  3 config/infra; `--json` = `{ok, checks[], warnings[], verdict}` (shape do
-  verify-gate do arcanum); escopo = working tree do repo (goal ativo via ledger
-  F19 quando presente); judge nunca sem env (CI/merge gate F20 offline).
-- **Vereditos de sessão**: gravados no log `.runecraft/verify-verdicts.jsonl`
-  (append-only, precedente do ledger do glla — o Pi 0.81.0 não permite anotar
-  tool_call que passa, validado no Execute: `ToolCallEventResult` = `{block, reason}`).
+  (degraded verdict recorded — missing evidence is not a violation);
+  `grayZoneNoJudge` default `fail` (fail-closed: CI does not certify a
+  doubtful case without a judge — CLI exit 1).
+- **Config**: additive `verification` section of state.json (schemaVersion 1)
+  — no new file; invalid → fail-closed (session blocks with reason; CLI
+  exit 3); `harness status` shows the section, `harness doctor` check 19
+  validates.
+- **CLI `harness verify`**: exit codes 0 pass/skip/degraded · 1 fail ·
+  2 halt · 3 config/infra; `--json` = `{ok, checks[], warnings[], verdict}`;
+  scope = the repo working tree (active goal via ledger when present); the
+  judge never runs without env (CI/merge gates are offline).
+- **Session verdicts**: recorded in the append-only log
+  `.runecraft/verify-verdicts.jsonl` (the Pi SDK 0.81.0 does not allow
+  annotating a passing tool call — `ToolCallEventResult` = `{block, reason}`).
 
-**Port verification-reminder/verify-gate (arcanum → F25, D12)**: a fonte real
-foi recuperada do checkout `~/Projects/arcanum` (supersedido — AD-001):
-`packages/guild/src/hooks/verification-reminder.ts` (prompt "Verification
-Required": diff/checks/validação de comportamento/gate decision) e
-`packages/guild/src/tools/verify-gate.ts` (runner de checks com timeout +
-`{ok, checks[], warnings[]}`). O que era TEXTO DE PROMPT vira MECANISMO:
+## 8.7 Evals — eval framework
 
-| Arcanum (guild, OpenCode) | F25 (harness, Pi) | Onde |
+The harness ships an eval framework with suites/cases/scenarios as **TS
+data** under `test/eval/{suites,cases,scenarios}`; the in-process runner
+(`src/eval/`) loads (dynamic import), executes and evaluates with evidence
+via `evalTest()`. Full reference: `docs/EVAL-FRAMEWORK.md`.
+
+| Concept | What it is | Where it lives |
 | --- | --- | --- |
-| `verification-reminder` (prompt — "strong persistent prompt injection, not a kernel-level completion block") | Gate real: veredito + sugestão acionável estruturada; o conteúdo semântico do prompt (diff/checks/validação de comportamento/gate decision) vira `suggestions.ts` por camada | `src/verify/suggestions.ts` |
-| `verify-gate` (tool com `{ok, checks[], warnings[]}`, exec com timeout) | Runner da camada 1 (structural) + shape do report do CLI `--json` | `src/verify/stages/structural.ts` + `src/commands/verify.ts` |
-| (sem enforcement no OpenCode — aviso ignorável) | Bloqueio HARD via `{block:true}` em complete_goal (política halt) + cost caps → HALT | `src/verify/engine.ts` (D7/D8) |
+| Suite | TS manifest (id/phase/caseFiles) | `test/eval/suites/*.ts` |
+| Case | declarative case (target + executor + evaluators) | `test/eval/cases/*.ts` |
+| Scenario | scripted scenario of the fixture (fake tool-call choice, real execution) | `test/eval/scenarios/*.ts` |
+| Evaluators | 8 deterministic + trajectory-assertion + llm-judge (2 tiers) + baseline-diff | `src/eval/evaluators/` |
+| Targets | prompt-render (renderRules) · single-turn-agent (SDK session) | `src/eval/targets/` |
+| Evidence | `evalTest()` → `evidence/partial/*.jsonl` → merged `last-run.json` | `test/eval/evidence/` |
 
-## 8.7 Evals — framework de evals do harness (F26)
+- **Suites today**: constraint adherence (the execution guards as subjects),
+  compaction recovery (the resilience layer), memory, observability,
+  persona/models, role agents, coded routing, and the Copilot adapter. The
+  adversarial guard-off case fails with a diagnostic (induced deviation —
+  never passes silently).
+- **LLM judge**: substring tier offline (always) + real tier ONLY with
+  `RUNECRAFT_VERIFY_LLM_JUDGE=1` via the verify judge adapter (section 8.6) —
+  never in CI (env off by construction).
+- **Run**: `bun test test/eval` — offline/$0; the ratchet covers the new
+  evidence (see `docs/EVAL-FRAMEWORK.md` and `docs/testing.md`).
 
-O harness tem um framework de evals portado do arcanum (sem tema RPG, zero
-deps novas — AD-026): suites/cases/scenarios são **dados TS** sob
-`test/eval/{suites,cases,scenarios}`; o runner in-process (`src/eval/`)
-carrega (dynamic import), executa e avalia com evidência via `evalTest()`
-(F21 — mesmo contrato dos fluxos da matriz). Referência completa:
-`docs/EVAL-FRAMEWORK.md` (mapeamento arcanum→harness cobrindo TODOS os
-arquivos do framework + tabela de dependência das 5 categorias).
+## 8.8 Resilience & Continuity — resilience layer
 
-| Conceito | O que é | Onde vive |
+The resilience layer ports the continuation machinery into REAL mechanisms
+of the Pi SDK 0.81.0:
+
+| Mechanism | Exists (SDK / forks / harness) | The harness builds |
 | --- | --- | --- |
-| Suite | manifest TS (id/phase/caseFiles) | `test/eval/suites/*.ts` |
-| Case | caso declarativo (target + executor + evaluators) | `test/eval/cases/*.ts` |
-| Scenario | ScriptedScenario do fixture F21 (escolha fakeada, execução real) | `test/eval/scenarios/*.ts` |
-| Evaluators | 8 determinísticos + trajectory-assertion + llm-judge (2 tiers) + baseline-diff | `src/eval/evaluators/` |
-| Targets | prompt-render (renderRules F19) · single-turn-agent (sessão SDK) | `src/eval/targets/` |
-| Evidência | `evalTest()` → `evidence/partial/*.jsonl` → `last-run.json` (F21) | `test/eval/evidence/` |
+| Compaction event | SDK: `session_before_compact`/`session_compact` in the event union + pure `shouldCompact` | primary trigger + honest fallback `session_start reason=resume\|reload` |
+| System prompt rewrite | SDK: `BeforeAgentStartEventResult.systemPrompt` chainable | continuation hook `src/extensions/resilience.ts` |
+| Goal/taskList state | goal-loop ledger `.pi-glla/active.jsonl` | source of truth for continuation + `.runecraft/continuation.json` |
+| All tools | goal-loop `propose_task_list`/`update_task_status` (no `todowrite`) | todo preserver |
+| Stall signals | SDK: `turn_start{turnIndex,timestamp}`/`turn_end{toolResults}`/`agent_end`/`tool_call`/`agent_settled` + `ctx.isIdle()`/`hasPendingMessages()` | detector input |
+| Proven stall machinery | goal-loop: heartbeat/escalation, pending-latch watchdog, wedge alert, grace after compaction, extensionApiStale | pure port in `src/resilience/stall.ts` |
+| Repetition/identical output | goal-loop repetition detection (fingerprint sha256, Jaccard 0.8, toolResultRepeat 3) | `repetition`/`identical-output` detectors |
+| Backoff | goal-loop backoff (stuck/error/context, hard cap 5min) | ladder in detector/policy |
+| Rate-limit/quota | goal-loop quota-retry `isQuotaError`/`parseQuotaError` | reused in `src/resilience/classify.ts` |
+| Retry/skip/halt policy + budget | verification layer `RETRY/SKIP/HALT` + `cost.ts` CostLedger | escalation policy + budget |
+| Actionable suggestion | verification `suggestions.ts` | classifier `suggestion` |
+| Model switch | model-resolution layer (section 8.11) — NOT part of this layer | interface `FallbackAction.modelSwitch` (implemented in the models layer) |
+| Markdown plans / workflow | role agents + coded routing (sections 8.13/8.14) — NOT part of this layer | outline; this layer resumes from the ledger only |
 
-- **Constraint-adherence v1 (EVAL-014)** e **Compaction-recovery (F27,
-  EVAL-017..021)** são as categorias com cases hoje: os guards F24
-  (write-existing-file-guard, ranger-md-only) e a resiliência do F27 como
-  sujeitos, com o trace REAL do transcript (trajectory-assertion +
-  tool-policy) e o adversarial guard-off falhando com diagnóstico (desvio
-  induzido — nunca passa em silêncio). Delta vs EVAL-006/007/014 documentado
-  nos cases (D6 — sem double-test).
-- **Categorias bloqueadas**: tool-use/routing (F32), failover (F30) — sem
-  entrada na matriz até os sujeitos existirem (política aditiva F21 D9); a
-  tabela de dependência é o contrato (`docs/EVAL-FRAMEWORK.md` §5).
-- **Judge LLM**: o llm-judge tem tier substring offline (sempre) + tier real
-  SÓ com `RUNECRAFT_VERIFY_LLM_JUDGE=1` via `VerifyDeps.judgeAdapter` (F25) —
-  nunca em CI (env off por construção).
-- **Rodar**: `bun test test/eval` (lane F21/F24/F25 + framework) — offline/$0;
-  o ratchet F23 (piso 15) cobre a evidência nova.
+**Operation**: the extension `extensions/resilience.ts` (materialized in
+harness-managed sessions) observes compaction (`session_before_compact` →
+snapshot of the taskList; `session_compact` → 3min grace + pending
+continuation), `session_start reason=resume|reload` (honest fallback) and
+re-injects the continuation prompt via `before_agent_start` (systemPrompt
+CHAINED — never overwrites other extensions). The stall detector observes
+real events (`tool_call`/`tool_result`/`turn_end`/`agent_settled`) with
+goal-loop thresholds (configurable via state.json `resilience` — defaults
+fail-closed); kill switch `RUNECRAFT_RESILIENCE=0`. State: goal-loop ledger
+(goal/taskList) + `.runecraft/continuation.json` (harness metadata) +
+`.runecraft/resilience-events.jsonl` (append-only log). The `/start-work`
+command resumes the active goal explicitly (restart/resume — never automatic
+at startup).
 
-## 8.8 Resilience & Continuity — camada de resiliência do harness (F27)
+**Boundary**: `modelSwitch` is an interface implemented by the models layer
+(section 8.11); this layer does NOT resolve models. Invariant: the
+continuation re-injects pending items ONLY from the current ledger — it
+never re-injects a full task list (dedicated adversarial test in
+`test/resilience/invariant.test.ts`).
 
-A camada de resiliência (M7, pilar 6 do doc do usuário) porta os hooks do
-arcanum (compaction-recovery / compaction-todo-preserver / work-continuation
-/ start-work-hook — supersedidos, AD-001) para MECANISMOS REAIS do Pi 0.81.0:
-
-| Mecanismo | Existe (SDK 0.81.0 / fork glla / harness) — evidência | F27 constrói |
-| --- | --- | --- |
-| Evento de compactação | SDK: `session_before_compact`/`session_compact` no union de eventos (types.d.ts linhas 432/444) + `shouldCompact` puro (compaction.d.ts) | Trigger primário (D1) + fallback honesto `session_start reason=resume|reload` |
-| Re-escrita de system prompt | SDK: `BeforeAgentStartEventResult.systemPrompt` encadeável (types.d.ts ~790; runner.js emitBeforeAgentStart re-passou currentSystemPrompt) | Continuation hook `src/extensions/resilience.ts` (D2) |
-| Estado de goal/taskList | ledger glla `.pi-glla/active.jsonl` (F24 ✓; F19 isSupervising) | Fonte de verdade da continuação + `.runecraft/continuation.json` (D2/QA-1) |
-| Tools de todos | glla `propose_task_list`/`update_task_status` (F24 ✓ — NÃO há todowrite) | Todo preserver (D3) |
-| Sinais de stall | SDK: `turn_start{turnIndex,timestamp}`/`turn_end{toolResults}`/`agent_end`/`tool_call`/`agent_settled` + `ctx.isIdle()`/`hasPendingMessages()` (types.d.ts 224/232) | Entrada do detector (D4) |
-| Maquinário de stall provado | glla: heartbeat/escalação, pending-latch watchdog, wedge alert, grace pós-compactação, extensionApiStale (loops/goal.ts) | Port puro em `src/resilience/stall.ts` (D4) |
-| Repetição/output idêntico | glla `goal-loop-repetition.ts` (fingerprint sha256, Jaccard 0.8, toolResultRepeat 3) | Detector `repetition`/`identical-output` (D4) |
-| Backoff | glla `goal-loop-backoff.ts` (stuck/error/context, hard cap 5min) | Ladder no detector/política (D4/D6) |
-| Rate-limit/quota | glla `quota-retry.ts` `isQuotaError`/`parseQuotaError` | Reuso no classificador `src/resilience/classify.ts` (D5) |
-| Política retry/skip/halt + orçamento | F25 `RETRY/SKIP/HALT` + `cost.ts` CostLedger | Política de escalação + budget (D6) |
-| Sugestão acionável | F25 `suggestions.ts` | Classificador `suggestion` (D5) |
-| Troca de modelo | F30 (model-resolution) — NÃO existe no F27 | Interface `FallbackAction.modelSwitch` NO-OP (D6 — fronteira explícita) |
-| Planos markdown / workflow | F32/F33 — NÃO existem no F27 | Outline; F27 resume do ledger apenas |
-
-**Operação**: a extensão `extensions/resilience.ts` (materializada nas sessões
-gerenciadas do harness) observa compactação (`session_before_compact` →
-snapshot do taskList; `session_compact` → grace 3min + continuação pendente),
-`session_start reason=resume|reload` (fallback honesto — QA-2) e re-injeta o
-prompt de continuação via `before_agent_start` (systemPrompt ENCADEADO —
-nunca sobrescreve outras extensões). O detector de stall observa eventos reais
-(`tool_call`/`tool_result`/`turn_end`/`agent_settled`) com limiares do fork
-glla (configuráveis via state.json `resilience` — defaults fail-closed),
-kill switch `RUNECRAFT_RESILIENCE=0`. Estado: ledger glla (goal/taskList) +
-`.runecraft/continuation.json` (metadados do harness) + `.runecraft/
-resilience-events.jsonl` (log append-only). Comando `/start-work` resume o
-goal ativo explicitamente (restart/resume — nunca automático em startup).
-
-**Fronteira F30 (travada — AD-027)**: `modelSwitch` é interface com
-implementação NO-OP; o F27 NÃO resolve modelo (settings/modelRoles são do
-runtime do Pi / F30). Invariante D7 (AD-024): a continuação re-injeta
-pendências SÓ do ledger atual — nunca re-injeta task completa (teste
-adversarial dedicado em `test/resilience/invariant.test.ts`).
-
-**Origens dos padrões**: os padrões de stall/backoff/quota são portes dos
-mecanismos do fork goal-loop-audit; cada port cita o arquivo-fonte no código
-(constantes com os valores exatos: HEARTBEAT_STALL_MS,
+**Pattern origins**: the stall/backoff/quota patterns are ports of the
+goal-loop-audit fork mechanisms; each port cites the source file in the code
+(constants with the exact values: HEARTBEAT_STALL_MS,
 WEDGE_ALERT_DEFAULT_MINUTES, PENDING_LATCH_STUCK_MS, COMPACTION_GRACE_MS,
 DEFAULT_STALL_ESCALATION_REFIRES, REPETITION.*, BACKOFF_HARD_CAP_MS).
 
-## 8.9 Observability & Lessons — event store, bundles e lessons do harness (F28)
+## 8.9 Observability & Lessons — event store, bundles and lessons
 
-A camada de observabilidade (M7, pilar 7 do doc do usuário — "Eventos tipados
-em event store auditável … exportável pra Langfuse/OTel") porta os hooks do
-arcanum (context-window-monitor / session-token-state / analytics —
-supersedidos, AD-001) para MECANISMOS REAIS do Pi 0.81.0 + taskflow:
+The observability layer provides typed events in an auditable append-only
+event store, exportable to Langfuse/OTel in the future:
 
-| Mecanismo | Existe (SDK 0.81.0 / fork glla / taskflow / harness) — evidência | F28 constrói |
+| Mechanism | Exists (SDK / forks / harness) | The harness builds |
 | --- | --- | --- |
-| Escrita append-only best-effort | F25 `recordSessionVerdict` (try/catch, "nunca derruba o handler") ✓ | `src/observability/store.ts` (D1 — mesmo padrão + prevHash chain) |
-| Logging sem stdout | F24 `guardLog` (stderr, `[runecraft:guards]`) ✓ | Reuso do guardLog (mesmo prefixo obs) |
-| Estado por sessão | F27 `.runecraft/continuation.json` (schema v1, append/atomic) ✓ | `lessons.jsonl` (estado) + `events/` (append-only) |
-| Contexto/tokens | taskflow `.pi/taskflows/runs/token-budget/*.json` (shape verificado) ✓; SDK `ctx.getContextUsage()` (`ContextUsage` tipado) ✓; `shouldCompact` puro ✓ | context-monitor + token-state (D4) + leitura read-only |
-| Reescrita de system prompt | SDK `before_agent_start` → systemPrompt encadeado (types.d.ts "If multiple extensions return this, they are chained") ✓ | Injeção do adendo de lessons (D6 — marker `<!-- runecraft:lessons -->`) |
-| Observação de bloqueio | SDK `tool_execution_end` (isError + reason no result.content — agent-loop.js `createErrorToolResult`) ✓; o `tool_call` NÃO expõe o block (runner.js short-circuit — validado no Execute) | `guard:blocked` live (D7a) |
-| Fingerprint canônico | F23 sort/normalize (chaves ordenadas) ✓; F19 renderRules puro ✓ | `src/observability/bundle.ts` (D3) |
-| Captura de lessons | Nenhum (novo domínio) | `src/observability/lessons.ts` (D5/D6) |
-| Export | Nenhum (sinks fragmentados) | `src/observability/export.ts` + `docs/EVENTS.md` (D7/D8) |
-| Memória de time | F29 (runes) — futuro | `promoted.jsonl` versionado (D5) — F29 consome |
-| OTel/Langfuse SDK | Nenhum (zero deps travado) | Tabela de mapeamento em `docs/EVENTS.md`; implementação adiada (nota datada 2026-08-08) |
+| Append-only best-effort writes | verification `recordSessionVerdict` (try/catch, never crashes the handler) | `src/observability/store.ts` (same pattern + prevHash chain) |
+| Logging without stdout | guardLog (stderr, `[runecraft:guards]`) | reuses guardLog (same prefix) |
+| Per-session state | `.runecraft/continuation.json` (schema v1, append/atomic) | `lessons.jsonl` (state) + `events/` (append-only) |
+| Context/tokens | taskflow `.pi/taskflows/runs/token-budget/*.json`; SDK `ctx.getContextUsage()` (typed `ContextUsage`); pure `shouldCompact` | context-monitor + token-state + read-only access |
+| System prompt rewrite | SDK `before_agent_start` → chained systemPrompt | lessons addendum injection (marker `<!-- runecraft:lessons -->`) |
+| Block observation | SDK `tool_execution_end` (isError + reason in result.content); the `tool_call` does NOT expose the block | `guard:blocked` live |
+| Canonical fingerprint | ratchet sort/normalize (sorted keys); pure renderRules | `src/observability/bundle.ts` |
+| Lesson capture | none (new domain) | `src/observability/lessons.ts` |
+| Export | none (fragmented sinks) | `src/observability/export.ts` + `docs/EVENTS.md` |
+| Team memory | memory layer (section 8.10) — future | versioned `promoted.jsonl` (consumed by the memory layer) |
+| OTel/Langfuse SDK | none (zero-deps locked) | mapping table in `docs/EVENTS.md`; implementation deferred (dated note 2026-08-08) |
 
-**Operação**: a extensão `extensions/observability.ts` (materializada nas
-sessões gerenciadas do harness — manifest do package) grava eventos tipados em
-`.runecraft/events/<sessionId>.jsonl` (header `session:started` com o bundle
-full + prefixo 12 hex nos demais), observa bloqueios via `tool_execution_end`
-(→ `guard:blocked` + lesson), monitora contexto (getContextUsage + token-
-budget read-only) e injeta adendo de lessons via `before_agent_start` (trilhas
-planning = promovidas no início; execution = lições do gate que falhou no
-turno seguinte — chaining preservado). Lessons em `.runecraft/lessons.jsonl`
-(estado, gitignored); promoção → `.runecraft/lessons/promoted.jsonl`
-(VERSIONADO — memória de time). CLI: `harness events export --format jsonl
-[--session <id>] [--include-external]` (determinístico + bridges) e `harness
-lessons list|promote <id>|archive <id>`. Kill switch
-`RUNECRAFT_OBSERVABILITY=0` (F20). O contrato do schema (kinds, fronteiras,
-mapeamento OTel/Langfuse) vive em `docs/EVENTS.md` (OBS-09 — schema É o
-contrato de F24/F25/F27).
+**Operation**: the extension `extensions/observability.ts` (materialized in
+harness-managed sessions) writes typed events to
+`.runecraft/events/<sessionId>.jsonl` (header `session:started` with the full
+bundle + 12-hex prefix on the rest), observes blocks via `tool_execution_end`
+(→ `guard:blocked` + lesson), monitors context (getContextUsage + read-only
+token-budget) and injects the lessons addendum via `before_agent_start`
+(planning track = promoted at start; execution track = lessons from the gate
+that failed in the next turn — chaining preserved). Lessons live in
+`.runecraft/lessons.jsonl` (state, gitignored); promotion →
+`.runecraft/lessons/promoted.jsonl` (VERSIONED — team memory). CLI:
+`harness events export --format jsonl [--session <id>] [--include-external]`
+(deterministic + bridges) and `harness lessons list|promote <id>|archive
+<id>`. Kill switch `RUNECRAFT_OBSERVABILITY=0`. The schema contract (kinds,
+boundaries, OTel/Langfuse mapping) lives in `docs/EVENTS.md`.
 
-## 8.10 Memory — memória persistente cross-session (F29)
+## 8.10 Memory — persistent cross-session memory
 
-A camada de memória (M7, pilar 7 do doc do usuário — "memória durável
-consultável por tool") porta o pacote `runes` do arcanum para MECANISMOS REAIS do Pi 0.81.0:
+The memory layer provides durable memory queryable by tool:
 
-| Mecanismo | Existe (SDK 0.81.0 / runes / harness) — evidência | F29 constrói |
+| Mechanism | Exists (SDK / runes / harness) | The harness builds |
 | --- | --- | --- |
-| SQLite + FTS5 + WAL | `bun:sqlite` (Bun 1.3.14) ✓ · `node:sqlite`/DatabaseSync (Node ≥22.19, F35) ✓ — probes: WAL `"wal"`, FTS5 diacríticos, schema real executa | `src/memory/client.ts` (driver duplo) + `schema.sql` AS-IS (D1/D4) |
-| Registro de tools Pi | `pi.registerTool(defineTool(...))` ✓ (fork glla goal.ts:2621+) | `src/memory/tools.ts` — 10 × `rune_*` (D3) |
-| Extensão Pi do harness | `extensions/{guards,resilience,observability}.ts` + manifest `pi.extensions` ✓ | `extensions/memory.ts` (D3) |
-| Config aditiva + freeze + kill switch | state.ts `guards`/`verification`/`resilience`/`observability` ✓ (F24 D12) | `src/memory/config.ts` seção `memory` (D5) |
-| Fixture determinística | F21 ScriptedScenario + materialização de extensões ✓ | evals EVAL-030..038 (D11) |
-| Memória de time versionada | F28 `lessons/promoted.jsonl` ✓ | bridge import-lessons (D7) |
-| DRY relógio/id (determinismo) | F28 monitor injetável ✓ (F21 D10) | DI clock/idGen no Repository (D6) |
-| CLI subcomando | dispatch F11 (install/verify/lessons...) ✓ | `harness memory` (D8) |
-| Drift check FTS | `bin/runes.ts` doctor ✓ | `src/memory/cli.ts` doctor [--purge] (D8) |
-| argsHash (privacidade) | F28 D2 (tool:call/result hashed) ✓ | garantia MEM-09 + EVAL-038 (D10) |
+| SQLite + FTS5 + WAL | `bun:sqlite` (Bun 1.3.14) · `node:sqlite`/DatabaseSync (Node ≥22.19) — probes: WAL `"wal"`, FTS5 diacritics, real schema executes | `src/memory/client.ts` (dual driver) + `schema.sql` AS-IS |
+| Pi tool registration | `pi.registerTool(defineTool(...))` | `src/memory/tools.ts` — 10 × `rune_*` |
+| Harness Pi extension | `extensions/{guards,resilience,observability}.ts` + `pi.extensions` manifest | `extensions/memory.ts` |
+| Additive config + freeze + kill switch | state.ts sections (same pattern as other layers) | `src/memory/config.ts` section `memory` |
+| Deterministic fixture | scripted scenarios + extension materialization | memory evals |
+| Versioned team memory | observability `lessons/promoted.jsonl` | import-lessons bridge |
+| DRY clock/id (determinism) | injectable clock/idGen | DI clock/idGen in the Repository |
+| CLI subcommand | CLI dispatch (install/verify/lessons...) | `harness memory` |
+| FTS drift check | doctor-style check | `src/memory/cli.ts` doctor [--purge] |
+| argsHash (privacy) | hashed tool:call/result | privacy guarantee + eval |
 
-**Operação**: a extensão `extensions/memory.ts` (materializada nas sessões
-gerenciadas — manifest do package) registra os 10 tools `rune_*` no
-`session_start` (mesmo padrão do glla), com o DB local `.runecraft/memory/
-runes.db` (WAL — o arquivo É a memória cross-session; D2 honesto:
-`appendEntry` é log de sessão e não persiste). A skill `using-runes`
-(manifest `pi.skills`) instrui o agente a chamar `rune_context` no início,
-`rune_save` em decisão/correção, `rune_search` antes de agir, curadoria
-top-10 por categoria e "não salvar secrets" (QA-2 — tool-driven, zero rewrite
-de prompt). Bridge F28: `harness memory import-lessons` (idempotente,
-`where_ref="lesson:<id>"`; fonte read-only — F28 dono; default
+**Operation**: the extension `extensions/memory.ts` (materialized in
+harness-managed sessions) registers the 10 `rune_*` tools at `session_start`
+(same pattern as the goal-loop fork), with the local DB
+`.runecraft/memory/runes.db` (WAL — the file IS the cross-session memory;
+`appendEntry` is a session log and does not persist). The skill `using-runes`
+(manifest `pi.skills`) instructs the agent to call `rune_context` at the
+start, `rune_save` on a decision/correction, `rune_search` before acting,
+top-10 curation per category, and "do not save secrets" (tool-driven, zero
+prompt rewrite). Bridge: `harness memory import-lessons` (idempotent,
+`where_ref="lesson:<id>"`; read-only source; default
 `importLessonsOnStart: false`). CLI: `harness memory search|stats|doctor
-[--purge]|import-lessons`. Kill switch `RUNECRAFT_MEMORY=0` (F20 — camada
-inerte, zero tools/arquivos). Config no state `memory` (freeze por sessão).
-Referência completa: `docs/MEMORY.md`. Evals: EVAL-030..038 (matriz v7).
+[--purge]|import-lessons`. Kill switch `RUNECRAFT_MEMORY=0` (inert layer,
+zero tools/files). Config in state `memory` (frozen per session). Full
+reference: `docs/MEMORY.md`.
 
-**Fronteira F28 (travada — D7)**: F28 é dono de `lessons/promoted.jsonl` e
-events/; F29 importa read-only e idempotente (nunca reescreve a fonte, nunca
-sobrescreve memória do usuário). F30 (model routing) e F33 (routing) NÃO são
-tocados por F29.
+**Boundary**: the observability layer owns `lessons/promoted.jsonl` and
+`events/`; the memory layer imports read-only and idempotently (never
+rewrites the source, never overwrites user memory). Model routing
+(section 8.11) and coded routing (section 8.14) are not touched by this
+layer.
 
-## 8.11 Pi First-Class — persona, rules, model routing & SDD (F30)
+## 8.11 Pi First-Class — persona, rules, model routing & SDD
 
-O Pi agora é cidadão de primeira classe (M8, F30): persona + rules injetadas
-na sessão via `before_agent_start` encadeado, roteamento de modelo por agente
-(pi/opencode/claude/codex), modelSwitch do F27 implementado, geração de
-models.json e assets SDD versionados. Referência completa: `docs/PI.md`.
+Pi is a first-class citizen: persona + rules injected into the session via
+chained `before_agent_start`, per-agent model routing
+(pi/opencode/claude/codex), model switching, models.json generation and
+versioned SDD assets. Full reference: `docs/PI.md`.
 
-| Mecanismo | Existe (SDK 0.81.0 / harness) — evidência | F30 constrói |
+| Mechanism | Exists (SDK / harness) | The harness builds |
 | --- | --- | --- |
-| before_agent_start chaining | resilience.ts:216 + observability.ts:359 (append + markers) ✓ | `extensions/persona.ts` (D1) |
-| Regras do Pi | `renderRules("pi")` = PI_RULES (rulesContent.ts:26, golden F19) ✓ | `src/persona/rules.ts` (reuso read-only) |
-| Variante por sessão | SDK session_start reason (F27: resume/reload) ✓ | `src/persona/first-message.ts` (port) |
-| Model resolution | NENHUM no harness (só no guild) | `src/models/resolution.ts` (D4) |
-| Model switch | F27 FallbackActionKind.modelSwitch NO-OP (types.ts:115) ✓ | `src/models/switch.ts` (D6) |
-| Registry de modelos | `ModelRuntime.create({modelsPath})` + getModel (F21/AD-021) ✓ | `src/models/registry.ts` (path real validado) |
-| models.json fixture | `renderModelsJson(port)` (test/eval/layer2/fixture) ✓ | evals EVAL-042/043 (D10) |
-| Estado aditivo + kill switch | state.ts schemaVersion 1 (AD-013); RUNECRAFT_*_0 ✓ | seções `models`+`persona` (D5) |
-| Chains | `.pi/chains/*.chain.md` + discoverAgentsAll (fork subagents) ✓ | `assets/sdd/chains/sdd-*.chain.md` (D8) |
-| CLI subcomando | dispatch F11 (install/verify/lessons/memory...) ✓ | `harness models|sdd|plans` (D7/D8/D9) |
-| Eval framework | F26 runner/evaluators + EVAL-MATRIX ✓ | suite pi.ts EVAL-039..048 (D10) |
+| before_agent_start chaining | resilience + observability extensions (append + markers) | `extensions/persona.ts` |
+| Pi rules | `renderRules("pi")` = PI_RULES (rulesContent.ts) | `src/persona/rules.ts` (read-only reuse) |
+| Per-session variant | SDK session_start reason (resume/reload) | `src/persona/first-message.ts` (port) |
+| Model resolution | none in the harness | `src/models/resolution.ts` |
+| Model switch | interface in the resilience layer | `src/models/switch.ts` |
+| Model registry | `ModelRuntime.create({modelsPath})` + getModel | `src/models/registry.ts` (validated real path) |
+| models.json fixture | `renderModelsJson(port)` (eval fixture) | models evals |
+| Additive state + kill switch | state.ts schemaVersion 1; RUNECRAFT_*_0 pattern | `models` + `persona` sections |
+| Chains | `.pi/chains/*.chain.md` + agent discovery (subagents fork) | `assets/sdd/chains/sdd-*.chain.md` |
+| CLI subcommand | CLI dispatch (install/verify/lessons/memory...) | `harness models|sdd|plans` |
+| Eval framework | runner/evaluators | pi suite |
 
-**Operação**: a extensão `extensions/persona.ts` (materializada nas sessões
-gerenciadas — manifest do package) injeta persona + PI_RULES (markers
-`<!-- runecraft:persona -->` / `<!-- runecraft:rules -->`) no
-`before_agent_start` ENCADEADO (append — ordem de registro = ordem de
-append; EVAL-040) e aplica a variante de primeira mensagem UMA vez por
-sessão inicial (reason resume|reload → sem variante — F27 dono da
-continuação). Kill switches `RUNECRAFT_PERSONA=0` / `RUNECRAFT_MODELS=0`
-(F20). Config `persona`/`models` aditivas no state (freeze por sessão — F24
-D12; inválida → defaults + reporte — fail-closed F24 D10). Resolução de
-modelo por agente com precedência override → custom chain > builtin →
-systemDefault → null + warn (nada inventado — D4). `harness models
-generate` (determinístico, 2 runs byte-idênticos) + `harness models
-list|doctor` + seção Models no status + check 20 no doctor. SDD:
+**Operation**: the extension `extensions/persona.ts` (materialized in
+harness-managed sessions) injects persona + PI_RULES (markers
+`<!-- runecraft:persona -->` / `<!-- runecraft:rules -->`) in the CHAINED
+`before_agent_start` (append — registration order = append order) and applies
+the first-message variant ONCE per initial session (reason resume|reload →
+no variant — the resilience layer owns continuation). Kill switches
+`RUNECRAFT_PERSONA=0` / `RUNECRAFT_MODELS=0`. Config `persona`/`models`
+additive in the state (frozen per session; invalid → defaults + report —
+fail-closed). Model resolution per agent with precedence override → custom
+chain > builtin → systemDefault → null + warn (nothing invented).
+`harness models generate` (deterministic, 2 runs byte-identical) + `harness
+models list|doctor` + Models section in status + doctor check 20. SDD:
 `harness sdd new|chains` + `harness plans archive` (`.runecraft/plans/`).
-Evals: EVAL-039..048 (matriz v8 — categoria failover desbloqueada no F26).
 
-**Fronteiras (D11)**: F27 dono da interface modelSwitch (F30 implementa em
-`src/models/switch.ts` — zero mudanças em src/resilience/); F19 dono de
-PI_RULES (F30 reusa read-only); F28/F27 donos de continuation/lessons (a
-persona só anexa); F31 independente; F32 consome o config `models`.
+**Boundaries**: the resilience layer owns the modelSwitch interface (the
+models layer implements it in `src/models/switch.ts` — zero changes in
+`src/resilience/`); renderRules/PI_RULES are owned elsewhere (read-only
+reuse); the observability/resilience layers own continuation/lessons (the
+persona only appends); the Copilot adapter is independent; the role agents
+consume the `models` config.
 
-## 8.12 Copilot (VS Code) — adapter do harness (F31)
+## 8.12 Copilot (VS Code) — harness adapter
 
-O Copilot (VS Code) é o 5º agente do M8 (AD-022 decisão 8) com adapter no
-padrão F15 (`harness install --agent copilot`; aliases `vscode`/
-`vscode-copilot`/`github-copilot` — a nomenclatura de outro installer é aceita
-como alias, sem adotar o id). Alvos **repo-scoped** (workspace = cwd — QA-4):
+Copilot (VS Code) is a fifth managed agent with an adapter in the standard
+pattern (`harness install --agent copilot`; aliases `vscode`/
+`vscode-copilot`/`github-copilot` — another installer's naming is accepted as
+an alias, without adopting its id). Targets are **repo-scoped** (workspace =
+cwd):
 
-| Alvo | Arquivo | Conteúdo gerenciado |
+| Target | File | Managed content |
 | --- | --- | --- |
-| Regras | `.github/copilot-instructions.md` | seção `runecraft:workflow` (marcadores html F18) — conteúdo = `renderRules("copilot")` = o template não-Pi do F19 (reuso read-only, zero texto novo) |
-| MCP | `.vscode/mcp.json` | entry `servers.taskflow` — schema VS Code `{type: "stdio", command, args?, env?}` (sem `${input:...}` — o Agent Host não lê o arquivo diretamente: o VS Code repassa os servers) |
+| Rules | `.github/copilot-instructions.md` | `runecraft:workflow` section (html markers) — content = `renderRules("copilot")` = the shared non-Pi template (read-only reuse, zero new text) |
+| MCP | `.vscode/mcp.json` | entry `servers.taskflow` — VS Code schema `{type: "stdio", command, args?, env?}` (no `${input:...}` — the Agent Host does not read the file directly: VS Code forwards the servers) |
 
-**Host MCP reusado (QA-2/D4):** o servidor é o `@runecraft/taskflow-claude`
-(stdio genérico — `resolveMcpBin("claude")`; env > dev fork > npx pin com
-guard anti-upstream). **NUNCA `@runecraft/taskflow-copilot`** (não existe nos
-packages taskflow — fabricação fora de escopo). Alternativa user-level
-documentada: `~/.copilot/mcp-config.json` (lido nativamente pelo Agent Host)
-— fora do default (escopo repo-level do harness).
+**Host MCP reused**: the server is `@runecraft/taskflow-claude` (generic
+stdio — `resolveMcpBin("claude")`; env > dev fork > npx pin with anti-upstream
+guard). There is NO `@runecraft/taskflow-copilot` package — never fabricate
+one. A user-level alternative is documented: `~/.copilot/mcp-config.json`
+(read natively by the Agent Host) — outside the default (repo-level harness
+scope).
 
-**Detecção (D6):** bin `code`/`code-insiders` no PATH **OU** dirs de extensão
-`github.copilot*`/`github.copilot-chat*` sob `~/.vscode*/extensions` (a
-extensão é o sinal real — o CLI `code` nem sempre está no PATH). Ausente →
-install recusa **fail-closed display-only** (zero writes) com hint; status e
-doctor (check 21) reportam detect-only informativo — o harness nunca instala
+**Detection**: `code`/`code-insiders` binary on PATH OR extension dirs
+`github.copilot*`/`github.copilot-chat*` under `~/.vscode*/extensions` (the
+extension is the real signal — the `code` CLI is not always on PATH). Absent →
+install refuses **fail-closed display-only** (zero writes) with a hint;
+status and doctor (check 21) report detect-only — the harness never installs
 runtimes.
 
-**Matriz (D8):** coluna copilot = taskflow-MCP + rules + 4 células
-`unsupported` (subagents/goal-loop-audit/pr-review/guards — "é extensão Pi;
-use --agent pi"; guards sem enforcement em agentes não-Pi — F24).
+**Matrix**: the copilot column = taskflow-MCP + rules + 4 `unsupported` cells
+(subagents/goal-loop-audit/pr-review/guards — "is a Pi extension; use
+`--agent pi`"; guards have no enforcement on non-Pi agents).
 
-**Two-driver com outro installer (D10):** outro installer gerencia o Copilot
-em **user-level** (`~/.copilot/...`, legado `~/.github/copilot-instructions.md`
-na HOME — auto-removido por versões novas dele; persona do VS Code
-via `SystemPromptFile(homeDir)`). O harness F31 é **repo-level** — **sem
-colisão de path**, mas com sobreposição SEMÂNTICA: o VS Code fornece ambos os
-conjuntos ao modelo (prioridade personal > repo). O `owners.ts` detecta o
-state `~/.gentle-ai/state.json` + marcadores `<!-- gentle-ai:` e o install com
-colisão exige `--yes` (gate MXST-04); conteúdo do usuário em
-`.github/copilot-instructions.md`/`.vscode/mcp.json` é sempre preservado e
-reportado — o harness nunca remove/reescreve nada alheio.
+**Two-driver with another installer**: another installer manages Copilot at
+**user-level** (`~/.copilot/...`, legacy `~/.github/copilot-instructions.md`
+in HOME — auto-removed by newer versions of that installer; VS Code persona
+via `SystemPromptFile(homeDir)`). The harness adapter is **repo-level** — **no
+path collision**, but SEMANTIC overlap: VS Code provides both sets to the
+model (personal takes priority over repo). `owners.ts` detects the state
+`~/.gentle-ai/state.json` + `<!-- gentle-ai:` markers, and an install with a
+collision requires `--yes`; user content in
+`.github/copilot-instructions.md`/`.vscode/mcp.json` is always preserved and
+reported — the harness never removes or rewrites foreign content.
 
-**Governança:** goldens `mcp-copilot.golden` (arquivo mcp.json COMPLETO —
-desvio documentado do F23 D4: nesting 2 níveis `servers.taskflow`); evals
-EVAL-049..056 (matriz v9); F19 dono do conteúdo das regras (`renderRules`
-intocado — copilot recebe o NON_PI_RULES existente).
+**Governance**: golden `mcp-copilot.golden` (the COMPLETE mcp.json file);
+evals for the adapter; the rules content stays owned by `renderRules`
+(untouched — copilot receives the existing non-Pi rules).
 
-## 8.13 Objective Role Agents — papéis objetivos do harness (F32)
+## 8.13 Objective Role Agents — objective roles
 
-O harness entrega 7 papéis profissionais objetivos como **agentes-dados**
-(`agents/*.md` versionados no pacote → materializados em `<cwd>/.pi/agents/`
-via `harness install/sync` — escopo projeto, QA-2a). O fork `@runecraft/subagents`
-descobre `.pi/agents/*.md` nativamente (`resolveNearestProjectAgentDirs` +
-`loadAgentsFromDir` — agents.ts) e o arquivo de escopo projeto **shadowa** o
-builtin homônimo (`mergeAgentsForScope` — projeto > builtin). Agentes são
-DADOS: extensíveis por construção (qualquer `.md` novo no dir é descoberto) e
-editáveis pelo usuário (o sync faz three-way por conteúdo — F19 D7: edição
-preservada, nunca auto-cura). Zero tema de fantasia (decisão 2 — deny-list nos
-evals).
+The harness ships 7 professional objective roles as **data-driven agents**
+(`agents/*.md` versioned in the package → materialized in `<cwd>/.pi/agents/`
+via `harness install/sync` — project scope). The `@runecraft/subagents` fork
+discovers `.pi/agents/*.md` natively and the project-scope file **shadows**
+the same-named builtin (project > builtin). Agents are DATA: extensible by
+construction (any new `.md` in the dir is discovered) and user-editable (the
+sync does a three-way merge by content — edits preserved, never auto-healed).
+Zero fantasy theme.
 
-### Os 7 papéis (D3 — allowlist fail-closed: o que não está na lista não existe)
+### The 7 roles (fail-closed allowlist: what is not in the list does not exist)
 
-| Papel | Identidade | Tools (allowlist) | Constraints | Delegação |
+| Role | Identity | Tools (allowlist) | Constraints | Delegation |
 | --- | --- | --- | --- | --- |
-| planner | planos apenas, 2 modos (interactive/automatic), clarificação por escopo, NUNCA implementa | read, grep, find, ls, intercom | read-only; `acceptanceRole: read-only`; `output: plan.md` (persistido pelo runtime) | nunca |
-| builder | executa o plano, verifica antes de reportar; único papel escritor | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | writer; `defaultReads: plan.md` | ÚNICO papel com `subagent` (QA-5a): spawna scout (recon) + reviewer (verificação) |
-| reviewer | veredito `[APPROVE]/[REJECT]` + resumo + ≤3 blocking issues, approval bias; plan review + work review | read, grep, find, ls, bash, intercom | read-only (SEM edit/write — endurecido vs builtin); in-loop | nunca |
-| auditor | auditoria de conformidade; write restrito a `.md` (guard F24) | read, grep, find, ls, bash, write, intercom | md-only (default `guards.rangerMdOnly.mdOnlyAgents=[auditor]` — D7) | nunca |
-| scout | recon de codebase, reporta no retorno | read, grep, find, ls, intercom | read-only; `output: context.md` | nunca |
-| researcher | pesquisa externa, cita fontes | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | read-only; `output: research.md` | nunca |
-| security | revisão de segurança/conformidade, triage + fast-exit, classes de vulnerabilidade | read, grep, find, ls, bash, intercom | read-only; veredito estruturado | nunca |
+| planner | plans only, 2 modes (interactive/automatic), clarification by scope, NEVER implements | read, grep, find, ls, intercom | read-only; `acceptanceRole: read-only`; `output: plan.md` (persisted by the runtime) | never |
+| builder | executes the plan, verifies before reporting; the only writer role | read, grep, find, ls, bash, edit, write, intercom, contact_supervisor, subagent | writer; `defaultReads: plan.md` | ONLY role with `subagent`: spawns scout (recon) + reviewer (verification) |
+| reviewer | verdict `[APPROVE]/[REJECT]` + summary + ≤3 blocking issues, approval bias; plan review + work review | read, grep, find, ls, bash, intercom | read-only (NO edit/write — hardened vs builtin); in-loop | never |
+| auditor | compliance audit; write restricted to `.md` (ranger-md-only guard) | read, grep, find, ls, bash, write, intercom | md-only (default `guards.rangerMdOnly.mdOnlyAgents=[auditor]`) | never |
+| scout | codebase recon, reports on return | read, grep, find, ls, intercom | read-only; `output: context.md` | never |
+| researcher | external research, cites sources | read, grep, find, ls, web_search, fetch_content, get_search_content, intercom | read-only; `output: research.md` | never |
+| security | security/compliance review, triage + fast-exit, vulnerability classes | read, grep, find, ls, bash, intercom | read-only; structured verdict | never |
 
-### Mapeamento honesto builtin ↔ papel (D2 — QA-1)
+### Honest builtin ↔ role mapping
 
-| Papel objetivo | Builtin do fork | Relação |
+| Objective role | Fork builtin | Relationship |
 | --- | --- | --- |
-| planner | planner | **shadow compatível** — o builtin já era read-only com `output: plan.md` sem tool write |
-| reviewer | reviewer | **shadow endurecido** — o builtin tinha edit/write; o papel remove (allowlist read-only ENFORÇA o que os fluxos do fork já pedem por instrução — "Reviewers must not edit files") |
-| scout | scout | **shadow endurecido** — o builtin tinha bash/write; o papel remove (`output: context.md` persistido pelo runtime) |
-| researcher | researcher | **shadow endurecido** — o builtin tinha write; o papel remove (`output: research.md`) |
-| builder | — | **novo** (sem builtin homônimo; papel escritor — semântica extraída do default.ts do arcanum) |
-| auditor | — | **novo** (AD-022 decisão 3: papel de auditoria; guard md-only assina o papel) |
-| security | — | **novo** (revisão de segurança — semântica extraída do default.ts do arcanum) |
-| worker/oracle/advisor/context-builder/delegate | — | **preservados** (sem contraparte objetiva — fluxos genéricos do fork continuam) |
+| planner | planner | **shadow compatible** — the builtin was already read-only with `output: plan.md` and no write tool |
+| reviewer | reviewer | **shadow hardened** — the builtin had edit/write; the role removes them (read-only allowlist ENFORCES what the fork flows already request by instruction — "Reviewers must not edit files") |
+| scout | scout | **shadow hardened** — the builtin had bash/write; the role removes them (`output: context.md` persisted by the runtime) |
+| researcher | researcher | **shadow hardened** — the builtin had write; the role removes it (`output: research.md`) |
+| builder | — | **new** (no same-named builtin; writer role) |
+| auditor | — | **new** (audit role; the md-only guard signs the role) |
+| security | — | **new** (security review) |
+| worker/oracle/advisor/context-builder/delegate | — | **preserved** (no objective counterpart — generic fork flows continue) |
 
-Artefatos `output:` (plan.md/context.md/research.md) são **persistidos pelo
-runtime do fork**, não pelo agente (single-output.ts: agente sem tool de
-mutação → "Return the complete artifact… The runtime will persist it").
+`output:` artifacts (plan.md/context.md/research.md) are **persisted by the
+fork runtime**, not by the agent: an agent without mutation tools returns the
+complete artifact and the runtime persists it.
 
-### Delegação (D5 — QA-5a)
+### Delegation
 
-O mecanismo de spawn do planejador do arcanum (spawn-wizard) vira um
-**template renderizado**
-(`src/agents/delegation.ts` — `renderDelegationPrompt`): instrui o delegador a
-usar a tool `subagent` (F2 — a delegação observada no F28) com `agent:
-"<papel>"` e lista os alvos válidos (`buildKeyTriggersSection` — D4). Política
-v1: **só o builder spawna** (scout + reviewer); os demais papéis NÃO têm a
-tool `subagent` no allowlist (fail-closed — não spawnam; espelho da política
-de spawn do planejador do arcanum: o planejador nunca spawna). A orquestração
-codificada (keyword-detector) é o F33 — consumindo estes papéis por dados
-(outline).
+The delegation prompt is a **rendered template**
+(`src/agents/delegation.ts` — `renderDelegationPrompt`): it instructs the
+delegator to use the `subagent` tool with `agent: "<role>"` and lists the
+valid targets (`buildKeyTriggersSection`). v1 policy: **only the builder
+spawns** (scout + reviewer); the other roles do NOT have `subagent` in their
+allowlist (fail-closed — they cannot spawn; mirrors the spawn policy of the
+original planner: the planner never spawns). The coded orchestration
+(keyword-detector, section 8.14) consumes these roles by data (outline).
 
-### Composição de review (D6)
+### Review composition
 
-O reviewer é um agente **read-only in-loop** (veredito `[APPROVE]/[REJECT]` +
-≤3 blocking issues). O fluxo de review de PR continua com o **pr-review (F5)**
-+ **receipts (F20)** — fronteira explícita (loop tools do pr-review são gated
-fora de `/pr-review` ativo — F21 AD-021; o reviewer NÃO é wrapper). Variantes
-de modelo do reviewer (`review_models` → `reviewer-review-<key>`) são
-**interface de dados F30** (`models.agents.reviewer.review_models` /
-`models.agents.security.review_models`) — fan-out/collation permanece no fork
-pr-review.
+The reviewer is a **read-only in-loop** agent (verdict `[APPROVE]/[REJECT]` +
+≤3 blocking issues). PR review continues with **pr-review** + **receipts**
+(explicit boundary — the pr-review loop tools are gated outside an active
+`/pr-review`; the reviewer is NOT a wrapper). Reviewer model variants
+(`review_models` → `reviewer-review-<key>`) are data of the models layer
+(`models.agents.reviewer.review_models` /
+`models.agents.security.review_models`) — fan-out/collation stays in the
+pr-review fork.
 
-### Modelos (D8 — QA-4a)
+### Models
 
-Os 7 ids de papel são ids válidos de `state.models.agents.<id>.fallbackChain`
-(F30 D5/D11) — **nenhum chain default no código** (F30 D4: zero IDs
-inventados; modelos vêm do models.json do SDK via `harness models generate`).
-Exemplo de config do USUÁRIO com a semântica de classes do arcanum
-(AGENT_MODEL_REQUIREMENTS — lido no Execute; NUNCA default):
+The 7 role ids are valid `state.models.agents.<id>.fallbackChain` ids —
+**no default chain in code** (zero invented ids; models come from the SDK
+models.json via `harness models generate`). Example USER config with class
+semantics (heavy = planner/researcher/security · light = builder/scout ·
+medium = reviewer/auditor — never a default):
 
 ```jsonc
 { "models": { "agents": {
-  "planner":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
-  "researcher":{ "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
-  "security":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "pesado-1" }] },
-  "builder":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "leve-1" }] },
-  "scout":     { "fallbackChain": [{ "providers": ["provider-a"], "model": "leve-1" }] },
-  "reviewer":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "medio-1" }] },
-  "auditor":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "medio-1" }] }
+  "planner":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "heavy-1" }] },
+  "researcher":{ "fallbackChain": [{ "providers": ["provider-a"], "model": "heavy-1" }] },
+  "security":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "heavy-1" }] },
+  "builder":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "light-1" }] },
+  "scout":     { "fallbackChain": [{ "providers": ["provider-a"], "model": "light-1" }] },
+  "reviewer":  { "fallbackChain": [{ "providers": ["provider-a"], "model": "medium-1" }] },
+  "auditor":   { "fallbackChain": [{ "providers": ["provider-a"], "model": "medium-1" }] }
 } } }
 ```
 
-(pesado = planner/researcher/security · leve = builder/scout · médio =
-reviewer/auditor — semântica extraída do arcanum.)
+### Boundaries
 
-### Fronteiras (D10)
+- The guards layer owns the `rangerMdOnly` guard — this layer changes only
+  the config default (`mdOnlyAgents += "auditor"`); the guard code is
+  untouched.
+- The models layer owns `src/models/` — this layer consumes it by id contract.
+- Coded routing (section 8.14) owns the orchestration — this layer delivers
+  agents + templates (outline).
+- renderRules stays untouched.
+- PR review/receipts own PR review — the reviewer is in-loop.
+- The subagents fork is consumed READ-ONLY (zero changes).
+- Identity: the fork sets `PI_SUBAGENT_CHILD_AGENT` (not
+  `RUNECRAFT_AGENT_ID`) — the documented bridge (`src/agents/identity.ts`)
+  translates the child identity to the env the guard reads.
 
-- **F24** é o dono do guard `rangerMdOnly` — F32 muda só o **default de
-  config** (`mdOnlyAgents += "auditor"` em guardKit.ts); o guard fica INTOCADO.
-- **F30** é o dono de `src/models/` — F32 consome por contrato de ids.
-- **F33** é o dono da orquestração codificada — F32 entrega agentes +
-  templates (outline).
-- **F19** é o dono do renderRules — F32 não toca `rulesContent.ts`.
-- **F5/F20** donos do review de PR/receipts — o reviewer é in-loop.
-- Fork subagents consumido READ-ONLY (zero mudança).
-- Identidade: o fork seta `PI_SUBAGENT_CHILD_AGENT` (não `RUNECRAFT_AGENT_ID`)
-  — a bridge documentada (adendo before_agent_start do F28,
-  `src/agents/identity.ts`) traduz a identidade do child para o env que o
-  guard lê (validado no Execute F32).
+## 8.14 Coded Routing & Pilot Coordination — coded routing
 
-Evals: EVAL-057..066 (matriz v10 — categorias tool-use correctness e routing
-completeness desbloqueadas).
+The harness routes each task by **PURE CODE**: the deterministic classifier
+(`src/routing/classifier.ts`) turns text/file features into a route, with
+explicit thresholds in constants — NEVER an LLM, never probabilistic. The
+category semantics come from the original prompt-composer; the probabilistic
+mechanism (an LLM choosing the route) is NOT ported, and the fantasy-theme
+injection was dropped (zero deterministic value). The hook is
+`before_agent_start` (STOP RULES — the first message IS the prompt).
 
-## 8.14 Coded Routing & Pilot Coordination — roteamento codificado do harness (F33)
+### Route categories (7 routes × role × keywords × threshold)
 
-O harness roteia cada tarefa por **CÓDIGO PURO** (decisão 3c — AD-022): o
-classificador determinístico (`src/routing/classifier.ts`) transforma
-features de texto/arquivo → rota, com thresholds explícitos em constantes —
-NUNCA LLM, nunca probabilístico. A semântica das categorias vem do
-prompt-composer do bard do arcanum (lido — D3); o MECANISMO probabilístico
-(LLM decide a rota) NÃO é portado, e a injeção "ULTRAWORK" (tema RPG) foi
-dropada (zero valor determinístico — decisão 2). O hook é o
-`before_agent_start` (STOP RULES — sem evento `input` no surface F21..F28; a
-primeira mensagem É o `event.prompt`: types.d.ts:518 "The raw user prompt
-text (after expansion)" — validado no Execute F33).
-
-### Tabela de categorias (7 rotas × papel F32 × keywords × threshold)
-
-| Rota | Papel F32 | Chain de piloto | Sinais high (×2) | Sinais medium (×1) | Priority | Mandatory |
+| Route | Role | Pilot chain | High signals (×2) | Medium signals (×1) | Priority | Mandatory |
 | --- | --- | --- | --- | --- | --- | --- |
-| explore | scout | explore.chain.md | locate, trace, where is, find where, map the codebase, codebase recon, recon | explore, navigate, codebase, understand the code, module boundaries | 1 | não |
-| research | researcher | research.chain.md | research, look up docs, look up documentation, external docs, check the docs, search the web, read the docs, find documentation | documentation, sources, cite, best practices, compare | 2 | não |
-| review | reviewer | — (sem chain no v1) | review, validate, check my work, approve, verify my changes, code review, review my | assess, quality, verdict, audit, verify, feedback, check the | 3 | não |
-| implement | builder | implement.chain.md | implement, build, refactor, add feature, port, fix, execute the plan, write the code, create the | modify, update, edit, create, add, execute, code changes, todo list | 4 | não |
-| planning | planner | plan.chain.md | plan, planning, break down, roadmap, spec, specification, design, redesign, scope, task list, decompose, estimate, architecture | outline, approach, strategy, steps, todos, milestones, requirements | 5 | não |
-| security | security | security.chain.md | auth, authentication, authorization, crypto, cryptographic, token(s), secret(s), password(s), session(s), cors, oauth, oidc, saml, .env, input validation, signature(s), csrf, xss, credential(s), encrypt(ion), sanitize | security, vulnerability, threat, privilege, permissions, exploit, injection, data breach, leak | 6 | **SIM** (high-signal bypassa o threshold — espelho do paladin) |
+| explore | scout | explore.chain.md | locate, trace, where is, find where, map the codebase, codebase recon, recon | explore, navigate, codebase, understand the code, module boundaries | 1 | no |
+| research | researcher | research.chain.md | research, look up docs, look up documentation, external docs, check the docs, search the web, read the docs, find documentation | documentation, sources, cite, best practices, compare | 2 | no |
+| review | reviewer | — (no chain in v1) | review, validate, check my work, approve, verify my changes, code review, review my | assess, quality, verdict, audit, verify, feedback, check the | 3 | no |
+| implement | builder | implement.chain.md | implement, build, refactor, add feature, port, fix, execute the plan, write the code, create the | modify, update, edit, create, add, execute, code changes, todo list | 4 | no |
+| planning | planner | plan.chain.md | plan, planning, break down, roadmap, spec, specification, design, redesign, scope, task list, decompose, estimate, architecture | outline, approach, strategy, steps, todos, milestones, requirements | 5 | no |
+| security | security | security.chain.md | auth, authentication, authorization, crypto, cryptographic, token(s), secret(s), password(s), session(s), cors, oauth, oidc, saml, .env, input validation, signature(s), csrf, xss, credential(s), encrypt(ion), sanitize | security, vulnerability, threat, privilege, permissions, exploit, injection, data breach, leak | 6 | **YES** (high signal bypasses the threshold) |
 | direct | — | — | — | — | 0 | fail-closed default |
 
-**Features**: texto do prompt/tarefa (case-insensitive; palavra única com
-token-boundary, frases por substring); presença de `.specs/**/spec.md` (SDD —
-`specPath` injetado pelo caller ou menção de `.specs/` no texto) → **+2
-planning**. Contagem de arquivos (`git status`) NÃO entra na rota inicial — é
-gate da CHAIN (≥3 arquivos → passo de review). `ROUTE_THRESHOLD = 2`
-(constante): score ≥ 2 → rota; score < 2 → `direct` (fail-closed — o bard só
-delegava trabalho substancial). Empate → prioridade determinística
-(security > planning > implement > review > research > explore). Entrada
-vazia/ilegível → `direct`.
+**Features**: prompt/task text (case-insensitive; single-word keywords with
+token boundary, phrases by substring); spec-driven development — the presence
+of a project spec file (specPath injected by the caller) or a mention of the
+spec directory in the text → **+2 planning**. File count (`git status`) does
+NOT enter the initial route — it is a CHAIN gate (≥3 files → review step).
+`ROUTE_THRESHOLD = 2` (constant): score ≥ 2 → route; score < 2 → `direct`
+(fail-closed). Tie → deterministic priority (security > planning > implement
+> review > research > explore). Empty/unreadable input → `direct`.
 
-### Pilot coordination — chains (workflow engine do guild → dados)
+### Pilot coordination — chains
 
-O workflow engine do guild (steps/gates/artifacts) vira **5 pilot chains**
-versionadas (`chains/*.chain.md` no formato REAL do fork subagents 0.37.2 —
-front-matter `name`+`description` + seções `## <papel>`; materializadas em
-`<cwd>/.pi/chains/` — alvo REUSADO do F30 — com three-way por conteúdo F19
-D7 + contentHash F13):
+The workflow engine (steps/gates/artifacts) becomes **5 pilot chains**
+versioned (`chains/*.chain.md` in the real fork format — front-matter
+`name`+`description` + `## <role>` sections; materialized in
+`<cwd>/.pi/chains/` with three-way merge by content + contentHash):
 
-| Chain | Passos | Gate |
+| Chain | Steps | Gate |
 | --- | --- | --- |
-| implement.chain.md | builder (executa) → reviewer (gate) → builder (resumo/handoff) | veredito `[APPROVE]/[REJECT]` + ≤3 blocking issues |
-| plan.chain.md | planner (plan.md) → reviewer (gate) → builder (executa) → reviewer (work review) | veredito estruturado |
-| research.chain.md | researcher (brief com fontes) | — |
-| explore.chain.md | scout (recon read-only) | — |
-| security.chain.md | builder (implementa) → security (auditoria: triage + fast-exit, classes de vulnerabilidade) → builder (corrige) → reviewer (gate) | veredito estruturado |
+| implement.chain.md | builder (executes) → reviewer (gate) → builder (summary/handoff) | verdict `[APPROVE]/[REJECT]` + ≤3 blocking issues |
+| plan.chain.md | planner (plan.md) → reviewer (gate) → builder (executes) → reviewer (work review) | structured verdict |
+| research.chain.md | researcher (brief with sources) | — |
+| explore.chain.md | scout (read-only recon) | — |
+| security.chain.md | builder (implements) → security (audit: triage + fast-exit, vulnerability classes) → builder (fixes) → reviewer (gate) | structured verdict |
 
-Seleção: rota ≠ `direct` → chain pelo catálogo (1:1 no v1); **chain ausente
-em `.pi/chains/` → `direct` + warn** (fail-closed — nunca inventa rota/chain;
-a rota review não tem chain no v1 → idem). `REJECT` no gate → pause/fail
-(semântica do workflow engine portada — sem engine novo). Modelo por passo:
-`models.agents.<papel>.fallbackChain` (F30 — contrato de ids; fim-de-chain →
-null + warn, nada inventado).
+Selection: route ≠ `direct` → chain from the catalog (1:1 in v1); **chain
+missing in `.pi/chains/` → `direct` + warn** (fail-closed — never invents a
+route/chain; the review route has no chain in v1 → same). `REJECT` at a gate
+→ pause/fail. Model per step: `models.agents.<role>.fallbackChain` (id
+contract; end-of-chain → null + warn, nothing invented).
 
-### Delegação
+### Delegation
 
-`call_guild_agent` NÃO é portado — a tool `subagent` do fork (F2) é o
-equivalente nativo (child session + prompt + retorno). O ROUTING DIRECTIVE
-(marker `<!-- runecraft:routing -->`) injetado no `before_agent_start`
-instrui a sessão com `renderDelegationPrompt` + `buildKeyTriggersSection`
-(F32 — alvos válidos nome/descrição/tools). Política QA-5 PRESERVADA: só o
-builder tem `subagent` no allowlist; a ORQUESTRAÇÃO é da chain (runtime do
-fork spawna os passos), não do papel — papéis não-delegadores não spawnam.
+The `subagent` tool of the fork is the native equivalent (child session +
+prompt + return). The ROUTING DIRECTIVE (marker `<!-- runecraft:routing -->`)
+injected in `before_agent_start` instructs the session with
+`renderDelegationPrompt` + `buildKeyTriggersSection` (valid targets
+name/description/tools). The QA-5 policy is PRESERVED: only the builder has
+`subagent` in its allowlist; the ORCHESTRATION belongs to the chain (the fork
+runtime spawns the steps), not to the role — non-delegator roles do not spawn.
 
-### Config, kill switch e fronteiras
+### Config, kill switch and boundaries
 
-- **Config aditiva** `state.routing` (F13, schemaVersion 1): `{enabled,
-  threshold: {direct}, routes: {<id>: {enabled?, mandatory?}}}` — defaults no
-  código; freeze por sessão (F24 D12); rotas desabilitadas não são
-  selecionáveis.
-- **Kill switch** `RUNECRAFT_ROUTING=0|false|off` → extensão inerte (F20).
-- **Two-driver** (F19): sessão supervisionada pelo goal-loop (`sessionDriver`
-  — loop ativo OU goal active+autoContinue) → routing INERTE (o loop é o
-  piloto; ROUTING.md §2).
-- **F27**: fallback NÃO re-roteia (rota congelada por sessão; `modelSwitch`
-  troca MODELO, nunca rota).
-- **F30**: modelos por papel via `models.agents.<id>` (contrato de ids).
-- **F28**: lessons informam PROMPTS (adendo intacto), NUNCA rotas — rota =
-  função pura do input (fronteira RTE-07; teste de contrato).
-- **F32**: catalog read-only; QA-5 preservado; evals EVAL-067..078 (matriz
-  v11 — routing completeness COMPLETA, última categoria do F26).
-
-
-
-The exact text injected by `renderRules(agentId)` (source of truth: design
-F19 "Conteúdo dos templates (v1)" — D5/D6). The golden test asserts
-`renderRules(agentId)` == the corresponding block below byte for byte;
-divergence is red (D9). The markers are stable block delimiters; the text
-between them is what the section engine injects (the `runecraft:workflow`
-markers themselves are F15/F18 concerns).
+- **Additive config** `state.routing` (schemaVersion 1):
+  `{enabled, threshold: {direct}, routes: {<id>: {enabled?, mandatory?}}}` —
+  defaults in code; frozen per session; disabled routes are not selectable.
+- **Kill switch** `RUNECRAFT_ROUTING=0|false|off` → inert extension.
+- **Two-driver**: a session supervised by the goal-loop (`sessionDriver` —
+  active loop OR active goal + autoContinue) → routing INERT (the loop is the
+  pilot; see section 2).
+- **Resilience**: fallback does NOT re-route (route frozen per session;
+  `modelSwitch` changes MODEL, never route).
+- **Models**: per-role models via `models.agents.<id>` (id contract).
+- **Observability**: lessons inform PROMPTS (addendum intact), NEVER routes —
+  route = pure function of input (contract test).
+- **Role agents**: catalog read-only; delegation policy preserved.
 
 ## 9. Appendix: injected text (golden)
+
+The exact text injected by `renderRules(agentId)` — the same source of truth
+that feeds the golden test below. The golden test asserts
+`renderRules(agentId)` equals the corresponding block byte for byte;
+divergence is red. The markers are stable block delimiters; the text between
+them is what the section engine injects. The blocks are pinned and must not
+be edited by hand.
 
 <!-- BEGIN runecraft:golden:pi -->
 Runecraft workflow rules (v1)
@@ -765,98 +723,90 @@ You have taskflow-MCP for structured multi-phase work. Pick by situation.
   a single quick delegation (do it directly in the session).
 <!-- END runecraft:golden:non-pi -->
 
-## 10. Last verified
+## 10. Verification log
+
+The routing guide is validated against the source of truth on each change.
+Recent verification runs:
 
 - **2026-08-05**: capability table (section 3) verified against the fork
   sources — pins subagents 0.37.2 · taskflow 0.2.6 · goal-loop-audit 0.28.34 ·
-  pr-review 1.11.4 (AD-003). Contraindications marked *(derivado do roteamento
-  — validar no Execute)* derive from routing, not from fork docs.
-- **2026-08-06**: hello world (section 5) executed end to end (F7 COEX-05,
-  PASS — real timings/tokens in `.specs/features/f7-coexistence-validation/
-  scenarios.md`).
+  pr-review 1.11.4. Contraindications marked *(derived from routing)* derive
+  from routing, not from fork docs.
+- **2026-08-06**: hello world (section 5) executed end to end — PASS, with
+  real timings and token counts.
 - **2026-08-07**: driver detection validated against the goal-loop-audit
   source — state ledger `.pi-glla/active.jsonl` and the supervision predicate
   `isSupervising` (goal `active` + autoContinue, or loop active).
-- **2026-08-07**: Guards (section 8.5) verified against the pi SDK 0.81.0
-  source — `tool_call` blocks via `{ block: true, reason }` (runner.js
-  emitToolCall short-circuits); `turn_end`/`agent_end`/`agent_settled` handler
-  results are IGNORED (only `session_before_*` cancels) → the todo enforcer
-  hooks `complete_goal` (tool_call). glla tool names validated in the fork:
-  no `todowrite`/`todoresolve` — `propose_task_list`/`update_task_status`/
-  `complete_task`/`complete_goal`; ledger `.pi-glla/active.jsonl` (F24).
-- **2026-08-08**: Verification (section 8.6) validated in the Execute F25 —
-  `complete_goal` payload = `{completionSummary, verificationSummary,
-  newObjective}` (fork goal.ts); handler de `tool_call` PODE ser async
-  (runner awaits handlers); spec da sessão = objective do ledger (a glla
-  limpa o texto no start — "Done when" vira verificationContract);
-  `ToolCallEventResult` não permite anotar tool_call que passa (veredito
-  skip/degraded vai para o log `.runecraft/verify-verdicts.jsonl`);
-  auditor do glla reprova evidência que não cobre o contrato (approved
-  genérico do fixture não serve para qualquer goal); diff do working tree
-  exclui `.pi-glla/` e `.runecraft/` (bookkeeping do harness).
-- **2026-08-08**: Resilience (section 8.8) verified in the Execute F27 —
+- **2026-08-07**: Guards (section 8.5) verified against the Pi SDK 0.81.0
+  source — tool calls are blocked via `{ block: true, reason }`;
+  `turn_end`/`agent_end`/`agent_settled` handler results are IGNORED (only
+  `session_before_*` cancels) → the todo enforcer hooks the `complete_goal`
+  tool call. Goal-loop tool names validated in the fork: no
+  `todowrite`/`todoresolve` — `propose_task_list`/`update_task_status`/
+  `complete_task`/`complete_goal`; ledger `.pi-glla/active.jsonl`.
+- **2026-08-08**: Verification (section 8.6) validated — `complete_goal`
+  payload = `{completionSummary, verificationSummary, newObjective}`; tool-call
+  handlers may be async; the session spec = the ledger objective (the
+  goal-loop clears the text at start — "Done when" becomes the verification
+  contract); tool-call results cannot annotate a passing call (skip/degraded
+  verdicts go to `.runecraft/verify-verdicts.jsonl`); the auditor rejects
+  evidence that does not cover the contract; the working tree diff excludes
+  `.pi-glla/` and `.runecraft/` (harness bookkeeping).
+- **2026-08-08**: Resilience (section 8.8) verified — the SDK exposes
   `session_before_compact`/`session_compact`/`before_agent_start`/
-  `session_start{reason}`/`ctx.isIdle()`/`hasPendingMessages()` no SDK
-  0.81.0 (types.d.ts); `BeforeAgentStartEventResult.systemPrompt` chained
-  (runner.js emitBeforeAgentStart); `createAgentSession` aceita
-  `sessionStartEvent` (reason=resume simula o fallback honesto QA-2);
-  glla v0.28.34 restore gate HOLDs goals ativos no session load (não
-  auto-resume por default) → F27 injeta só quando o goal segue ativo
-  (autoresume=on) ou após session_compact mid-session; limitação honesta:
-  emissão real de `session_compact` no fixture não viável (QA-5 — handler
-  exportado com eventos scriptados cobre o trigger; evals usam evento
-  sintético, sem fabricação).
-- **2026-08-08**: Observability (section 8.9) verified in the Execute F28 —
-  `ContextEvent` = só messages (sem tokens): a fonte de contexto é a API
-  tipada `ctx.getContextUsage()` (`ContextUsage {tokens, contextWindow,
-  percent}` — types.d.ts do pi-coding-agent) + token-budget do taskflow
-  (shape real: `phases` OBJECT keyed com `usage{input,output,cacheRead,
-  cacheWrite,cost,contextTokens,turns}`) + `shouldCompact` puro; o resultado
-  do `tool_call` NÃO expõe o block F24 (runner.js short-circuit no primeiro
-  `{block:true}`) e chamadas bloqueadas NÃO emitem `tool_result` (agent-loop
-  pula afterToolCall p/ resultados imediatos) — a observação real é o
-  `tool_execution_end` (isError + reason `<guardId>: msg` no result.content);
-  `before_agent_start` é por prompt do usuário (o adendo execution entra no
-  próximo before_agent_start); `session_end` não existe no SDK 0.81.0 — o
-  fechamento usa `agent_end` + `session_shutdown` (idempotente).
-- **2026-08-09**: Memory (section 8.10) verified in the Execute F29 —
-  `defineTool` usa `parameters` TypeBox (`TParams extends TSchema` — types.d.ts
-  do pi-coding-agent; TypeBox já é peerDep do harness e usado pelo fork glla:
-  zero deps novas); `ExtensionContext.cwd` é a fonte do diretório do repo
-  (registro das tools no `session_start` — síncrono, padrão glla, sem race no
-  primeiro request); bun:sqlite (Bun 1.3.14) — e node:sqlite no runtime Node (F35) — executam o schema.sql REAL do runes
-  (WAL, FTS5 diacríticos, triggers real-table→FTS5); o argsHash do F28 é
-  sha256 prefixo 16 hex (nunca args crus — EVAL-038 asserta o sentinel ausente
-  do event store); `PRAGMA busy_timeout` do bun:sqlite expõe a coluna
-  `timeout` (não `busy_timeout`).
-- **2026-08-10**: Copilot (F31, section 8.12) — adapter repo-scoped do 5º
-  agente M8: rules `.github/copilot-instructions.md` (marker `runecraft:workflow`;
-  conteúdo = NON_PI_RULES do F19 — reuso read-only), MCP `.vscode/mcp.json`
-  `servers.taskflow` (schema VS Code verificado — `type: "stdio"` + command;
-  sem `${input:...}`: o Agent Host NÃO lê o arquivo — o VS Code repassa),
-  host MCP reusado `@runecraft/taskflow-claude` (QA-2 — nunca inventar
-  `taskflow-copilot`), detecção bin `code`/`code-insiders` OU extensão
-  `github.copilot*` (fail-closed display-only), two-driver outro installer
-  user-level × repo-level (sobreposição SEMÂNTICA — owners + gate MXST-04),
-  coluna na matriz (mcp+rules + 4 unsupported Pi-only), doctor check 21,
-  golden `mcp-copilot.golden` + EVAL-049..056 (matriz v9).
-- **2026-08-12**: Role agents (F32, section 8.13) verified in the Execute —
-  fork subagents descobre `.pi/agents/*.md` nativamente (`loadAgentsFromDir`
-  agents.ts:1306; `resolveNearestProjectAgentDirs` agents.ts:1493; shadowing
-  projeto > builtin via `mergeAgentsForScope` agent-selection.ts); frontmatter
-  aceito = flat `key: value` (parseFrontmatter frontmatter.ts); tools
-  observadas nos builtins = `read,grep,find,ls,bash,edit,write,intercom,
-  contact_supervisor,web_search,fetch_content,get_search_content` + `subagent`
-  (review-loop.md) — `glob` NÃO é tool do fork; `output:` é persistido pelo
-  runtime para agentes sem tool de mutação (single-output.ts
-  formatOutputPathInstruction); o fork NÃO seta `RUNECRAFT_AGENT_ID` por
-  dispatch (seta `PI_SUBAGENT_CHILD_AGENT` — pi-args.ts:26/354) → bridge
-  documentada no design (adendo before_agent_start do F28 —
-  src/agents/identity.ts) SEM tocar o guard; `contact_supervisor` é
-  bridge-gated (não registrado em sessão sem canal de supervisor — fora do
-  tool-policy do EVAL-060); o default `guards.rangerMdOnly.mdOnlyAgents`
-  agora é `["auditor"]` (D7 — guard intocado); EVAL-057..066 (matriz v10).
-- **Revalidation checklist** (on fork bumps via F10, or new limitations found
-  in F7/F22): table facts → section 3; injected text → section 9 +
-  `WORKFLOW_RULES_VERSION` bump; hello world → new versioned entry
-  (section 5).
+  `session_start{reason}`/`ctx.isIdle()`/`hasPendingMessages()`;
+  `BeforeAgentStartEventResult.systemPrompt` is chained; the goal-loop
+  restore gate HOLDS active goals at session load (no auto-resume by
+  default) → the harness injects only when the goal stays active
+  (autoresume=on) or after a mid-session compaction; honest limitation: a
+  real `session_compact` emission is not feasible in the fixture (a scripted
+  event covers the trigger; evals use a synthetic event, nothing fabricated).
+- **2026-08-08**: Observability (section 8.9) verified — the SDK `context`
+  event carries only messages (no tokens), so the context source is the typed
+  `ctx.getContextUsage()` API (`ContextUsage {tokens, contextWindow,
+  percent}`) plus the taskflow token budget; the `tool_call` result does NOT
+  expose a guard block (the runner short-circuits at the first `{block:true}`)
+  and blocked calls do not emit `tool_result` — the real observation is
+  `tool_execution_end` (isError + reason `<guardId>: msg`); `before_agent_start`
+  fires per user prompt (the execution addendum enters at the next one);
+  there is no `session_end` in the SDK 0.81.0 — shutdown uses `agent_end` +
+  `session_shutdown` (idempotent).
+- **2026-08-09**: Memory (section 8.10) verified — `defineTool` uses TypeBox
+  parameters; the extension registers the `rune_*` tools synchronously at
+  `session_start` (no race on the first request); `bun:sqlite` (Bun 1.3.14)
+  and `node:sqlite` (Node ≥22.19) both run the real runes schema (WAL, FTS5
+  diacritics, real-table→FTS5 triggers); tool arguments are hashed (sha256,
+  16-hex prefix) and never stored raw; `PRAGMA busy_timeout` in bun:sqlite
+  exposes the column `timeout` (not `busy_timeout`).
+- **2026-08-10**: Copilot (section 8.12) — repo-scoped adapter for the fifth
+  managed agent: rules in `.github/copilot-instructions.md` (marker
+  `runecraft:workflow`; content = the non-Pi rules — read-only reuse), MCP in
+  `.vscode/mcp.json` `servers.taskflow` (VS Code schema verified — `type:
+  "stdio"` + command; no `${input:...}`: the Agent Host does not read the
+  file — VS Code forwards), MCP host reused `@runecraft/taskflow-claude`
+  (never fabricate `taskflow-copilot`), detection via `code`/`code-insiders`
+  binary OR `github.copilot*` extension dirs (fail-closed display-only),
+  semantic overlap with a user-level installer handled via owners detection +
+  an install confirmation gate, matrix column (MCP + rules + 4 unsupported
+  Pi-only cells), doctor check 21, golden `mcp-copilot.golden`.
+- **2026-08-12**: Role agents (section 8.13) verified — the subagents fork
+  discovers `.pi/agents/*.md` natively (project > builtin shadowing);
+  frontmatter accepted = flat `key: value`; tools observed in the builtins =
+  `read,grep,find,ls,bash,edit,write,intercom,contact_supervisor,web_search,
+  fetch_content,get_search_content` + `subagent` (review-loop.md) — `glob` is
+  NOT a fork tool; `output:` is persisted by the runtime for agents without
+  mutation tools; the fork sets `PI_SUBAGENT_CHILD_AGENT` (not
+  `RUNECRAFT_AGENT_ID`) on dispatch → the documented identity bridge
+  (`src/agents/identity.ts`) translates the child identity to the env the
+  guard reads; `contact_supervisor` is bridge-gated (not registered in a
+  session without a supervisor channel); the default
+  `guards.rangerMdOnly.mdOnlyAgents` is now `["auditor"]` (guard untouched).
+- **2026-08-13**: Coded routing (section 8.14) verified — the classifier is
+  pure code over text features with explicit thresholds; security is
+  mandatory on high signals; the directive is injected via
+  `before_agent_start` (no input event on the harness surface — the first
+  message IS the prompt).
+
+**Revalidation checklist** (on fork bumps or newly found limitations): table
+facts → section 3; injected text → section 9 (bump the workflow rules
+version); hello world → new versioned entry (section 5).

@@ -37,10 +37,9 @@ Three layers:
    committed source, pinned versions. They provide the tools (`/tf`, `/goal`,
    `subagent`, `/pr-review`).
 2. **Harness layer** (`packages/harness/src/*`) — extensions + machinery
-   that run inside harness-managed Pi sessions: guards (F24), verification
-   cascade (F25), evals/ratchets/goldens (F21/F23/F26), resilience (F27),
-   observability (F28), memory (F29), persona/models (F30), coded routing
-   (F33). See [components.md](components.md).
+   that run inside harness-managed Pi sessions: guards, verification cascade,
+   evals/ratchets/goldens, resilience, observability, memory, persona/models,
+   coded routing. See [components.md](components.md).
 3. **CLI** (`companion`/`harness`) — install/sync/uninstall/status/doctor/
    restore + the harness subcommands (verify, events, lessons, memory,
    models, sdd, plans).
@@ -61,8 +60,8 @@ Three layers:
 
 ### Conventions
 
-- **Language (AD-038)**: shipped docs (READMEs, `docs/`) are **EN**; code
-  comments and `.specs/` are **PT-BR**. New docs pages follow this split.
+- **Language**: shipped docs (READMEs, `docs/`) are **EN**; code comments
+  are **PT-BR**. New docs pages follow this split.
 - **Fork edits**: the 12 fork packages are committed source — never edit
   their code or tests; only README-level relationship notes are touched
   deliberately. There is **no sync workflow** and no vendoring machinery:
@@ -81,8 +80,8 @@ Three layers:
 | Contract | Location |
 | --- | --- |
 | Fork versions (single source of truth) | `packages/*/package.json` → generated `packages/harness/src/versions.ts` (`bun run generate:versions`) |
-| Routing golden chain (F19) | `docs/ROUTING.md` §9 ↔ `renderRules()` — pinned by `test/f19-routing.test.ts` |
+| Routing golden chain | `docs/ROUTING.md` §9 ↔ `renderRules()` — pinned by `test/f19-routing.test.ts` |
 | Eval ratchets | `test/eval/baselines/{known-failures,command-coverage,e2e-passrate}.txt` |
 | Golden assets | `test/golden/*.golden` (11) — pinned by `test/eval/goldens.test.ts` |
-| E2E round schema | `scripts/eval-e2e/types.ts` — committed rounds in `.specs/features/f22-e2e-benchmark/results/` (read leniently) |
+| E2E round schema | `scripts/eval-e2e/types.ts` — committed rounds under `results/<version>/<roundId>.json` (read leniently) |
 | Eval matrix governance | `test/EVAL-MATRIX.md` (additive policy: entries only ever added, never removed) |

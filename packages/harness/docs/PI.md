@@ -1,166 +1,166 @@
-# Pi First-Class — Persona, Rules, Model Routing & SDD Assets (F30)
+# Pi First-Class — Persona, Rules, Model Routing & SDD Assets
 
-> Guia do Pi como cidadão de primeira classe do harness (F30, M8): persona +
-> rules injetadas na sessão via `before_agent_start`, roteamento de modelo por
-> agente (pi/opencode/claude/codex), modelSwitch do F27 implementado,
-> geração de models.json e os assets SDD (templates/prompts/chains) + archive
-> de planos. Fronteiras explícitas no final.
+> Guide to Pi as a first-class citizen of the harness: persona + rules
+> injected into the session via `before_agent_start`, per-agent model routing
+> (pi/opencode/claude/codex), model switching, models.json generation and the
+> SDD assets (templates/prompts/chains) + plan archive. Explicit boundaries
+> at the end.
 
-## 1. Persona do Pi (PERSONA_VERSION=1)
+## 1. Pi persona (PERSONA_VERSION=1)
 
-A extensão `persona` (`extensions/persona.ts` → `src/extensions/persona.ts` →
-`src/persona/`) injeta a persona objetiva de engenheiro sênior no
-`before_agent_start` ENCADEADO (append — nunca sobrescreve; o runner re-passou
-o systemPrompt por extensão — SDK types.d.ts ~790).
+The `persona` extension (`extensions/persona.ts` → `src/extensions/persona.ts`
+→ `src/persona/`) injects the objective senior-engineer persona in the
+CHAINED `before_agent_start` (append — never overwrites; the runner re-passes
+the systemPrompt per extension — SDK types.d.ts ~790).
 
-- Texto: `src/persona/persona.ts` — `PERSONA_VERSION = 1`, template literal
-  constant (golden F23 — byte a byte; deny-list de termos RPG no EVAL-047).
-- Marker: `<!-- runecraft:persona -->` (convenção F27/F28).
-- Kill switch: `RUNECRAFT_PERSONA=0|false|off` → camada inerte (zero injeção).
-- Config `persona` (state.json aditivo — schemaVersion 1):
+- Text: `src/persona/persona.ts` — `PERSONA_VERSION = 1`, constant template
+  literal (golden, byte for byte; a deny-list of fantasy terms in the evals).
+- Marker: `<!-- runecraft:persona -->` (shared marker convention).
+- Kill switch: `RUNECRAFT_PERSONA=0|false|off` → inert layer (zero injection).
+- Config `persona` (additive in state.json — schemaVersion 1):
   `{enabled: true, rulesInjector: {enabled: true, toolCallLevel: false},
-  firstMessageVariant: {enabled: true}}`. Inválida → defaults seguros +
-  reporte (fail-closed F24 D10); freeze por sessão (F24 D12).
+  firstMessageVariant: {enabled: true}}`. Invalid → safe defaults + report
+  (fail-closed); frozen per session.
 
-## 2. Rules injection (reuso PI_RULES do F19)
+## 2. Rules injection (reuse of PI_RULES)
 
-`src/persona/rules.ts` injeta `renderRules("pi")` (PI_RULES — F19 é o DONO do
-texto; F30 reusa read-only, zero duplicação) com o marker
-`<!-- runecraft:rules -->`. **Achado honesto (QA-3):** o source do guild
-(`guild/src/hooks/rules-injector.ts`) injeta em TOOL-CALL-LEVEL
-(rules-tool-policy — `<rules source="dir">` em read/write/edit); o F30 porta o
-INTENTO para `before_agent_start` (wording do roadmap; chaining verificado;
-determinístico; zero overhead por tool call). Tool-call-level = flag P2
-(`persona.rulesInjector.toolCallLevel: false` — default; não portado em v1).
+`src/persona/rules.ts` injects `renderRules("pi")` (PI_RULES — the rules
+text is OWNED by the routing source of truth; this layer reuses it read-only,
+zero duplication) with the marker `<!-- runecraft:rules -->`. Honest note:
+the original source injected rules at tool-call level (rules-tool-policy —
+`<rules source="dir">` on read/write/edit); this layer ports the INTENT to
+`before_agent_start` (roadmap wording; chaining verified; deterministic; zero
+overhead per tool call). Tool-call level = flag P2
+(`persona.rulesInjector.toolCallLevel: false` — default; not ported in v1).
 
-## 3. First-message variant (port fiel)
+## 3. First-message variant (faithful port)
 
-`src/persona/first-message.ts` — port AS-IS do
-`guild/src/hooks/first-message-variant.ts`: Sets em memória `created/applied`
-por processo (nova instância de extensão = novo estado — semântica fiel do
-source, documentado). Seleção determinística por reason da sessão (F27):
-`initial/undefined` → variante aplicada UMA vez; `resume|reload` → NUNCA
-re-aplicada (a continuação é dona do F27 — fronteira D11).
+`src/persona/first-message.ts` — AS-IS port of the first-message-variant
+hook: in-memory Sets `created`/`applied` per process (a new extension
+instance = new state — faithful source semantics, documented). Deterministic
+selection by session reason (resilience layer): `initial/undefined` →
+variant applied ONCE; `resume|reload` → NEVER re-applied (continuation is
+owned by the resilience layer — boundary).
 
-## 4. Model routing por agente (src/models/)
+## 4. Per-agent model routing (src/models/)
 
-Resolução pura (`src/models/resolution.ts` — port da semântica do
-`guild/src/agents/model-resolution.ts`, lido na íntegra):
+Pure resolution (`src/models/resolution.ts`):
 
 ```
 resolveAgentModel(agent, {availableModels, overrideModel, systemDefaultModel, customFallbackChain})
   → override (env RUNECRAFT_MODEL_OVERRIDE ?? state models.override)
-  → custom chain (state models.agents.<id>.fallbackChain) > builtin ({} — harness sem registry próprio)
+  → custom chain (state models.agents.<id>.fallbackChain) > builtin ({} — no own registry)
   → systemDefault (state models.default)
-  → null + warn (NENHUM ID inventado; o hardcoded default do source NÃO é portado — D4)
-getNextFallbackModel(agent, failedModel, availableModels, chain) → primeiro disponível APÓS o falho; fim → null
-getKnownModels(chains) → ids conhecidos das chains configuradas
+  → null + warn (NO invented id; the hardcoded default of the source is NOT ported)
+getNextFallbackModel(agent, failedModel, availableModels, chain) → first available AFTER the failed one; end → null
+getKnownModels(chains) → known ids of the configured chains
 ```
 
-- Agentes = HOSTS: pi/opencode/claude/codex (decisão 8; F31 adiciona copilot —
-  o módulo aceita qualquer nome de agente).
-- TUI paths do source (uiSelectedModel/agentMode/categoryModel) DROPPED
-  (AD-005/decisão 3 — roteamento codificado).
-- `availableModels` vem do models.json do SDK (`src/models/registry.ts`).
-  **Path REAL validado no Execute:** o SDK 0.81.0 carrega de
-  `<agentDir>/models.json` — agentDir = `PI_CODING_AGENT_DIR` ?? `~/.pi/agent`
-  (`node_modules/@earendil-works/pi-coding-agent/dist/core/model-runtime.js:59`
-  — `modelsPath = options.modelsPath ?? join(getAgentDir(), "models.json")`;
-  config.js:412-425). NÃO é settings.json nem `~/.pi/models.json`. O harness
-  resolve o mesmo arquivo via `piAgentDir(env)` (RUNECRAFT_PI_HOME ??
-  `~/.pi/agent` — config.ts).
+- Agents = HOSTS: pi/opencode/claude/codex (the Copilot adapter adds copilot —
+  the module accepts any agent name).
+- TUI paths of the source (uiSelectedModel/agentMode/categoryModel) are
+  DROPPED (coded routing decision).
+- `availableModels` comes from the SDK models.json (`src/models/registry.ts`).
+  **Real path validated at execution:** the SDK 0.81.0 loads from
+  `<agentDir>/models.json` — agentDir = `PI_CODING_AGENT_DIR` ??
+  `~/.pi/agent` (`modelsPath = options.modelsPath ?? join(getAgentDir(),
+  "models.json")`). It is NOT settings.json nor `~/.pi/models.json`. The
+  harness resolves the same file via `piAgentDir(env)`
+  (RUNECRAFT_PI_HOME ?? `~/.pi/agent` — config.ts).
 
-## 5. Config `models` (state.json aditivo)
+## 5. Config `models` (additive in state.json)
 
 `{enabled: true, default: string|null, override: string|null,
 agents: Record<id, {fallbackChain: FallbackEntry[]}>, autoGenerateModelsJson:
-false}`. Fail-closed (inválida → defaults + reporte), freeze por sessão, kill
+false}`. Fail-closed (invalid → defaults + report), frozen per session, kill
 switch `RUNECRAFT_MODELS=0|false|off`, override env
-`RUNECRAFT_MODEL_OVERRIDE` (precedente env-gated do judge F25).
+`RUNECRAFT_MODEL_OVERRIDE`.
 
-## 6. modelSwitch F27 implementado (src/models/switch.ts)
+## 6. modelSwitch implemented (src/models/switch.ts)
 
-O F27 deixou `FallbackActionKind.modelSwitch` como INTERFACE NO-OP
-(`src/resilience/types.ts:115`; `fallback.ts:129-131`; `ModelSwitchInterface`
-em `fallback.ts:175`). O F30 implementa a resolução REAL:
+The resilience layer left `FallbackActionKind.modelSwitch` as a NO-OP
+INTERFACE (`src/resilience/types.ts:115`; `fallback.ts:129-131`;
+`ModelSwitchInterface` in `fallback.ts:175`). This layer implements the REAL
+resolution:
 
 ```
 resolveModelSwitch(agent, {failedModel, availableModels, chain})
-  → {kind: "switch", model, from}   (próximo via getNextFallbackModel — leve→forte)
+  → {kind: "switch", model, from}   (next via getNextFallbackModel — light→strong)
   → {kind: "halt", reason: "model-chain exhausted", escalation: "human"}
 ```
 
-**Fronteira D11:** ZERO mudanças nos arquivos do F27 (EVAL-043 asserta o diff
-byte a byte). **Mecanismo de APLICAÇÃO (validado no Execute):** o SDK 0.81.0
-não expõe troca de modelo em runtime nas APIs de model-runtime/model-registry
-(sem switchModel/setModel/reloadModels nesses módulos) — models.json é o
-mecanismo determinístico (provado pela fixture F21). Aplicar a troca =
-regenerar o models.json com a chain (D7) + restart/reload da sessão. **Nota
-(fix cleric F30):** `AgentSession.setModel()` e `ExtensionAPI.setModel`
-EXISTEM (agent-session.js:1194 / loader.js:283 — inclusive `cycleModel`); a
-verificação do Execute grepou apenas model-runtime.js/model-registry.js. O
-ponto de wiring in-process via `setModel` fica documentado como evolução
-(F31/F32) — a geração + reload continua sendo o caminho determinístico e
-testável offline.
+**Boundary:** ZERO changes in the resilience layer files (an eval asserts the
+byte-for-byte diff). **Application mechanism (validated at execution):** the
+SDK 0.81.0 does not expose runtime model switching in the model-runtime/
+model-registry APIs (no switchModel/setModel/reloadModels in those modules) —
+models.json is the deterministic mechanism (proven by the eval fixture).
+Applying the switch = regenerating models.json with the chain + restarting/
+reloading the session. **Note:** `AgentSession.setModel()` and
+`ExtensionAPI.setModel` DO exist (agent-session.js:1194 / loader.js:283 —
+including `cycleModel`); the in-process wiring point via `setModel` is
+documented as evolution — generation + reload remains the deterministic,
+offline-testable path.
 
 ## 7. CLI `harness models generate|list|doctor`
 
-- `harness models generate` → merge determinístico do state `models` →
-  models.json (`<piAgentDir>/models.json`); 2 runs → byte-idêntico
-  (canonicalJson F23 — sem timestamps/paths). Provider config (baseUrl/api/
-  apiKey) NUNCA é inventada: herdada do models.json existente ou de env
-  (`RUNECRAFT_MODELS_PROVIDER_<ID>_{BASEURL,API,APIKEY}`); ausente → omitida
-  (o schema do SDK aceita providers sem baseUrl — model-config.js
-  ProviderConfigSchema). Kill switch → recusa sem escrever (exit 0).
-- `harness models list` → tabela de resolução por agente (chain atual +
-  modelo resolvido).
-- `harness models doctor` → path + paridade estado↔arquivo + availableModels.
-- `harness status` → seção **Models (F30)**; `harness doctor` → check 20.
+- `harness models generate` → deterministic merge of state `models` →
+  models.json (`<piAgentDir>/models.json`); 2 runs → byte-identical
+  (canonical JSON — no timestamps/paths). Provider config (baseUrl/api/apiKey)
+  is NEVER invented: inherited from the existing models.json or from env
+  (`RUNECRAFT_MODELS_PROVIDER_<ID>_{BASEURL,API,APIKEY}`); absent → omitted
+  (the SDK schema accepts providers without baseUrl). Kill switch → refusal
+  without writing (exit 0).
+- `harness models list` → resolution table per agent (current chain +
+  resolved model).
+- `harness models doctor` → path + state↔file parity + availableModels.
+- `harness status` → **Models** section; `harness doctor` → check 20.
 
-## 8. SDD assets (F30 — versionados no pacote)
+## 8. SDD assets (versioned in the package)
 
-| Asset | Local | Uso |
+| Asset | Location | Usage |
 | --- | --- | --- |
-| Templates spec/design/tasks | `assets/sdd/templates/` | scaffold via `harness sdd new` |
-| Prompt templates | `assets/sdd/prompts/` | fases spec/design/tasks/review (objetivos, PT-BR) |
-| Chains SDD | `assets/sdd/chains/sdd-*.chain.md` | formato do fork subagents (`pi.subagents.chains` na manifest + materializadas em `.pi/chains/`) |
-| Escopo | `src/sdd/scope.ts` | classificação determinística quick/medium/large (limiares em código — decisão 3) |
+| spec/design/tasks templates | `assets/sdd/templates/` | scaffold via `harness sdd new` |
+| Prompt templates | `assets/sdd/prompts/` | spec/design/tasks/review phases (objectives) |
+| SDD chains | `assets/sdd/chains/sdd-*.chain.md` | subagents fork format (`pi.subagents.chains` in the manifest + materialized in `.pi/chains/`) |
+| Scope | `src/sdd/scope.ts` | deterministic quick/medium/large classification (thresholds in code) |
 
-Comandos: `harness sdd new <feature> [--scope quick|medium|large]` (scaffold +
-materialização das chains em `.pi/chains/`), `harness sdd chains` (lista +
-escopo recomendado).
+Commands: `harness sdd new <feature> [--scope quick|medium|large]` (scaffold
++ materialization of the chains in `.pi/chains/`), `harness sdd chains`
+(list + recommended scope).
 
-**Formato das chains (achado honesto do Execute):** o parser ATUAL do fork
-subagents (0.37.2) é `parseChain` (`chain-serializer.ts:101`) — front-matter
-`name` + `description` obrigatórios + seções `## <agente>` (worker/reviewer —
-builtin do fork, sem RPG). O `f3-taskflow.chain.md` (formato histórico
-`worker "..." -> reviewer "..."`) NÃO parseia no fork atual — os assets F30
-seguem o formato que o fork parseia HOJE (EVAL-046 valida com o parser real).
+**Chain format (honest finding at execution):** the CURRENT subagents fork
+parser (0.37.2) is `parseChain` (`chain-serializer.ts:101`) — front-matter
+`name` + `description` required + `## <agent>` sections (worker/reviewer —
+fork builtins, no fantasy). The historical `worker "..." -> reviewer "..."`
+format does NOT parse in the current fork — the assets follow the format the
+fork parses TODAY (an eval validates with the real parser).
 
-## 9. Archive de planos (F30)
+## 9. Plan archive
 
-`harness plans archive <slug>` — port do `createArchivePlanTool` do guild
-(`guild/src/tools/archive-plan.ts`, lido na íntegra): slug regex
-`^[a-z0-9-]+$`; move `<cwd>/.runecraft/plans/<slug>` →
-`<cwd>/.runecraft/plans/archive/<slug>` (mkdir recursive); retorno
-`{ok, warnings}`; DI rename p/ teste. `src/plan.ts` é presets de install do
-F11 — NÃO é dir de planos (documentado; `.runecraft/plans/` é o sink novo —
-mesma convenção de events/lessons/continuation/verify-verdicts).
+`harness plans archive <slug>` — port of the archive-plan tool: slug regex
+`^[a-z0-9-]+$`; moves `<cwd>/.runecraft/plans/<slug>` →
+`<cwd>/.runecraft/plans/archive/<slug>` (recursive mkdir); returns
+`{ok, warnings}`; DI rename for tests. `src/plan.ts` is install PRESETS of
+the CLI dispatch — NOT a plans dir (documented; `.runecraft/plans/` is the
+new sink — same convention as events/lessons/continuation/verify-verdicts).
 
-## 10. Fronteiras
+## 10. Boundaries
 
-- **F19** dono de `renderRules`/PI_RULES — F30 reusa read-only
-  (`rulesContent.ts` intocado).
-- **F27** dono da interface modelSwitch + fallback engine — F30 implementa a
-  resolução em `src/models/switch.ts`; ZERO mudanças em `src/resilience/`.
-- **F28/F27** donos de continuation/lessons — a persona só ANEXA (append).
-- **F21** dono da fixture — F30 usa `renderModelsJson`/ModelRuntime.
-- **F31** independente (adapter copilot — `models.agents.copilot` quando
-  existir; o módulo aceita qualquer nome de agente).
-- **F32** consome o config `models` (chains por papel objetivo via state).
+- The rules text (`renderRules`/PI_RULES) is owned by the routing source of
+  truth — this layer reuses it read-only (`rulesContent.ts` untouched).
+- The resilience layer owns the modelSwitch interface + fallback engine —
+  this layer implements the resolution in `src/models/switch.ts`; ZERO
+  changes in `src/resilience/`.
+- The resilience/observability layers own continuation/lessons — the persona
+  only APPENDS.
+- The eval fixture is owned by the evals — this layer uses
+  `renderModelsJson`/ModelRuntime.
+- The Copilot adapter is independent (`models.agents.copilot` when it
+  exists; the module accepts any agent name).
+- The role agents consume the `models` config (role chains via state).
 
 ## 11. Last verified
 
-2026-08-10 — F30 implementado: persona+rules+variant via before_agent_start
-(chain), model resolution pura, modelSwitch implementado (zero mudanças F27),
-models generate/list/doctor, SDD assets + archive, EVAL-039..048 (matriz v8).
+2026-08-10 — implemented: persona+rules+variant via before_agent_start
+(chained), pure model resolution, modelSwitch implemented (zero changes in
+the resilience layer), models generate/list/doctor, SDD assets + archive.
