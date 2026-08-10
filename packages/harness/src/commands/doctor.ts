@@ -1015,10 +1015,10 @@ function checkAgentDetectOnly(rt: Runtime): DoctorCheck {
     if (binOnPath(id, rt)) present.push(id);
   }
   if (present.length === 0) {
-    return { id: 12, name: "Agentes (detect-only)", status: "pass", detail: "nenhum agente sem adapter detectado (cursor, grok, …)" };
+    return { id: 12, name: "Agentes (Tier 3 — detect-only)", status: "pass", detail: "nenhum agente Tier 3 detectado (cursor, grok, …) — só guia manual, sem adapter" };
   }
   const detail = present.map((id) => `${id}: ${DETECT_ONLY_GUIDES[id]}`).join(" | ");
-  return { id: 12, name: "Agentes (detect-only)", status: "pass", detail: `detectado(s): ${detail}` };
+  return { id: 12, name: "Agentes (Tier 3 — detect-only)", status: "pass", detail: `Tier 3 detectado(s): ${detail}` };
 }
 
 /**
@@ -1091,7 +1091,7 @@ function checkRoleAgents(rt: Runtime, pi: PiInterop): DoctorCheck {
       id: 22,
       name: "Role agents (F32)",
       status: "pass",
-      detail: "fork subagents não presente — os 7 papéis objetivos são dados inertes (matriz F17); instale via `harness install`",
+      detail: "fork subagents não presente — os 7 papéis objetivos são dados inertes (Tier 1 — Pi, matriz F17); instale via `harness install`",
     };
   }
   if (missing.length > 0) {
@@ -1107,7 +1107,7 @@ function checkRoleAgents(rt: Runtime, pi: PiInterop): DoctorCheck {
     id: 22,
     name: "Role agents (F32)",
     status: "pass",
-    detail: `7 papéis materializados em .pi/agents/ · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""}`,
+    detail: `Tier 1 (Pi): 7 papéis materializados em .pi/agents/ · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""}`,
   };
 }
 
@@ -1119,7 +1119,7 @@ function checkCopilot(rt: Runtime): DoctorCheck {
       name: "Copilot (VS Code)",
       status: "pass",
       detail:
-        "não detectado (sem bin 'code'/'code-insiders' no PATH nem dir de extensão github.copilot* em ~/.vscode*/extensions) — detect-only; instale o VS Code + a extensão GitHub Copilot (o harness nunca instala runtimes)",
+        "não detectado (sem bin 'code'/'code-insiders' no PATH nem dir de extensão github.copilot* em ~/.vscode*/extensions) — Tier 2 (repo-scoped) ausente; instale o VS Code + a extensão GitHub Copilot (o harness nunca instala runtimes)",
     };
   }
   const via =
@@ -1159,7 +1159,7 @@ function checkCopilot(rt: Runtime): DoctorCheck {
     id: 21,
     name: "Copilot (VS Code)",
     status: "pass",
-    detail: `detectado (${via}) · gerenciado: ${managed ? "sim" : "não (harness install --agent copilot)"} · alvos repo-scoped: ${paths.rulesFile}, ${paths.mcpFile}`,
+    detail: `Tier 2 (repo-scoped): detectado (${via}) · gerenciado: ${managed ? "sim" : "não (harness install --agent copilot)"} · alvos repo-scoped: ${paths.rulesFile}, ${paths.mcpFile}`,
   };
 }
 

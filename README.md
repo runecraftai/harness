@@ -31,19 +31,31 @@ controlled multi-agent environment.
 
 ## Supported agent integrations
 
-| Agent | Delegation model | What it gets |
-| --- | --- | --- |
-| **Pi** | Full (package-managed subagents) | the four tools + the full harness layer (guards, verification, resilience, memory, routing, persona) |
-| **Claude Code** | rules + MCP | taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md` |
-| **OpenCode** | rules + MCP | taskflow-MCP (`taskflow-opencode`) + workflow rules in `AGENTS.md` |
-| **Codex** | rules + MCP (solo) | taskflow-MCP (`taskflow-codex` in `config.toml`) + workflow rules in `AGENTS.md` |
-| **VS Code Copilot** | repo-scoped rules + MCP | `servers.taskflow` in `.vscode/mcp.json` + `.github/copilot-instructions.md` |
-| Others | detect-only | the CLI detects them and names the exact command you'd run yourself |
+The harness serves agents in three tiers. Tier 1 is the reference
+implementation. Tier 2 agents receive the shared non-Pi layer today, with
+native parity on the roadmap. Tier 3 agents are detected and guided, never
+managed.
 
-Pi is first-class: the tools and harness layers ship as Pi packages, installed
-by `pi install npm:@runecraft/companion`. The taskflow-MCP layer is what the
-non-Pi agents receive — the same DAG engine (`/tf` on Pi, `taskflow_*` MCP
-tools elsewhere).
+| Tier | Agents | Today | Roadmap |
+| --- | --- | --- | --- |
+| **Tier 1 — full layer** | **Pi** | the four tools + the full harness layer (guards, verification, resilience, memory, routing, persona), as Pi packages | reference implementation |
+| **Tier 2 — taskflow + rules** | **Claude Code**, **OpenCode**, **Codex**, **VS Code Copilot** | taskflow-MCP + workflow rules in each agent's native config | native parity per agent (Claude hooks + agent files, Codex hooks + profiles, OpenCode overlay, Copilot runSubagent) |
+| **Tier 3 — detect-only** | Cursor, Grok, others | the CLI detects them and names the exact command you'd run yourself | an adapter, when a user actually needs one |
+
+The taskflow-MCP layer is what the non-Pi agents receive — the same DAG
+engine (`/tf` on Pi, `taskflow_*` MCP tools elsewhere). Pi is first-class:
+the tools and harness layers ship as Pi packages, installed by
+`pi install npm:@runecraft/companion`.
+
+## Parity roadmap
+
+Tier 2 is taskflow + rules today, nothing more — the harness never claims
+the full layer for a non-Pi agent. The full surface (subagents, goal-loop,
+pr-review, guards, memory, model routing) is being ported to each agent's
+native configuration: Claude Code hooks and agent files, Codex hooks and
+profiles, OpenCode overlay agents, Copilot runSubagent. The gap table, the
+native-surface map and the phased plan live in
+[`docs/PARITY.md`](packages/harness/docs/PARITY.md).
 
 ## How work is routed
 
@@ -60,17 +72,28 @@ One supervisor per session (two-driver rule). Full mental model:
 
 ## Quick start
 
-Install for Pi (first-class):
+Install for Pi (Tier 1 — full layer):
 
 ```bash
 pi install npm:@runecraft/companion
 ```
 
-Install for Claude Code, OpenCode, Codex or Copilot:
+What you get: the four tools (subagents, taskflow, goal-loop, pr-review)
+plus guards, verification, resilience, memory, routing and persona — the
+reference implementation.
+
+Install for Claude Code, OpenCode, Codex or Copilot (Tier 2):
 
 ```bash
 companion install --agent claude-code,opencode,codex   # or: copilot
 ```
+
+What you get per agent (taskflow + rules today; parity on the roadmap):
+
+- **Claude Code** — taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md`.
+- **OpenCode** — taskflow-MCP (`taskflow-opencode`) + workflow rules in `AGENTS.md`.
+- **Codex** — taskflow-MCP (`taskflow-codex` in `config.toml`) + workflow rules in `AGENTS.md` (solo).
+- **VS Code Copilot** — `servers.taskflow` in `.vscode/mcp.json` + `.github/copilot-instructions.md` (repo-scoped).
 
 Verify the install:
 
@@ -95,6 +118,7 @@ pi -p "/pr-review --help"               # pr-review responds
 | Understand the mental model | [ROUTING.md](packages/harness/docs/ROUTING.md) |
 | Install & operate the CLI | [usage.md](packages/harness/docs/usage.md) |
 | Configure an agent | [agents.md](packages/harness/docs/agents.md) |
+| Tier model & parity plan | [PARITY.md](packages/harness/docs/PARITY.md) |
 | Use the harness in Pi | [PI.md](packages/harness/docs/PI.md) |
 | Component map & configuration | [components.md](packages/harness/docs/components.md) |
 | Contribute | [CODEBASE-GUIDE.md](packages/harness/docs/CODEBASE-GUIDE.md) |

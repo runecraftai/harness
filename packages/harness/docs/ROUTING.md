@@ -138,6 +138,10 @@ cite a tool outside the column.
 | **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped. Same limits; the injected rules are the shared non-Pi template. |
 | **Other agents (cursor, grok, …)** | detect-only with a manual MCP guide (no adapter in v1). |
 
+This table is the v1 truth. The tier model and the parity roadmap (what
+non-Pi agents will get next, and through which native surface) live in
+[PARITY.md](PARITY.md).
+
 ## 7. Coexistence
 
 - The harness manages exactly the `runecraft:workflow` block: append on

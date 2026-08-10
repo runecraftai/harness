@@ -57,6 +57,8 @@ describe("matrix — declarativa (F17 D1)", () => {
         const cell = column[component];
         expect(cell?.kind).toBe("unsupported");
         expect((cell as { reason: string }).reason).toContain("é extensão Pi; use --agent pi");
+        // Phase A: toda célula unsupported carrega o plano nativo (roadmap).
+        expect((cell as { reason: string }).reason).toContain("planned:");
       }
     }
     // F31 D8: AGENTS.copilot declarado (display + nota honesta).
@@ -74,9 +76,21 @@ describe("matrix — declarativa (F17 D1)", () => {
     expect((MATRIX as Record<string, unknown>).cursor).toBeUndefined();
   });
 
+  test("células unsupported carregam o plano nativo por agente (Phase A)", () => {
+    // O refusal lê "v1", não "nunca" — fonte do plano: docs/PARITY.md.
+    expect((MATRIX["claude-code"].subagents as { reason: string }).reason).toContain("planned: agent files");
+    expect((MATRIX["claude-code"].guards as { reason: string }).reason).toContain("planned: PreToolUse hooks");
+    expect((MATRIX["codex"].guards as { reason: string }).reason).toContain("planned: PreToolUse hooks");
+    expect((MATRIX["codex"].subagents as { reason: string }).reason).toContain("planned: codex exec");
+    expect((MATRIX["opencode"].subagents as { reason: string }).reason).toContain("planned: overlay agents");
+    expect((MATRIX["copilot"].subagents as { reason: string }).reason).toContain("planned: runSubagent");
+    // Copilot guards honestos: sem superfície de hooks — v1 detect-only.
+    expect((MATRIX["copilot"].guards as { reason: string }).reason).toContain("detect-only");
+  });
+
   test("firstUnsupported: par agente×componente com motivo; pares ok → undefined", () => {
     const blocked = firstUnsupported(["claude-code"], ["subagents"]);
-    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi");
+    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi; planned: agent files (~/.claude/agents/) + Task tool (B1)");
     // F31: copilot bloqueia os mesmos componentes Pi-only (D8).
     const copilotBlocked = firstUnsupported(["copilot"], ["guards"]);
     expect(copilotBlocked?.agent).toBe("copilot");
