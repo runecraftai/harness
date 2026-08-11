@@ -8,7 +8,7 @@ goldens, and the env-gated E2E benchmark. The detailed framework reference is
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Full harness suite | `bun run test` (in `packages/harness`) | 1196 tests: unit + CLI + eval lanes (deterministic, guards, verification) + ratchet + goldens |
+| Full harness suite | `bun run test` (in `packages/harness`) | 1197 tests: unit + CLI + eval lanes (deterministic, guards, verification) + ratchet + goldens |
 | E2E offline | `bun test scripts/eval-e2e` (repo root) | 71 tests — env-gated: without `RUNECRAFT_E2E=1` they skip (exit 0, zero tokens) |
 | E2E benchmark | `RUNECRAFT_E2E=1 bun run eval:e2e` | real models, versioned committed rounds (not in CI) |
 | Lint / build | `bun run lint` / `bun run build` | biome + turbo build |

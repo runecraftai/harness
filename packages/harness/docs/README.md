@@ -14,6 +14,8 @@ Technical documentation for the Runecraft Harness. Start with
 
 - [ROUTING.md](ROUTING.md) — routing & mental model: purposes, tool table,
   two-driver rules, per-capability sections, agent roles and coded routing.
+- [PARITY.md](PARITY.md) — tier model & parity roadmap: the gap today, the
+  native-surface map per agent, and the phased plan.
 - [EVENTS.md](EVENTS.md) — typed event store: schema, kinds, boundaries,
   OTel/Langfuse mapping.
 - [MEMORY.md](MEMORY.md) — persistent cross-session memory: `rune_*` tools,

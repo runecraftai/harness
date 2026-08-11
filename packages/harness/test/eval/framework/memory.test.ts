@@ -192,18 +192,6 @@ describe("EVAL-031 — 10 tools rune_* no fixture Pi (D3)", () => {
       { evalId: "EVAL-031" },
     );
   });
-
-  test("evidência gravada no partial (evalTest → last-run.json no merge)", async () => {
-    await evalTest("EVAL-030..038: evidência via evalTest gravada (partial jsonl)", async () => {
-      const { EVAL_PARTIAL_DIR } = await import("../helpers/evalTest.ts");
-      const partial = path.join(EVAL_PARTIAL_DIR, `${THIS_FILE}.jsonl`);
-      expect(fs.existsSync(partial)).toBe(true);
-      const lines = fs.readFileSync(partial, "utf8").trim().split("\n").filter(Boolean);
-      for (const id of ["EVAL-030", "EVAL-031", "EVAL-032", "EVAL-033", "EVAL-034", "EVAL-035", "EVAL-036", "EVAL-037", "EVAL-038"]) {
-        expect(lines.some((l) => l.includes(`"evalId":"${id}"`))).toBe(true);
-      }
-    }, { evalId: "EVAL-031" });
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -597,4 +585,23 @@ describe("EVAL-038 — privacidade (D10)", () => {
       { evalId: "EVAL-038" },
     );
   });
+});
+
+// ---------------------------------------------------------------------------
+// Evidência — DEVE ser o último teste do arquivo: verifica o JSONL parcial
+// gravado pelos EVAL-030..038 acima (o wrapper só faz o append no finally,
+// ou seja, DEPOIS que cada teste rodou — checar antes seria ordem-dependente
+// e falharia na primeira execução com checkout limpo).
+// ---------------------------------------------------------------------------
+
+test("evidência gravada no partial (evalTest → last-run.json no merge)", async () => {
+  await evalTest("EVAL-030..038: evidência via evalTest gravada (partial jsonl)", async () => {
+    const { EVAL_PARTIAL_DIR } = await import("../helpers/evalTest.ts");
+    const partial = path.join(EVAL_PARTIAL_DIR, `${THIS_FILE}.jsonl`);
+    expect(fs.existsSync(partial)).toBe(true);
+    const lines = fs.readFileSync(partial, "utf8").trim().split("\n").filter(Boolean);
+    for (const id of ["EVAL-030", "EVAL-031", "EVAL-032", "EVAL-033", "EVAL-034", "EVAL-035", "EVAL-036", "EVAL-037", "EVAL-038"]) {
+      expect(lines.some((l) => l.includes(`"evalId":"${id}"`))).toBe(true);
+    }
+  }, { evalId: "EVAL-031" });
 });

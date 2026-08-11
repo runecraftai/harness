@@ -52,7 +52,7 @@ jobs:
       # CI is unset for this step: GitHub sets CI=true, under which the companion suite
       # deterministically fails 7 env-only tests (the ratchet --update refusal under CI is
       # intentional design — assertUpdateAllowed only refuses for CI == "true"/"1"; the
-      # suite is fully green with CI unset: 1196 pass, ratchet VERDE).
+      # suite is fully green with CI unset: 1197 pass, ratchet VERDE).
       - name: Test
         run: bun run --filter '@runecraft/companion' test
         env:

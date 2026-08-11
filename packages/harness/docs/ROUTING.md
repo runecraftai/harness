@@ -138,6 +138,10 @@ cite a tool outside the column.
 | **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped. Same limits; the injected rules are the shared non-Pi template. |
 | **Other agents (cursor, grok, …)** | detect-only with a manual MCP guide (no adapter in v1). |
 
+This table is the v1 truth. The tier model and the parity roadmap (what
+non-Pi agents will get next, and through which native surface) live in
+[PARITY.md](PARITY.md).
+
 ## 7. Coexistence
 
 - The harness manages exactly the `runecraft:workflow` block: append on
@@ -169,8 +173,10 @@ Verified against the capability table (section 3).
 Guards are harness Pi extensions that really BLOCK or REWRITE tool calls in
 the agent loop (`pi.on("tool_call")` + `{ block: true, reason }`). They only
 run in harness-managed sessions (agentDir materialized by the install);
-non-Pi agents (Claude Code/OpenCode/Codex) have no enforcement — their matrix
-column is detect-only with a guide.
+non-Pi agents have no enforcement today — their matrix guard cells carry the
+planned native surface (Claude Code/Codex PreToolUse hooks, OpenCode
+permission overlay — [PARITY.md](PARITY.md) B2). Copilot has no tool-call
+hook surface, so its guard stays detect-only in v1 and on the roadmap (B2).
 
 | Guard (config `guards.<id>` in state.json) | What it blocks/rewrites | Config |
 | --- | --- | --- |
@@ -457,7 +463,9 @@ runtimes.
 
 **Matrix**: the copilot column = taskflow-MCP + rules + 4 `unsupported` cells
 (subagents/goal-loop-audit/pr-review/guards — "is a Pi extension; use
-`--agent pi`"; guards have no enforcement on non-Pi agents).
+`--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
+[PARITY.md](PARITY.md)). Guards: VS Code exposes no tool-call hook surface —
+Copilot guards stay detect-only in v1 and on the roadmap (PARITY.md B2).
 
 **Two-driver with another installer**: another installer manages Copilot at
 **user-level** (`~/.copilot/...`, legacy `~/.github/copilot-instructions.md`
