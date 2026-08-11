@@ -7,7 +7,8 @@
 //                  reference implementation of the full layer
 //   Tier 2 non-Pi = taskflow-MCP + workflow rules today; the other 4
 //                  components are unsupported cells whose reason carries the
-//                  PLANNED native surface ("planned: …", roadmap phase id)
+//                  PLANNED native surface ("planned: …"; phase id only where
+//                  the roadmap assigns it — PARITY.md owns attribution)
 //   Tier 3 other  = detect-only with a guide (registry.ts DETECT_ONLY_GUIDES)
 //
 // A cell is one of:
@@ -77,7 +78,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   opencode: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: "~/.config/opencode/AGENTS.md", section: RULES_SECTION },
-    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: overlay agents em opencode.json (B1)" },
+    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: overlay agents em opencode.json" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi; planned: supervisor externo via opencode run (B7)" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi; planned: task subagents + harness review CLI (B4)" },
     guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi; planned: permission overlay + plugin — best-effort (B2)" },
@@ -85,7 +86,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   codex: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: "~/.codex/AGENTS.md", section: RULES_SECTION },
-    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: codex exec headless (B1)" },
+    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: codex exec headless" },
     "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi; planned: supervisor externo via codex exec (B7)" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi; planned: harness review CLI + codex exec (B4)" },
     guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi; planned: PreToolUse hooks (hooks.json/config.toml) (B2)" },
@@ -97,8 +98,8 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   copilot: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: ".github/copilot-instructions.md", section: RULES_SECTION },
-    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: runSubagent (prompt-carried) (B1)" },
-    "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi; planned: supervisor externo por repositório (B7)" },
+    subagents: { kind: "unsupported", reason: "subagents é extensão Pi; use --agent pi; planned: runSubagent (prompt-carried)" },
+    "goal-loop-audit": { kind: "unsupported", reason: "goal-loop-audit é extensão Pi; use --agent pi; planned: supervisor externo por repositório" },
     "pr-review": { kind: "unsupported", reason: "pr-review é extensão Pi; use --agent pi; planned: harness review CLI (B4)" },
     guards: { kind: "unsupported", reason: "guards é extensão Pi; use --agent pi; planned: — VS Code não expõe hooks de tool-call (v1 detect-only)" },
   },
