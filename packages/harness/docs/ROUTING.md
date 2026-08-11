@@ -461,7 +461,9 @@ runtimes.
 
 **Matrix**: the copilot column = taskflow-MCP + rules + 4 `unsupported` cells
 (subagents/goal-loop-audit/pr-review/guards — "is a Pi extension; use
-`--agent pi`"; guards have no enforcement on non-Pi agents).
+`--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
+[PARITY.md](PARITY.md)). Guards: VS Code exposes no tool-call hook surface —
+Copilot guards stay detect-only in v1 and on the roadmap (PARITY.md B2).
 
 **Two-driver with another installer**: another installer manages Copilot at
 **user-level** (`~/.copilot/...`, legacy `~/.github/copilot-instructions.md`
