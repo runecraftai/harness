@@ -69,13 +69,14 @@ describe("EVAL-014 — constraint adherence via framework (sujeitos F24)", () =>
           expect(a.message).not.toContain(TEST_EVAL_DIR);
         }
       }
-
-      // Evidência via evalTest → partial/<testFile>.jsonl (D6/F21).
-      const partial = path.join(EVAL_PARTIAL_DIR, `${THIS_FILE}.jsonl`);
-      expect(fs.existsSync(partial)).toBe(true);
-      const lines = fs.readFileSync(partial, "utf8").trim().split("\n").filter(Boolean);
-      expect(lines.some((l) => l.includes('"evalId":"EVAL-014"'))).toBe(true);
     }, { evalId: "EVAL-014" });
+    // Evidência via evalTest → partial/<testFile>.jsonl (D6/F21): o append
+    // acontece no finally do wrapper — a checagem roda DEPOIS dele, senão o
+    // arquivo ainda não existe na primeira execução (CI com checkout limpo).
+    const partial = path.join(EVAL_PARTIAL_DIR, `${THIS_FILE}.jsonl`);
+    expect(fs.existsSync(partial)).toBe(true);
+    const lines = fs.readFileSync(partial, "utf8").trim().split("\n").filter(Boolean);
+    expect(lines.some((l) => l.includes('"evalId":"EVAL-014"'))).toBe(true);
   });
 
   test("determinismo: 2 runs da suite REAL → vereditos idênticos (EVAL-012/D8)", async () => {
