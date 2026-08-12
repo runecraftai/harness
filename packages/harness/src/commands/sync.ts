@@ -463,7 +463,12 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
         agentNotes.push(`${agentId}: atualizada (template ${templateChanged}→${WORKFLOW_RULES_VERSION})`);
       }
       if (missingCells.length > 0) {
-        agentNotes.push(`${agentId}: re-injetado (${missingCells.join(", ")} ausente)`);
+        const injectedCells = preserveRules
+          ? missingCells.filter((component) => MATRIX[agentId as MatrixAgentId][component as ComponentId]?.kind === "mcp")
+          : missingCells;
+        if (injectedCells.length > 0) {
+          agentNotes.push(`${agentId}: re-injetado (${injectedCells.join(", ")} ausente)`);
+        }
       }
       if (preserveRules) {
         agentNotes.push(`${agentId}: rules preservada (editada — usuário editou; sync nunca sobrescreve)`);

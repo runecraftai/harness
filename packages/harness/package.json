@@ -32,6 +32,7 @@
     "skills/",
     "assets/",
     "agents/",
+    "claude-agents/",
     "chains/",
     "README.md"
   ],
