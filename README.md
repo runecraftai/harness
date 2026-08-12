@@ -53,9 +53,12 @@ Tier 2 is taskflow + rules today, nothing more — the harness never claims
 the full layer for a non-Pi agent. The full surface (subagents, goal-loop,
 pr-review, guards, memory, model routing) is being ported to each agent's
 native configuration: Claude Code hooks and agent files, Codex hooks and
-profiles, OpenCode overlay agents, Copilot runSubagent. The gap table, the
-native-surface map and the phased plan live in
-[`docs/PARITY.md`](packages/harness/docs/PARITY.md).
+profiles, OpenCode overlay agents, Copilot runSubagent. Where a native
+surface is missing, only the portable parts travel — Copilot guards reduce
+to advisory instructions (no tool-call hook surface), Copilot model routing
+to single-model guidance (no per-agent model config) — each marked in the
+gap table rather than claimed. The gap table, the native-surface map and
+the phased plan live in [`docs/PARITY.md`](packages/harness/docs/PARITY.md).
 
 ## How work is routed
 
