@@ -58,7 +58,6 @@ export const CAPABILITY_IDS = [
   "pr-review",
   "memory",
   "persona",
-  "routing",
   "sdds",
 ] as const;
 
@@ -101,8 +100,6 @@ const PI: AgentCapabilityManifest = {
   "pr-review": { verdict: "native", mechanism: "pr-review extension + receipts/gates", delivered: true },
   memory: { verdict: "native", mechanism: "rune_* tools over the SQLite runes store", delivered: true },
   persona: { verdict: "native", mechanism: "persona extension (before_agent_start marker)", delivered: true },
-  // F33: coded routing (classificador determinístico + directive) — extensão Pi.
-  routing: { verdict: "native", mechanism: "before_agent_start routing extension (F33 classifier + directive)", delivered: true },
   sdds: { verdict: "native", mechanism: "skills + chains (.pi/chains/)", delivered: true },
 };
 
@@ -119,9 +116,6 @@ const CLAUDE_CODE: AgentCapabilityManifest = {
   "pr-review": { verdict: "adapt", mechanism: "parallel Task-tool dispatch + harness review CLI + receipts", phase: "B4", delivered: false },
   memory: { verdict: "adapt", mechanism: "runes SQLite store exposed as an MCP server", phase: "B3", delivered: false },
   persona: { verdict: "native", mechanism: "CLAUDE.md marker sections", delivered: true, note: "rules delivered today (runecraft:workflow + runecraft:routing sections); full persona content planned (B5)" },
-  // B1: coded-routing directive como seção runecraft:routing do CLAUDE.md
-  // (mesmo catálogo do classificador F33 — thresholds/segurança obrigatória).
-  routing: { verdict: "native", mechanism: "CLAUDE.md runecraft:routing section (coded-routing directive, B1)", delivered: true },
   sdds: { verdict: "adapt", mechanism: "skills + slash commands; chains → agent-file conversion", phase: "B6", delivered: false },
 };
 
@@ -136,7 +130,6 @@ const OPENCODE: AgentCapabilityManifest = {
   "pr-review": { verdict: "adapt", mechanism: "native task subagents + review skill, or harness review CLI", phase: "B4", delivered: false },
   memory: { verdict: "adapt", mechanism: "MCP server entry in opencode.json", phase: "B3", delivered: false },
   persona: { verdict: "native", mechanism: "AGENTS.md + overlay agent prompt files", delivered: true },
-  routing: { verdict: "adapt", mechanism: "routing directive via AGENTS.md rules/persona (no directive section)", note: "the runecraft:routing directive section is Claude Code-specific (B1)", delivered: false },
   sdds: { verdict: "adapt", mechanism: "commands/*.md slash commands + skills", phase: "B6", delivered: false },
 };
 
@@ -151,7 +144,6 @@ const CODEX: AgentCapabilityManifest = {
   "pr-review": { verdict: "adapt", mechanism: "harness review CLI + headless codex exec reviewer", phase: "B4", delivered: false },
   memory: { verdict: "adapt", mechanism: "[mcp_servers] upsert (Engram pattern)", phase: "B3", delivered: false },
   persona: { verdict: "native", mechanism: "AGENTS.md system prompt (already written) + hook-injected context", delivered: true },
-  routing: { verdict: "adapt", mechanism: "routing directive via AGENTS.md system prompt (no directive section)", note: "the runecraft:routing directive section is Claude Code-specific (B1)", delivered: false },
   sdds: { verdict: "adapt", mechanism: "skills + AGENTS.md orchestrator prompt (solo mode)", phase: "B6", delivered: false },
 };
 
@@ -166,7 +158,6 @@ const COPILOT: AgentCapabilityManifest = {
   "pr-review": { verdict: "adapt", mechanism: "harness review CLI (no native parallel review config)", phase: "B4", delivered: false },
   memory: { verdict: "adapt", mechanism: "MCP (Code/User/mcp.json)", phase: "B3", delivered: false },
   persona: { verdict: "native", mechanism: ".github/copilot-instructions.md (repo) + Code/User/prompts/*.instructions.md (user)", delivered: true },
-  routing: { verdict: "none", mechanism: "no routing mechanism beyond the instructions file", note: "advisory only — no directive section surface", delivered: false },
   sdds: { verdict: "adapt", mechanism: "skills (~/.copilot/skills/)", phase: "B6", delivered: false },
 };
 
@@ -288,18 +279,15 @@ export function manifestDigest(): string {
  * The refusal/delivery reason for an unsupported matrix cell, sourced from
  * the manifest claim (install/doctor/status read the SAME text). Mirrors the
  * F15 fail-closed phrasing ("<component> é extensão Pi; use --agent pi")
- * and appends the manifest's claim. Honest distinction (F4): for DELIVERED
- * capabilities the reason says "nativo entregue:" (the native mechanism is
- * shipped — only the FORK tool stays Pi-only), so the refusal never reads
- * as a contradiction; for not-delivered claims it says "planned:" with the
- * roadmap phase.
+ * and appends the manifest's planned native surface + phase.
  */
 export function capabilityReason(agent: ManifestAgentId, capability: CapabilityId, componentLabel: string): string {
   const claim = MANIFEST[agent][capability];
   if (claim === undefined) return `${componentLabel} é extensão Pi; use --agent pi`;
-  const claimText = claim.delivered
-    ? `nativo entregue: ${claim.mechanism}`
-    : `planned: ${claim.mechanism}${claim.phase !== undefined ? ` (${claim.phase})` : ""}`;
+  const planned =
+    claim.delivered
+      ? `${claim.mechanism} (${claim.verdict})`
+      : `planned: ${claim.mechanism}${claim.phase !== undefined ? ` (${claim.phase})` : ""}`;
   const note = claim.note !== undefined ? ` (${claim.note})` : "";
-  return `${componentLabel} é extensão Pi; use --agent pi; ${claimText}${note}`;
+  return `${componentLabel} é extensão Pi; use --agent pi; ${planned}${note}`;
 }

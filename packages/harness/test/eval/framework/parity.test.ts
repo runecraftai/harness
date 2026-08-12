@@ -107,10 +107,9 @@ describe("EVAL-080 — agent files do Claude: assets válidos + QA-5 espelhado",
           expect(content.includes(term), `${role}.md contém "${term}"`).toBe(false);
         }
       }
-      // F3 (option a): nenhum grep de corpo de prompt — a delegação é provada
-      // pelo contrato machine-consumed (frontmatter tools: só o builder com a
-      // tool de delegação — o Claude recusa agente com tools que não resolvem)
-      // + a validação estrutural dos assets.
+      // O corpo do builder instrui a delegação nativa (Task tool / Agent).
+      const builder = fs.readFileSync(path.join(assetsDir, "builder.md"), "utf8");
+      expect(builder).toContain("spawn other agents (tool `Agent`)");
     }, { evalId: "EVAL-080" });
   });
 });
@@ -120,16 +119,20 @@ describe("EVAL-080 — agent files do Claude: assets válidos + QA-5 espelhado",
 // ---------------------------------------------------------------------------
 
 describe("EVAL-081 — directive de routing do Claude: determinismo + golden", () => {
-  test("EVAL-081: render 2 runs idênticos; golden byte-igual (contrato do artefato injetado)", async () => {
-    await evalTest("EVAL-081: directive — determinismo + golden byte-locked (interface injetada)", async () => {
+  test("EVAL-081: render 2 runs idênticos; golden byte-igual; security obrigatória; Task tool", async () => {
+    await evalTest("EVAL-081: directive — determinismo, golden, security MANDATORY, delegação Task", async () => {
       const a = renderClaudeRoutingSection();
       const b = renderClaudeRoutingSection();
       expect(a).toBe(b);
-      // Golden (F23 D4): a seção completa com markers == o arquivo golden
-      // versionado — exatamente o que o adapter injeta no CLAUDE.md. O
-      // directive é uma interface intencional entregue ao agente; o golden é
-      // o contrato de bytes (F3 — option a: sem grep de substring do corpo).
+      // Golden (F23 D4): o render == o arquivo golden versionado (a seção
+      // completa com markers — o que o adapter injeta no CLAUDE.md).
       expect(renderSectionClaudeRouting()).toBe(readGolden("section-routing-claude.golden"));
+      expect(a).toContain("threshold 2");
+      expect(a).toContain("Security is MANDATORY");
+      expect(a).toContain("NOT optional");
+      expect(a).toContain("Agent tool");
+      expect(a).toContain("Only the `builder` role has the");
+      for (const role of ROLE_IDS) expect(a).toContain(`**${role}**`);
     }, { evalId: "EVAL-081" });
   });
 });

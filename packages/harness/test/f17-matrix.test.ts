@@ -92,10 +92,9 @@ describe("matrix — declarativa (F17 D1)", () => {
   });
 
   test("firstUnsupported: par agente×componente com motivo; pares ok → undefined", () => {
-    // B1: claude-code subagents entregue nativamente — reason da forma entregue
-    // ("nativo entregue:" — sem contradição com o "use --agent pi" do fork).
+    // B1: claude-code subagents entregue nativamente — reason da forma entregue.
     const blocked = firstUnsupported(["claude-code"], ["subagents"]);
-    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi; nativo entregue: Task tool + agent files (~/.claude/agents/*.md) — 7 role agents (B1)");
+    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi; Task tool + agent files (~/.claude/agents/*.md) — 7 role agents (B1) (native)");
     // F31: copilot bloqueia os mesmos componentes Pi-only (D8).
     const copilotBlocked = firstUnsupported(["copilot"], ["guards"]);
     expect(copilotBlocked?.agent).toBe("copilot");

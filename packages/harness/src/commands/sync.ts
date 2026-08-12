@@ -671,9 +671,7 @@ export function planAgentReconciliation(
             templateChanged.push({ agentId, fromVersion: rulesTarget.rulesVersion ?? "?" });
           }
         } else {
-          if (!edited.some((e) => e.agentId === agentId)) {
-            edited.push({ agentId });
-          }
+          edited.push({ agentId });
         }
       } else if (cell?.kind === "mcp") {
         let fingerprint: string | null;
