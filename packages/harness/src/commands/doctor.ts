@@ -42,6 +42,7 @@ import { sectionContentHash } from "../sections.ts";
 import { ROUTING_SECTION, renderClaudeRoutingSection } from "../routing/claudeSection.ts";
 import { validateManifest, manifestDigest, allManifests, deliveredClaims } from "../capabilities/manifest.ts";
 import { planClaudeAgents, claudeAgentsDir } from "../adapters/claudeAgents.ts";
+import { ROLE_IDS } from "../agents/catalog.ts";
 import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, scanMcpUpstreams } from "../owners.ts";
 import { detectActiveDriver } from "../sessionDriver.ts";
@@ -443,6 +444,16 @@ function checkClaudeRoleAgents(rt: Runtime): DoctorCheck {
   const missing = plans.filter((p) => p.status === "missing").map((p) => p.roleId);
   const preserved = plans.filter((p) => p.status === "edited").map((p) => p.roleId);
   const registered = Object.keys(loaded.ok ? loaded.state.claudeAgents ?? {} : {});
+  if (plans.length < ROLE_IDS.length) {
+    const unavailable = ROLE_IDS.filter((roleId) => !plans.some((p) => p.roleId === roleId));
+    return {
+      id: 24,
+      name: "Claude role agents (B1)",
+      status: "warn",
+      detail: `assets indisponíveis no pacote (${plans.length}/${ROLE_IDS.length} papéis): ${unavailable.join(", ")} · registrados: ${registered.join(", ") || "—"}`,
+      remedy: "instale o pacote completo (@runecraft/companion com o diretório claude-agents/) e rode `harness sync`",
+    };
+  }
   if (missing.length > 0) {
     return {
       id: 24,
@@ -456,7 +467,7 @@ function checkClaudeRoleAgents(rt: Runtime): DoctorCheck {
     id: 24,
     name: "Claude role agents (B1)",
     status: "pass",
-    detail: `7 papéis materializados em ${claudeAgentsDir(claudeHome)} · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""} · delegação via Task tool (só o builder)`,
+    detail: `${ROLE_IDS.length} papéis materializados em ${claudeAgentsDir(claudeHome)} · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""} · delegação via Task tool (só o builder)`,
   };
 }
 
