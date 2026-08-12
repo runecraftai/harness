@@ -4,6 +4,7 @@
 // npx pin of the published @runecraft/taskflow-<host> (publish; pin from
 // versions.ts). Guard anti-upstream (F16 AC 4.2): a resolved command that
 // references upstream package names is a template error — never injected.
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { HARNESS_VERSIONS } from "../versions.ts";
@@ -156,7 +157,6 @@ export function mcpEntryContentHash(command: string[], environment?: Record<stri
 }
 
 export function sha256Hex(input: string): string {
-  const { createHash } = require("node:crypto") as typeof import("node:crypto");
   return createHash("sha256").update(input).digest("hex");
 }
 
