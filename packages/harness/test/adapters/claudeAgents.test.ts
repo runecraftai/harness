@@ -158,9 +158,13 @@ describe("planClaudeAgents/applyClaudeAgents — three-way F19 D7 (B1)", () => {
     const records = emptyRecords();
     applyClaudeAgents(claudeHome, records, planClaudeAgents(claudeHome, undefined));
 
-    // Asset do scout muda (novo template).
+    // Asset do scout muda (novo template). Captura o ORIGINAL antes da mutação
+    // — claudeAgentsAssetsDir() e claudeAgentsAssetsDir(REAL_ROOT) são o MESMO
+    // diretório (root default == packageRoot() == packages/harness), então o
+    // restore precisa reescrever o conteúdo pré-mutação, não reler o arquivo.
     const assetFile = path.join(claudeAgentsAssetsDir(), "scout.md");
-    fs.writeFileSync(assetFile, `${fs.readFileSync(assetFile, "utf8")}\n-- v2 --\n`, "utf8");
+    const originalAsset = fs.readFileSync(assetFile, "utf8");
+    fs.writeFileSync(assetFile, `${originalAsset}\n-- v2 --\n`, "utf8");
     try {
       const plans = planClaudeAgents(claudeHome, records);
       expect(plans.find((p) => p.roleId === "scout")?.status).toBe("updated");
@@ -169,7 +173,7 @@ describe("planClaudeAgents/applyClaudeAgents — three-way F19 D7 (B1)", () => {
       expect(fs.readFileSync(path.join(claudeAgentsDir(claudeHome), "scout.md"), "utf8")).toBe(fs.readFileSync(assetFile, "utf8"));
     } finally {
       // restaura o asset (o teste mutou o pacote real — side effect reversível)
-      fs.writeFileSync(assetFile, fs.readFileSync(path.join(claudeAgentsAssetsDir(REAL_ROOT), "scout.md"), "utf8"));
+      fs.writeFileSync(assetFile, originalAsset);
     }
   });
 
