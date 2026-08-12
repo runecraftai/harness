@@ -39,6 +39,9 @@ import { withRunecraftLock } from "../lock.ts";
 import { defaultGuardsConfig } from "../guards/guardKit.ts";
 import { planRoleAgents, applyRoleAgents, roleAgentsDir, ROLE_ASSETS_VERSION } from "../agents/materialize.ts";
 import { planPilotChains, applyPilotChains, pilotChainsDir, PILOT_CHAIN_ASSETS_VERSION } from "../routing/materialize.ts";
+import { planClaudeAgents, applyClaudeAgents, claudeAgentsDir, CLAUDE_AGENTS_ASSETS_VERSION } from "../adapters/claudeAgents.ts";
+import { ROUTING_SECTION, renderClaudeRoutingSection } from "../routing/claudeSection.ts";
+import { claudeCodeHome } from "../config.ts";
 
 export interface SyncCommandOptions {
   json: boolean;
@@ -279,6 +282,21 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     ...pilotChainPlans.filter((p) => p.status === "edited").map((p) => `${p.name}: preservado (editado — usuário editou; sync nunca sobrescreve)`),
     ...pilotChainPlans.filter((p) => p.status === "adopted").map((p) => `${p.name}: registrado (arquivo == asset — adotado sem escrita)`),
   ];
+  // B1: reconciliação dos papéis objetivos do Claude Code — three-way por
+  // conteúdo (F19 D7) no alvo ~/.claude/agents/ (escopo USUÁRIO; registro no
+  // state do scope — mesma convenção dos agent records). Roda quando o state
+  // deste scope gerencia o claude-code.
+  const claudeAgentPlans =
+    loaded.state.agents["claude-code"] !== undefined ? planClaudeAgents(claudeCodeHome(rt.env), loaded.state.claudeAgents) : [];
+  const claudeAgentPendingCount = claudeAgentPlans.filter((p) => p.status === "missing" || p.status === "updated").length;
+  const claudeAgentStateChange =
+    claudeAgentPendingCount > 0 || claudeAgentPlans.some((p) => p.status === "adopted");
+  const claudeAgentNotes = [
+    ...claudeAgentPlans.filter((p) => p.status === "missing").map((p) => `${p.roleId}: re-injetar (ausente)`),
+    ...claudeAgentPlans.filter((p) => p.status === "updated").map((p) => `${p.roleId}: atualizar (template ${p.registered?.assetVersion ?? "?"}→${CLAUDE_AGENTS_ASSETS_VERSION})`),
+    ...claudeAgentPlans.filter((p) => p.status === "edited").map((p) => `${p.roleId}: preservado (editado — usuário editou; sync nunca sobrescreve)`),
+    ...claudeAgentPlans.filter((p) => p.status === "adopted").map((p) => `${p.roleId}: registrado (arquivo == asset — adotado sem escrita)`),
+  ];
   // F19 D7: os 4 estados por target rules (reportados nas notas; apenas
   // pending/stale geram escrita — edited preserva, in-sync não aparece).
   const templateChangedNotes = agentPlan.templateChanged.map(
@@ -295,7 +313,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   if (guardsDefaultsApplied) loaded.state.guards = defaultGuardsConfig();
   const guardsNote = guardsDefaultsApplied ? "guards: defaults fail-closed re-aplicados ao state (F24)" : "";
   const hasChanges =
-    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0 || guardsDefaultsApplied || roleStateChange || pilotChainStateChange;
+    plan.actions.length > 0 || agentPlan.pending.length > 0 || agentPlan.templateChanged.length > 0 || guardsDefaultsApplied || roleStateChange || pilotChainStateChange || claudeAgentStateChange;
 
   if (!hasChanges) {
     const report: SyncReport = {
@@ -307,7 +325,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
       preserved: plan.preserved,
       conflicts: plan.conflicts,
       failed: [],
-      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes, ...roleNotes, ...pilotChainNotes, ...(guardsNote ? [guardsNote] : [])],
+      notes: [...plan.notes, ...agentPlan.orphanNotes, ...agentPlan.staleNotes, ...editedNotes, ...roleNotes, ...pilotChainNotes, ...claudeAgentNotes, ...(guardsNote ? [guardsNote] : [])],
     };
     if (opts.json) out.write(renderSyncJson(report));
     else out.write(renderSync(report, { tty: false }));
@@ -335,6 +353,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
         ...templateChangedNotes.map((n) => `(dry-run) ${n}`),
         ...roleNotes.map((n) => `(dry-run) ${n}`),
         ...pilotChainNotes.map((n) => `(dry-run) ${n}`),
+        ...claudeAgentNotes.map((n) => `(dry-run) ${n}`),
         ...editedNotes,
         ...(guardsNote ? [`(dry-run) ${guardsNote}`] : []),
       ],
@@ -521,6 +540,30 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     pilotChainsNotes.push(...applied.notes);
   }
 
+  // B1: materialização dos papéis objetivos do Claude Code — three-way por
+  // conteúdo (missing/updated escrevem; edited preserva — F19 D7). Alvo
+  // ~/.claude/agents/ (escopo usuário). Best-effort no caminho de escrita:
+  // nunca falha o sync; o reporte leva as notas (in-sync não escreve — LIFE 3.2).
+  const claudeAgentsNotesOut: string[] = [];
+  if (loaded.state.agents["claude-code"] !== undefined) {
+    const claudeHome = claudeCodeHome(rt.env);
+    const claudeAgents = loaded.state.claudeAgents ?? {};
+    const applied = applyClaudeAgents(claudeHome, claudeAgents, claudeAgentPlans);
+    if (applied.changed) {
+      loaded.state.claudeAgents = claudeAgents;
+      claudeAgentsNotesOut.push(`papéis objetivos do Claude Code: registros atualizados no state (B1)`);
+      try {
+        saveState(stateFile, loaded.state);
+      } catch (error) {
+        err.write(`@runecraft/companion sync: falha ao gravar o state dos papéis Claude (${(error as Error).message}).\n`);
+      }
+    }
+    if (applied.copied.length > 0) {
+      claudeAgentsNotesOut.push(`papéis objetivos do Claude Code materializados em ${claudeAgentsDir(claudeHome)}: ${applied.copied.join(", ")} (B1)`);
+    }
+    claudeAgentsNotesOut.push(...applied.notes);
+  }
+
   // F30: materialização das chains SDD em .pi/chains/ (workspace — o fork
   // subagents descobre chains de <root>/.pi/chains/; D8). Só no caminho de
   // ESCRITA (status synced — ações foram tomadas); o caminho in-sync mantém
@@ -548,7 +591,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
     conflicts: plan.conflicts,
     failed,
     backup: backupFile,
-    notes: [...plan.notes, ...agentNotes, ...roleAgentsNotes, ...pilotChainsNotes, ...(guardsNote ? [guardsNote] : []), ...sddChainsNote],
+    notes: [...plan.notes, ...agentNotes, ...roleAgentsNotes, ...pilotChainsNotes, ...claudeAgentsNotesOut, ...(guardsNote ? [guardsNote] : []), ...sddChainsNote],
   };
   if (opts.json) out.write(renderSyncJson(report));
   else out.write(renderSync(report, { tty: false }));
@@ -600,26 +643,30 @@ export function planAgentReconciliation(
     const paths = adapter.paths(rt);
     const missingCells: string[] = [];
     let unreadable = false;
-    const rulesTarget = rec.targets.find(
-      (t): t is Extract<AgentTarget, { kind: "rules" }> => t.kind === "rules" && Boolean(t.contentHash),
-    );
     for (const component of columnComponents(matrixId)) {
       const cell = MATRIX[matrixId][component];
       if (cell?.kind === "rules") {
         if (!hasSection(paths.rulesFile, cell.section)) {
           missingCells.push(component);
-        } else if (rulesTarget) {
-          // F19 D7 three-way (por target rules): arquivo × registrado × render.
-          const fileContent = readSectionContent(paths.rulesFile, cell.section);
-          const fileHash = sectionContentHash(cell.section, fileContent ?? "");
-          if (fileHash === rulesTarget.contentHash) {
-            const renderHash = sectionContentHash(cell.section, renderRules(matrixId));
-            if (renderHash !== rulesTarget.contentHash) {
-              templateChanged.push({ agentId, fromVersion: rulesTarget.rulesVersion ?? "?" });
-            }
-          } else {
-            edited.push({ agentId });
+          continue;
+        }
+        // F19 D7 three-way (por target rules POR CÉLULA): arquivo × registrado
+        // × render. Cada célula rules (workflow `runecraft:workflow` / routing
+        // `runecraft:routing` — B1) tem o SEU target registrado e o SEU render.
+        const rulesTarget = rec.targets.find(
+          (t): t is Extract<AgentTarget, { kind: "rules" }> =>
+            t.kind === "rules" && t.section === cell.section && Boolean(t.contentHash),
+        );
+        if (!rulesTarget) continue; // presente mas nunca registrado — sem three-way
+        const fileContent = readSectionContent(paths.rulesFile, cell.section);
+        const fileHash = sectionContentHash(cell.section, fileContent ?? "");
+        if (fileHash === rulesTarget.contentHash) {
+          const renderHash = sectionContentHash(cell.section, renderForCell(matrixId, cell.section));
+          if (renderHash !== rulesTarget.contentHash) {
+            templateChanged.push({ agentId, fromVersion: rulesTarget.rulesVersion ?? "?" });
           }
+        } else {
+          edited.push({ agentId });
         }
       } else if (cell?.kind === "mcp") {
         let fingerprint: string | null;
@@ -643,6 +690,14 @@ export function planAgentReconciliation(
     if (missingCells.length > 0) pending.push({ agentId, missingCells });
   }
   return { pending, templateChanged, edited, orphanNotes, staleNotes };
+}
+
+/** Render da seção de uma célula rules da matriz (B1): a célula `routing`
+ *  renderiza o directive do Claude (renderClaudeRoutingSection); as demais
+ *  usam o renderRules do F19 (workflow). Fonte única — o three-way compara
+ *  contra exatamente o que o inject escreveria. */
+function renderForCell(agent: MatrixAgentId, section: string): string {
+  return section === ROUTING_SECTION ? renderClaudeRoutingSection() : renderRules(agent);
 }
 
 /** Context de re-inject do sync (regras do template + bin do fork). F19 D7:

@@ -14,6 +14,7 @@
 // buildStatusMessage.
 import {
   resolveRuntime,
+  claudeCodeHome,
   statePath,
   type Runtime,
   type Scope,
@@ -24,6 +25,7 @@ import { loadState, loadStateReadonly, type InstalledEntry } from "../state.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { scanConflicts, type ConflictInfo } from "../conflicts.ts";
 import { execFileSync } from "node:child_process";
+import * as path from "node:path";
 import { ADAPTERS, DETECT_ONLY_GUIDES, SUPPORTED_AGENT_IDS } from "../adapters/registry.ts";
 import { detectCopilotSync } from "../adapters/copilot.ts";
 import { hasSection } from "../adapters/rules.ts";
@@ -45,6 +47,9 @@ import { agentsForList, chainForAgent } from "../models/cli.ts";
 import { resolveAgentModel } from "../models/resolution.ts";
 import { planRoleAgents } from "../agents/materialize.ts";
 import { ROLE_IDS } from "../agents/catalog.ts";
+import { planClaudeAgents, claudeAgentsDir, CLAUDE_AGENTS_ASSETS_VERSION } from "../adapters/claudeAgents.ts";
+import { allManifests, claimFor, manifestDigest, validateManifest, CAPABILITY_IDS, type ManifestAgentId } from "../capabilities/manifest.ts";
+import { ROUTING_SECTION } from "../routing/claudeSection.ts";
 import { effectiveRouting, routingKillSwitch, enabledRoutes, mandatoryOf } from "../routing/config.ts";
 import { ROUTE_THRESHOLD } from "../routing/classifier.ts";
 import { DELEGATABLE_ROUTE_IDS } from "../routing/routes.ts";
@@ -126,6 +131,12 @@ export interface StatusReport {
   roleAgents: RoleAgentsStatusReport;
   /** F33: coded routing (config efetiva + kill switch + rotas habilitadas). */
   routing: RoutingStatus;
+  /** B1: papéis objetivos do Claude Code (~/.claude/agents/ + registros). */
+  claudeRoleAgents: ClaudeRoleAgentsStatusReport;
+  /** B1: seção runecraft:routing em ~/.claude/CLAUDE.md (directive codificada). */
+  claudeRouting: ClaudeRoutingSectionStatus;
+  /** B0: capability manifest (claims por agente — fonte única). */
+  capabilities: CapabilitiesStatus;
 }
 
 /** F33 (D6): seção routing do status — config efetiva + kill switch + rotas
@@ -144,6 +155,53 @@ export interface RoutingStatus {
   mandatoryRoutes: string[];
   /** pilot chains materializadas no escopo workspace (file-level). */
   pilotChains: { installed: string[]; preserved: string[]; missing: string[]; total: number };
+}
+
+/** B1: papéis objetivos do Claude Code no status — file-level (arquivo
+ *  presente/preservado/ausente) × state-level (registrado com contentHash) +
+ *  dependência do claude (bin no PATH → dados ativos; sem bin → inertes). */
+export interface ClaudeRoleAgentsStatusReport {
+  /** claude detectado no PATH (bin 'claude')? */
+  claudeDetected: boolean;
+  /** claude-code gerenciado no state do scope? (gate da materialização). */
+  managed: boolean;
+  /** papéis cujo arquivo materializado == asset (instalados). */
+  installed: string[];
+  /** papéis com arquivo editado pelo usuário (preservados — F19 D7). */
+  preserved: string[];
+  /** papéis sem arquivo materializado. */
+  missing: string[];
+  /** papéis registrados no state com contentHash. */
+  registered: string[];
+  total: number;
+}
+
+/** B1: seção runecraft:routing no CLAUDE.md (directive codificada do F33). */
+export interface ClaudeRoutingSectionStatus {
+  /** claude-code gerenciado no state do scope? (seção é escrita pelo inject). */
+  managed: boolean;
+  /** seção `runecraft:routing` presente em ~/.claude/CLAUDE.md. */
+  present: boolean;
+  /** alvo routing registrado no state (contentHash). */
+  registered: boolean;
+}
+
+/** B0: capability manifest — claims por agente (projeção honesta do status). */
+export interface CapabilitiesStatus {
+  valid: boolean;
+  error?: string;
+  digest: string;
+  agents: Array<{
+    agent: string;
+    claims: Array<{
+      capability: string;
+      verdict: string;
+      mechanism: string;
+      phase?: string;
+      delivered: boolean;
+      note?: string;
+    }>;
+  }>;
 }
 
 /** F32 (T5): seção dos papéis objetivos do status — file-level (arquivo
@@ -334,6 +392,11 @@ export function computeStatusReport(rt: Runtime, scope: Scope, pi: PiInterop): S
     roleAgents: computeRoleAgentsStatus(rt, scope, state, identities),
     // F33 (D6): coded routing — config efetiva + kill switch + rotas/chains.
     routing: computeRoutingStatus(rt, scope, state),
+    // B1: papéis objetivos do Claude Code + seção runecraft:routing.
+    claudeRoleAgents: computeClaudeRoleAgentsStatus(rt, scope, state),
+    claudeRouting: computeClaudeRoutingSectionStatus(rt, scope, state),
+    // B0: capability manifest (claims por agente — fonte única).
+    capabilities: computeCapabilitiesStatus(),
   };
 }
 
@@ -401,6 +464,73 @@ export function computeRoleAgentsStatus(
   }
   const registered = Object.keys(state.piAgents ?? {});
   return { forkPresent, installed, preserved, missing, registered, total: ROLE_IDS.length };
+}
+
+/** B1: estado dos papéis objetivos do Claude Code no status (file × state ×
+ *  detecção do claude). Gate: claude detectado no PATH + gerenciado no state
+ *  do scope (o harness materializa em ~/.claude/agents/ quando o agente é
+ *  gerenciado — install/sync). Espelho do computeRoleAgentsStatus (F32). */
+export function computeClaudeRoleAgentsStatus(
+  rt: Runtime,
+  scope: Scope,
+  state: HarnessState,
+): ClaudeRoleAgentsStatusReport {
+  const claudeDetected = agentBinOnPath("claude", rt.env);
+  const managed = state.agents["claude-code"] !== undefined;
+  if (!managed) {
+    return { claudeDetected, managed, installed: [], preserved: [], missing: [...ROLE_IDS], registered: [], total: ROLE_IDS.length };
+  }
+  const plans = planClaudeAgents(claudeCodeHome(rt.env), state.claudeAgents);
+  const installed: string[] = [];
+  const preserved: string[] = [];
+  const missing: string[] = [];
+  for (const plan of plans) {
+    if (plan.status === "missing") missing.push(plan.roleId);
+    else if (plan.status === "edited") preserved.push(plan.roleId);
+    else installed.push(plan.roleId);
+  }
+  const registered = Object.keys(state.claudeAgents ?? {});
+  return { claudeDetected, managed, installed, preserved, missing, registered, total: ROLE_IDS.length };
+}
+
+/** B1: estado da seção runecraft:routing em ~/.claude/CLAUDE.md (directive
+ *  codificada — F33 aplicada ao Claude). Gate: claude-code gerenciado. */
+export function computeClaudeRoutingSectionStatus(
+  rt: Runtime,
+  _scope: Scope,
+  state: HarnessState,
+): ClaudeRoutingSectionStatus {
+  const managed = state.agents["claude-code"] !== undefined;
+  const rulesFile = path.join(claudeCodeHome(rt.env), "CLAUDE.md");
+  const registered = (state.agents["claude-code"]?.targets ?? []).some(
+    (t) => t.kind === "rules" && t.section === ROUTING_SECTION,
+  );
+  return { managed, present: managed ? hasSection(rulesFile, ROUTING_SECTION) : false, registered };
+}
+
+/** B0: capability manifest como seção do status (claims por agente — projeção
+ *  honesta da fonte única; digest do golden). */
+export function computeCapabilitiesStatus(): CapabilitiesStatus {
+  const validation = validateManifest();
+  return {
+    valid: validation.ok,
+    ...(validation.ok ? {} : { error: validation.errors.join("; ") }),
+    digest: manifestDigest(),
+    agents: allManifests().map(({ agent }) => ({
+      agent,
+      claims: CAPABILITY_IDS.map((capability) => {
+        const claim = claimFor(agent, capability);
+        return {
+          capability,
+          verdict: claim.verdict,
+          mechanism: claim.mechanism,
+          ...(claim.phase !== undefined ? { phase: claim.phase } : {}),
+          delivered: claim.delivered,
+          ...(claim.note !== undefined ? { note: claim.note } : {}),
+        };
+      }),
+    })),
+  };
 }
 
 /** F30: estado efetivo do roteamento de modelos para o scope (mesmo merge do
@@ -795,6 +925,46 @@ export function renderStatus(report: StatusReport, opts: { tty: boolean }): stri
   lines.push(
     `  pilot chains: ${r.pilotChains.installed.length} instaladas · ${r.pilotChains.preserved.length} preservadas (editadas) · ${r.pilotChains.missing.length} faltando (${r.pilotChains.total} total — .pi/chains/)`,
   );
+  // B1: estado da seção runecraft:routing no CLAUDE.md (directive codificada).
+  const cr = report.claudeRouting;
+  if (cr.managed) {
+    lines.push(
+      `  claude section (B1): ${cr.present ? "✓ presente" : "ausente"} em ~/.claude/CLAUDE.md · registrada: ${cr.registered ? "sim" : "não (rode sync)"}`,
+    );
+  }
+  // B1: seção Claude role agents — papéis objetivos do Claude Code.
+  lines.push("");
+  lines.push("Claude role agents (B1):");
+  const cra = report.claudeRoleAgents;
+  if (!cra.claudeDetected) {
+    lines.push("  claude não detectado no PATH — papéis são dados inertes (instale o claude + `companion install --agent claude-code`)");
+  } else if (!cra.managed) {
+    lines.push("  claude detectado mas não gerenciado — rode `companion install --agent claude-code` (7 papéis em ~/.claude/agents/ + routing section)");
+  } else {
+    lines.push(`  instalados (${cra.installed.length}/${cra.total}): ${cra.installed.join(", ") || "—"}`);
+    if (cra.preserved.length > 0) lines.push(`  preservados (editados — sync nunca sobrescreve): ${cra.preserved.join(", ")}`);
+    if (cra.missing.length > 0) lines.push(`  ausentes (rode \`harness sync\`): ${cra.missing.join(", ")}`);
+    lines.push(`  registrados no state: ${cra.registered.join(", ") || "—"}`);
+    lines.push("  delegação: via Task tool nativa — só o papel builder tem a tool Agent no allowlist (QA-5)");
+  }
+  // B0: seção Capabilities — capability manifest (claims por agente).
+  lines.push("");
+  lines.push("Capabilities (B0):");
+  const cap = report.capabilities;
+  if (!cap.valid) {
+    lines.push(`  manifest INCONSISTENTE — ${cap.error ?? "?"} (fonte: src/capabilities/manifest.ts)`);
+  } else {
+    lines.push(`  digest: ${cap.digest} · fonte única: src/capabilities/manifest.ts`);
+    for (const agent of cap.agents) {
+      const claims = agent.claims
+        .map((c) => {
+          const stateMark = c.delivered ? "✓" : c.phase !== undefined ? `(${c.phase})` : "—";
+          return `${c.capability} ${c.verdict}${stateMark}`;
+        })
+        .join(" · ");
+      lines.push(`  ${agent.agent.padEnd(12)}${claims}`);
+    }
+  }
   const agents = report.agents.filter((a) => a.detected || a.managed);
   if (agents.length > 0) {
     lines.push("");
@@ -910,7 +1080,10 @@ export function renderStatusJson(report: StatusReport): string {
         enabledRoutes: report.routing.enabledRoutes,
         mandatoryRoutes: report.routing.mandatoryRoutes,
         pilotChains: report.routing.pilotChains,
+        claudeSection: report.claudeRouting,
       },
+      claudeRoleAgents: report.claudeRoleAgents,
+      capabilities: report.capabilities,
       suggestion: report.nothingManaged ? "npx @runecraft/companion install" : null,
     },
     null,

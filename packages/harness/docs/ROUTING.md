@@ -132,7 +132,7 @@ cite a tool outside the column.
 | Agent | Column |
 | --- | --- |
 | **Pi** | full column: subagents + taskflow + goal-loop-audit + pr-review (extensions) + rules (native). The injected rules cover all 4 tools + two-driver + worker rule. |
-| **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md). No goal-loop/subagents/pr-review — Pi extensions only. |
+| **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md) + **B1**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only the builder spawns) + coded-routing directive (`runecraft:routing` section). No goal-loop/pr-review/guards — Pi extensions only (planned native surface: PARITY.md). |
 | **OpenCode** | taskflow-MCP + workflow rules (AGENTS.md). Same limits. |
 | **Codex** | taskflow-MCP + workflow rules (AGENTS.md). Solo agent (no permissions/output styles); the injected rules are the shared non-Pi template. |
 | **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped. Same limits; the injected rules are the shared non-Pi template. |
@@ -656,6 +656,46 @@ runtime spawns the steps), not to the role — non-delegator roles do not spawn.
 - **Observability**: lessons inform PROMPTS (addendum intact), NEVER routes —
   route = pure function of input (contract test).
 - **Role agents**: catalog read-only; delegation policy preserved.
+
+## 8.15 Claude Code parity (B0/B1) — capability manifest + roles + routing
+
+Phase B0 (capability manifest) and B1 (Claude Code roles + routing) shipped:
+what each agent CLAIMS per capability now lives in one place
+(`src/capabilities/manifest.ts`), and Claude Code receives two of the four
+tools through its native surface.
+
+### Capability manifest (B0)
+
+- Per-agent feature claims (hooks / subagents / mcp / models / guards +
+taskflow / goal-loop / pr-review / memory / persona / sdds) as a single
+source of truth — install refusal reasons (`matrix.ts` cells), `doctor`
+check 25 and `status` (Capabilities section) all read from it.
+- `companion doctor` check 25 digests the manifest (byte-stable sha256,
+gentle-ai `manifest_test.go` pattern): drift between the manifest and the
+consumers is a red test, not a silent copy.
+- Honesty rules: Copilot declares `none` for guards/hooks (no hook surface —
+recon §4.4); goal-loop is `none` for all non-Pi agents (commander decision
+D2 — taskflow + subagents are the documented substitutes, B7 stays future).
+
+### Roles + routing for Claude Code (B1)
+
+- **7 role agents** (`planner`/`builder`/`reviewer`/`auditor`/`scout`/
+`researcher`/`security` — `claude-agents/*.md`, Claude agent-file format:
+frontmatter name/description/tools + system prompt) materialized to
+`~/.claude/agents/` by `companion install --agent claude-code` / `sync`
+(three-way by content — user edits preserved, F19 D7). The fork's `subagent`
+tool stays Pi-only; delegation uses the native **Task tool** (the `Agent`
+tool) naming the role. Only the `builder` role carries the delegation tool
+in its allowlist (QA-5 mirror); non-delegator roles never spawn.
+- **Coded-routing directive as a CLAUDE.md section**: `runecraft:routing` is
+injected by the marker engine (F18) next to `runecraft:workflow` — a
+deterministic directive rendered from the SAME route catalog as the F33
+classifier (thresholds explicit, security MANDATORY, fail-closed direct,
+delegation via Task tool). Claude Code has no extension surface, so the
+agent applies the directive; the deterministic classifier remains the
+Pi-side mechanism, and B8 asserts parity via evals.
+- Verified via `companion doctor` check 24 (Claude role agents) and the
+status Claude role agents / Routing sections.
 
 ## 9. Appendix: injected text (golden)
 

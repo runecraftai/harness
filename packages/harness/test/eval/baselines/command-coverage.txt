@@ -1,5 +1,8 @@
 # runecraft harness — command coverage (list only grows)
 # formato: comando<TAB>flagsCanonicas (nomes ordenados, valores removidos)
 # gerado por: bun run eval:ratchet --update
+doctor	json
+install	agent yes
 install	json
 status	json
+sync	

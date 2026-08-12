@@ -9,9 +9,12 @@ import * as path from "node:path";
 import { claudeCodeHome, type Runtime } from "../config.ts";
 import { resolveBinaryOnPath } from "./shell.ts";
 import { removeSection, upsertSection, RULES_SECTION } from "./rules.ts";
+import { markersFor } from "../sections.ts";
+import { ROUTING_SECTION, renderClaudeRoutingSection } from "../routing/claudeSection.ts";
 import { readJsonConfig, upsertJsonKey, removeJsonKey, type JsonFile } from "./jsonc.ts";
 import { mcpEntryContentHash, renderMcpEntry, sha256Hex } from "./mcpConfig.ts";
 import type { AgentAdapter, AgentContext, DetectResult, HostPaths, InjectResult, RemoveResult } from "./types.ts";
+import type { AgentTarget } from "../state.ts";
 
 const MCP_FILE = ".mcp.json";
 const MCP_KEY = "taskflow";
@@ -54,6 +57,14 @@ export const claudeAdapter: AgentAdapter = {
       : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
 
+    // B1: coded-routing directive como SEGUNDA seção do CLAUDE.md (motor F18 —
+    // mesmo contrato do workflow: upsert por id estável, idempotente; preserveRules
+    // preserva AMBAS as seções — a edição do usuário numa seção preserva as duas).
+    const routing = ctx.preserveRules
+      ? { changed: false, created: false, replaced: false }
+      : upsertSection(paths.rulesFile, ROUTING_SECTION, renderClaudeRoutingSection());
+    if (routing.changed && !written.includes(paths.rulesFile)) written.push(paths.rulesFile);
+
     // MCP: upsert mcpServers.taskflow only when absent or registered as ours
     // (F15 D5 — a foreign entry is reported, never overwritten). "Ours" = the
     // current entry fingerprints equal the registered target (same formula as
@@ -86,15 +97,39 @@ export const claudeAdapter: AgentAdapter = {
     const conflicts: RemoveResult["conflicts"] = [];
     const deleted: string[] = [];
 
-    // Rules section.
-    const afterRules = fs.existsSync(paths.rulesFile) ? removeSection(paths.rulesFile, RULES_SECTION) : null;
+    // Rules sections: workflow + routing (B1). O remove encadeia as remoções
+    // por seção no MESMO arquivo (removeSection lê/escreve o arquivo; a ordem
+    // workflow → routing evita re-leitura inconsistente). Caso raro: só a
+    // seção routing presente (workflow removida à mão) → remove também.
+    const routingTarget = ctx.targets?.find(
+      (t): t is Extract<AgentTarget, { kind: "rules" }> => t.kind === "rules" && t.section === ROUTING_SECTION,
+    );
+    let afterRules = fs.existsSync(paths.rulesFile) ? removeSection(paths.rulesFile, RULES_SECTION) : null;
     if (afterRules !== null) {
+      // Só remove a seção de routing quando registrada como NOSSA (D7 — mesmo
+      // critério do workflow: alvo registrado no state; sem registro → preserva).
+      if (routingTarget) {
+        const afterRouting = removeSectionFromContent(afterRules, ROUTING_SECTION);
+        if (afterRouting !== null) afterRules = afterRouting;
+      }
       if (afterRules.trim() === "") {
         fs.unlinkSync(paths.rulesFile);
         deleted.push(paths.rulesFile);
       } else {
         fs.writeFileSync(paths.rulesFile, afterRules, "utf8");
         removed.push(paths.rulesFile);
+      }
+    } else if (routingTarget && fs.existsSync(paths.rulesFile)) {
+      // Workflow ausente mas routing registrada como nossa → remove só ela.
+      const afterRouting = removeSection(paths.rulesFile, ROUTING_SECTION);
+      if (afterRouting !== null) {
+        if (afterRouting.trim() === "") {
+          fs.unlinkSync(paths.rulesFile);
+          deleted.push(paths.rulesFile);
+        } else {
+          fs.writeFileSync(paths.rulesFile, afterRouting, "utf8");
+          removed.push(paths.rulesFile);
+        }
       }
     }
 
@@ -147,5 +182,32 @@ function readClaudeMcpEntry(mcpFile: string): unknown {
   const cfg = readJsonConfig(mcpFile, false);
   const servers = cfg.content.mcpServers as Record<string, unknown> | undefined;
   return servers?.[MCP_KEY];
+}
+
+/**
+ * Remove a `runecraft:<section>` block from an ALREADY-READ file content
+ * (encadeamento no remove do claude — workflow → routing no mesmo arquivo,
+ * sem re-leitura). Null quando a seção não está presente (dangling marker ou
+ * ausente → não é nossa para remover). Colapsa whitespace apenas no ponto de
+ * remoção (mesma semântica do removeSectionFamily — D6).
+ */
+function removeSectionFromContent(content: string, section: string): string | null {
+  const markers = markersFor("html", section);
+  const openIdx = content.indexOf(markers.open);
+  if (openIdx < 0) return null;
+  const closeIdx = content.indexOf(markers.close, openIdx + markers.open.length);
+  if (closeIdx < 0) return null; // dangling open marker — não é nossa para adivinhar
+  let next = content.slice(0, openIdx) + content.slice(closeIdx + markers.close.length);
+  // Colapsa whitespace APENAS no ponto de remoção (mesma regra do
+  // removeSectionFamily — D6): no máximo 2 eols consecutivos na junção,
+  // nada além disso (conteúdo do usuário em outras regiões fica byte a byte).
+  const junction = openIdx;
+  const prefix = next.slice(0, junction);
+  const suffix = next.slice(junction);
+  const suffixCollapsed = suffix.replace(/^\n{3,}/, "\n\n");
+  const prefixCollapsed = prefix.replace(/\n{3,}$/, "\n\n");
+  next = prefixCollapsed + suffixCollapsed;
+  next = next.replace(/\n+$/, "\n");
+  return next;
 }
 

@@ -423,10 +423,11 @@ describe("EVAL-053 — fail-closed (sem detecção recusa + hint, zero writes; -
       } finally {
         sb.cleanup();
       }
-      // Unit: par agente×componente (D8).
+      // Unit: par agente×componente (D8). B1: a coluna copilot ganhou a célula
+      // routing (unsupported — motivo do manifest).
       expect(firstUnsupported(["copilot"], ["subagents"])?.reason).toContain("é extensão Pi");
       expect(firstUnsupported(["copilot"], ["taskflow"])).toBeUndefined();
-      expect(columnComponents("copilot")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
+      expect(columnComponents("copilot")).toEqual(["taskflow", "rules", "routing", "subagents", "goal-loop-audit", "pr-review", "guards"]);
     }, { evalId: "EVAL-053" });
   });
 });

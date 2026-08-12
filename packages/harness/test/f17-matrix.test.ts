@@ -46,7 +46,7 @@ describe("matrix — declarativa (F17 D1)", () => {
     expect(AGENTS.pi.display).toBe("Pi");
   });
 
-  test("não-Pi = taskflow mcp + rules + 4 células unsupported com motivo", () => {
+  test("não-Pi = taskflow mcp + rules + células unsupported com motivo", () => {
     // F31: copilot entra no loop (coluna aditiva — D8).
     for (const agent of ["claude-code", "opencode", "codex", "copilot"] as const) {
       const column = MATRIX[agent];
@@ -57,8 +57,6 @@ describe("matrix — declarativa (F17 D1)", () => {
         const cell = column[component];
         expect(cell?.kind).toBe("unsupported");
         expect((cell as { reason: string }).reason).toContain("é extensão Pi; use --agent pi");
-        // Phase A: toda célula unsupported carrega o plano nativo (roadmap).
-        expect((cell as { reason: string }).reason).toContain("planned:");
       }
     }
     // F31 D8: AGENTS.copilot declarado (display + nota honesta).
@@ -68,29 +66,35 @@ describe("matrix — declarativa (F17 D1)", () => {
   });
 
   test("columnComponents = coluna inteira (sem native); fora da matriz não tem célula", () => {
-    // unsupported são células da coluna — incluídas; `native` (rules/guards no Pi) é no-op
-    expect(columnComponents("claude-code")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
-    expect(columnComponents("copilot")).toEqual(["taskflow", "rules", "subagents", "goal-loop-audit", "pr-review", "guards"]);
+    // unsupported são células da coluna — incluídas; `native` (rules/guards/routing no Pi) é no-op
+    // B1: a célula routing do claude-code (seção runecraft:routing) entra na coluna.
+    expect(columnComponents("claude-code")).toEqual(["taskflow", "rules", "routing", "subagents", "goal-loop-audit", "pr-review", "guards"]);
+    expect(columnComponents("copilot")).toEqual(["taskflow", "rules", "routing", "subagents", "goal-loop-audit", "pr-review", "guards"]);
     expect(columnComponents("pi")).toEqual(["subagents", "taskflow", "goal-loop-audit", "pr-review"]);
     // detect-only (fora da matriz): sem célula → firstUnsupported nunca recusa
     expect((MATRIX as Record<string, unknown>).cursor).toBeUndefined();
   });
 
-  test("células unsupported carregam o plano nativo por agente (Phase A)", () => {
-    // O refusal lê "v1", não "nunca" — fonte do plano: docs/PARITY.md.
-    expect((MATRIX["claude-code"].subagents as { reason: string }).reason).toContain("planned: agent files");
+  test("células unsupported carregam o plano nativo por agente (Phase A + B0 manifest)", () => {
+    // O refusal lê "v1", não "nunca" — fonte única: src/capabilities/manifest.ts
+    // (capabilityReason). B1: claude-code subagents JÁ ENTREGUE via superfície
+    // nativa (agent files + Task tool) — o reason lê a forma entregue, não
+    // "planned:"; os demais pares seguem com o plano da fase.
+    expect((MATRIX["claude-code"].subagents as { reason: string }).reason).toContain("agent files");
+    expect((MATRIX["claude-code"].subagents as { reason: string }).reason).toContain("Task tool");
     expect((MATRIX["claude-code"].guards as { reason: string }).reason).toContain("planned: PreToolUse hooks");
     expect((MATRIX["codex"].guards as { reason: string }).reason).toContain("planned: PreToolUse hooks");
-    expect((MATRIX["codex"].subagents as { reason: string }).reason).toContain("planned: codex exec");
-    expect((MATRIX["opencode"].subagents as { reason: string }).reason).toContain("planned: overlay agents");
-    expect((MATRIX["copilot"].subagents as { reason: string }).reason).toContain("planned: runSubagent");
+    expect((MATRIX["codex"].subagents as { reason: string }).reason).toContain("planned: headless codex exec");
+    expect((MATRIX["opencode"].subagents as { reason: string }).reason).toContain("overlay agents");
+    expect((MATRIX["copilot"].subagents as { reason: string }).reason).toContain("runSubagent");
     // Copilot guards honestos: sem superfície de hooks — v1 detect-only.
     expect((MATRIX["copilot"].guards as { reason: string }).reason).toContain("detect-only");
   });
 
   test("firstUnsupported: par agente×componente com motivo; pares ok → undefined", () => {
+    // B1: claude-code subagents entregue nativamente — reason da forma entregue.
     const blocked = firstUnsupported(["claude-code"], ["subagents"]);
-    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi; planned: agent files (~/.claude/agents/) + Task tool (B1)");
+    expect(blocked?.reason).toBe("subagents é extensão Pi; use --agent pi; Task tool + agent files (~/.claude/agents/*.md) — 7 role agents (B1) (native)");
     // F31: copilot bloqueia os mesmos componentes Pi-only (D8).
     const copilotBlocked = firstUnsupported(["copilot"], ["guards"]);
     expect(copilotBlocked?.agent).toBe("copilot");

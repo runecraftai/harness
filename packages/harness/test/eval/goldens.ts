@@ -12,6 +12,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderMcpConfig, resolveMcpBin } from "../../src/adapters/mcpConfig.ts";
 import { renderRules } from "../../src/adapters/rulesContent.ts";
+import { renderClaudeRoutingSection } from "../../src/routing/claudeSection.ts";
 import { markersFor } from "../../src/sections.ts";
 import type { AgentId } from "../../src/adapters/types.ts";
 import { PILOT_CHAIN_NAMES, pilotChainsAssetsDir } from "../../src/routing/materialize.ts";
@@ -20,6 +21,9 @@ const EVAL_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const GOLDEN_DIR = path.resolve(EVAL_DIR, "../golden");
 
 export const SECTION_WORKFLOW_ID = "runecraft:workflow";
+
+/** Id da seção de routing do Claude (B1 — directive codificada). */
+export const SECTION_ROUTING_ID = "runecraft:routing";
 
 /** Bins MCP pinados pelos testes de golden (F23 D4 — env fixture; NUNCA
  *  executados, só renderizados; o literal é o mesmo em qualquer máquina).
@@ -51,6 +55,13 @@ export function renderSectionWorkflow(agentKey: "pi" | "non-pi"): string {
   return `${markers.open}\n${rules}\n${markers.close}\n`;
 }
 
+/** Seção completa `<!-- runecraft:routing --> … <!-- /runecraft:routing -->`
+ *  (B1 — directive codificada do Claude; markers html + renderClaudeRoutingSection). */
+export function renderSectionClaudeRouting(): string {
+  const markers = markersFor("html", SECTION_ROUTING_ID);
+  return `${markers.open}\n${renderClaudeRoutingSection()}\n${markers.close}\n`;
+}
+
 /** Entry MCP do host com bin pinado via env (F23 D4: resolveMcpBin > env). */
 export function renderMcpGolden(host: AgentId, env: NodeJS.ProcessEnv): string {
   const rt = { cwd: process.cwd(), env };
@@ -77,13 +88,15 @@ export interface GoldenDef {
   maxLines: number;
 }
 
-/** Os 11 goldens (6 v1 + copilot F31 + 5 pilot chains F33) — ordem estável
- *  para --update e relatórios. */
+/** Os 12 goldens (6 v1 + copilot F31 + 5 pilot chains F33 + routing claude B1)
+ *  — ordem estável para --update e relatórios. */
 export function goldenDefs(): GoldenDef[] {
   const env = pinnedEnv();
   return [
     { name: "section-workflow-pi.golden", render: () => renderSectionWorkflow("pi"), maxLines: 48 },
     { name: "section-workflow-nonpi.golden", render: () => renderSectionWorkflow("non-pi"), maxLines: 27 },
+    // B1: directive de routing do Claude (seção runecraft:routing no CLAUDE.md).
+    { name: "section-routing-claude.golden", render: () => renderSectionClaudeRouting(), maxLines: 60 },
     { name: "mcp-claude.golden", render: () => renderMcpGolden("claude-code", env), maxLines: 20 },
     { name: "mcp-opencode.golden", render: () => renderMcpGolden("opencode", env), maxLines: 20 },
     { name: "mcp-codex.golden", render: () => renderMcpGolden("codex", env), maxLines: 20 },

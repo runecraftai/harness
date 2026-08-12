@@ -9,6 +9,7 @@ import * as fs from "node:fs";
 import { ADAPTERS, DETECT_ONLY_GUIDES, genericDetectOnlyGuide, resolveAgentId } from "./registry.ts";
 import { RULES_SECTION, upsertSection, removeSection, listRulesSectionIds } from "./rules.ts";
 import { renderWorkflowRules, WORKFLOW_RULES_VERSION } from "./rulesContent.ts";
+import { ROUTING_SECTION, renderClaudeRoutingSection, CLAUDE_ROUTING_SECTION_VERSION } from "../routing/claudeSection.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "./mcpConfig.ts";
 import { readJsonConfig } from "./jsonc.ts";
 import { upsertAgent, type AgentRecord, type AgentTarget, type HarnessState } from "../state.ts";
@@ -84,6 +85,31 @@ export function buildAgentTargets(
     }
   } else if (rulesTarget && fs.existsSync(rulesTarget.file)) {
     targets.push(rulesTarget); // rerun: registro prévio preservado
+  }
+  // B1: target da seção de routing (componente `routing` da matriz — mesmo
+  // contrato do workflow: registrado com contentHash quando escrito; rerun
+  // preserva o registro prévio; preserveRules → o inject não escreveu a
+  // seção e o registro anterior continua valendo). APENAS claude-code: a
+  // seção runecraft:routing é escrita pelo adapter do claude (os demais
+  // hosts não têm a directive — matriz: célula routing unsupported).
+  const routingWritten =
+    adapter.id === "claude-code" && result.written.includes(paths.rulesFile) && !ctx.preserveRules;
+  const routingTarget = registered?.targets.find(
+    (t): t is Extract<AgentTarget, { kind: "rules" }> => t.kind === "rules" && t.section === ROUTING_SECTION,
+  );
+  if (routingWritten) {
+    if (fs.existsSync(paths.rulesFile)) {
+      targets.push({
+        kind: "rules",
+        component: "routing",
+        file: paths.rulesFile,
+        section: ROUTING_SECTION,
+        contentHash: sectionContentHash(ROUTING_SECTION, renderClaudeRoutingSection()),
+        rulesVersion: CLAUDE_ROUTING_SECTION_VERSION,
+      });
+    }
+  } else if (routingTarget && adapter.id === "claude-code" && fs.existsSync(routingTarget.file)) {
+    targets.push(routingTarget); // rerun/preserveRules: registro prévio preservado
   }
   const mcpWritten = result.written.includes(paths.mcpFile) && result.conflicts.length === 0;
   const mcpTarget = registered?.targets.find((t) => t.kind === "mcp");

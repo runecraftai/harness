@@ -18,11 +18,12 @@ const AGENT_CTX = { mcpBin: MCP_FIXTURE_BINS["claude-code"], mcpBinCommand: [MCP
 describe("goldens — byte a byte (D4)", () => {
   const defs = goldenDefs();
 
-  test("registro estável: 11 goldens, nomes únicos e ordem fixa", () => {
-    expect(defs).toHaveLength(11);
+  test("registro estável: 12 goldens, nomes únicos e ordem fixa", () => {
+    expect(defs).toHaveLength(12);
     expect(defs.map((d) => d.name)).toEqual([
       "section-workflow-pi.golden",
       "section-workflow-nonpi.golden",
+      "section-routing-claude.golden",
       "mcp-claude.golden",
       "mcp-opencode.golden",
       "mcp-codex.golden",

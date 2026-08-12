@@ -49,11 +49,12 @@ the tools and harness layers ship as Pi packages, installed by
 
 ## Parity roadmap
 
-Tier 2 is taskflow + rules today, nothing more — the harness never claims
-the full layer for a non-Pi agent. The full surface (subagents, goal-loop,
-pr-review, guards, memory, model routing) is being ported to each agent's
-native configuration: Claude Code hooks and agent files, Codex hooks and
-profiles, OpenCode overlay agents, Copilot runSubagent. Where a native
+Tier 2 is taskflow + rules today, plus the first native-parity slice for
+Claude Code — the harness never claims the full layer for a non-Pi agent.
+The full surface (subagents, goal-loop, pr-review, guards, memory, model
+routing) is being ported to each agent's native configuration: Claude Code
+hooks and agent files (B1 shipped: role agents + coded routing), Codex hooks
+and profiles, OpenCode overlay agents, Copilot runSubagent. Where a native
 surface is missing, only the portable parts travel — Copilot guards reduce
 to advisory instructions (no tool-call hook surface), Copilot model routing
 to single-model guidance (no per-agent model config) — each marked in the
@@ -91,9 +92,10 @@ Install for Claude Code, OpenCode, Codex or Copilot (Tier 2):
 companion install --agent claude-code,opencode,codex   # or: copilot
 ```
 
-What you get per agent (taskflow + rules today; parity on the roadmap):
+What you get per agent (taskflow + rules today; Claude Code also receives
+the B1 parity slice):
 
-- **Claude Code** — taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md`.
+- **Claude Code** — taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md` + **B1**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only `builder` spawns) + the coded-routing directive (`runecraft:routing` section).
 - **OpenCode** — taskflow-MCP (`taskflow-opencode`) + workflow rules in `AGENTS.md`.
 - **Codex** — taskflow-MCP (`taskflow-codex` in `config.toml`) + workflow rules in `AGENTS.md` (solo).
 - **VS Code Copilot** — `servers.taskflow` in `.vscode/mcp.json` + `.github/copilot-instructions.md` (repo-scoped).

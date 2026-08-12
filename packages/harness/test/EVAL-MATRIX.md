@@ -1,6 +1,6 @@
 # EVAL-MATRIX — fluxos determinísticos da camada 2 (F21)
 
-MATRIX_VERSION: 11
+MATRIX_VERSION: 12
 
 Registro de governo dos fluxos de eval determinísticos do harness (F21, AD-010).
 A camada 2 replaya fluxos SDLC críticos contra um fixture OpenAI-wire local
@@ -60,6 +60,7 @@ child não é viável de forma determinística (script único do fixture) — o
 routing é provado pelo delegation event tipado do F28 (EVAL-062/063/064,
 fallback documentado no design D9).
 
+**v12 (B0+B1, 2026-08-13):** entradas aditivas EVAL-079..084 (Parity engineering — primeira fatia, recon §6B): EVAL-079 capability manifest (B0 — `src/capabilities/manifest.ts`, port do gentle-ai `manifest.go` em TS: claims por agente × capability (hooks/subagents/mcp/models/guards + taskflow/goal-loop/pr-review/memory/persona/sdds), validação estrutural (manifest_test.go pattern), digest sha256 byte-estável, `capabilityReason` como FONTE ÚNICA dos motivos das células unsupported da matriz — sem drift); EVAL-080 agent files do Claude Code (B1 — 7 papéis `claude-agents/*.md`, frontmatter name/description/tools ⊆ vocabulário verificado, só o builder com a tool de delegação Agent — QA-5 espelhado, deny-list RPG); EVAL-081 directive de routing como seção `runecraft:routing` do CLAUDE.md (B1 — render puro do MESMO catálogo do F33: threshold explícito, security OBRIGATÓRIA, delegação via Task tool, golden byte-igual); EVAL-082 materialização three-way para `~/.claude/agents/` (F19 D7 — 1ª instalação byte-idêntica, sync idempotente, edição do usuário preservada); EVAL-083 doctor checks 24/25 (claude role agents + capability manifest); EVAL-084 status --json (seções capabilities + claudeRoleAgents + claudeRouting). Política aditiva D9; o teste de consistência agora também varre `test/eval/framework/parity` (lane B0/B1). Nota: os cases são todos unit/fixture (mesmo padrão EVAL-017..020 do F27 — o Claude Code não tem superfície de extensão; a delegação via Task tool é provada pelos agent files + directive, e o fluxo real por install/sync/doctor/status com fake claude bin).
 **v11 (F33, AD-033):** entradas aditivas EVAL-067..078 (Coded Routing &
 Pilot Coordination — classificador determinístico puro `src/routing/` com
 thresholds em constantes (ROUTE_THRESHOLD=2, high ×2/medium ×1) e security
@@ -237,6 +238,12 @@ memória (D10); tool-use/routing (F32) e failover (F30) seguem SEM entradas.
 | EVAL-076 | extensão routing (F33 RTE-03 — D1/D6) | eval (framework/routing) | 1. before_agent_start injeta o directive (marker); 2. freeze por sessão (2ª chamada = mesma decisão — sem re-classificação por spawn); 3. `RUNECRAFT_ROUTING=0` → inerte (kill switch F20) | hook = before_agent_start (STOP RULES — event.prompt é a 1ª mensagem, types.d.ts:518); freeze F24 D12 |
 | EVAL-077 | two-driver (F33 RTE-06 — D6) | eval (framework/routing) | 1. ledger glla supervisionando (F19 isSupervising: goal active + autoContinue) → routing SKIP (nenhum directive — o loop é o piloto); 2. sem ledger → directive normal | two-driver rule (ROUTING.md §2); kill switch/documentação valem mesmo inertes |
 | EVAL-078 | chain selection + contrato F30 (F33 RTE-04/06 — D4/D7) | eval (framework/routing) | 1. chain ausente em .pi/chains/ → direct + warn (fail-closed — nunca inventa); 2. render do directive 2 runs byte-idênticos; 3. passo da chain (papel F32) → `models.agents.<id>` resolve (resolveAgentModel); 4. fim-de-chain → null + warn (F30 D4) | contrato F30 D5/D11 (F33 consome, não implementa); delta vs EVAL-066 |
+| EVAL-079 | capability manifest (B0 — manifest.go port) | eval (framework/parity) | 1. validateManifest ok (estrutura fechada: agentes suportados × capabilities, verdicts, delivered↔verdict); 2. digest sha256 byte-estável (2 runs); 3. wiring: células unsupported da matriz consomem `capabilityReason` (fonte única — sem drift); 4. honestidade: Copilot guards/hooks = none | fonte: `src/capabilities/manifest.ts`; pattern gentle-ai manifest_test.go; delta vs EVAL-001..078 (adição B0) |
+| EVAL-080 | agent files do Claude Code (B1) | eval (framework/parity) | 1. 7 assets `claude-agents/*.md` válidos (name/description/tools ⊆ vocabulário verificado); 2. só o builder com a tool de delegação Agent (QA-5 espelhado); 3. deny-list RPG ausente; 4. corpo do builder instrui a delegação nativa | fonte: `src/adapters/claudeAgents.ts`; delta vs EVAL-057 (assets do F32 — aqui o formato do Claude) |
+| EVAL-081 | directive de routing como seção (B1) | eval (framework/parity) | 1. renderClaudeRoutingSection 2 runs byte-idênticos; 2. golden byte-igual (section-routing-claude); 3. threshold explícito + security MANDATORY (NOT optional); 4. delegação via Task tool (Agent); 5. 7 papéis listados | fonte: `src/routing/claudeSection.ts` (mesmo catálogo do F33); delta vs EVAL-078 |
+| EVAL-082 | materialização ~/.claude/agents/ (B1) | eval (framework/parity) | 1. install --agent claude-code → 7 arquivos byte-idênticos + registros no state; 2. seção runecraft:routing no CLAUDE.md; 3. sync idempotente (zero writes); 4. edição do usuário → preservada (F19 D7) | three-way espelho do F32 (EVAL-057..066) — alvo ~/.claude/agents/ |
+| EVAL-083 | doctor checks 24/25 (B0/B1) | eval (framework/parity) | 1. check 24 (claude role agents) pass após install (gate claude detectado + gerenciado); 2. check 25 (capability manifest) pass com digest; 3. 24 checks totais | numeração AD-014: 24/25 após 23 (F33) |
+| EVAL-084 | status --json (B0/B1) | eval (framework/parity) | 1. seção capabilities (digest + claims por agente); 2. claudeRoleAgents (instalados 7/7); 3. claudeRouting (seção presente + registrada) | fonte única do manifest; smoke do fluxo real (fake claude bin) |
 
 
 **Limitações declaradas** (espelho do padrão de ratchets): a sequência scriptada prova

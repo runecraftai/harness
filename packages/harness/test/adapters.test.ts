@@ -14,6 +14,7 @@ import { opencodeAdapter } from "../src/adapters/opencode.ts";
 import { codexAdapter } from "../src/adapters/codex.ts";
 import { resolveMcpBin, UpstreamReferenceError } from "../src/adapters/mcpConfig.ts";
 import { upsertSection, removeSection, RULES_SECTION } from "../src/adapters/rules.ts";
+import { ROUTING_SECTION } from "../src/routing/claudeSection.ts";
 import { upsertTomlSection, readTomlSection, renderMcpServerBlock, removeTomlSection } from "../src/toml.ts";
 import type { AgentContext } from "../src/adapters/types.ts";
 
@@ -233,6 +234,8 @@ describe("claudeAdapter.inject/remove (ADPT-05/06/07)", () => {
     expect(inject.written.length).toBe(2);
     const rules = fs.readFileSync(path.join(home, ".claude", "CLAUDE.md"), "utf8");
     expect(rules).toContain("runecraft:workflow");
+    // B1: a seção runecraft:routing (directive codificada) é injetada junto.
+    expect(rules).toContain("runecraft:routing");
     const mcp = JSON.parse(fs.readFileSync(path.join(home, ".claude", ".mcp.json"), "utf8"));
     expect(mcp.mcpServers.taskflow.command).toBe("node");
     expect(mcp.mcpServers.taskflow.args[0]).toContain("bin.js");
@@ -247,10 +250,14 @@ describe("claudeAdapter.inject/remove (ADPT-05/06/07)", () => {
 
     const remove = await claudeAdapter.remove({
       ...ctxFor(r),
-      targets: [{ kind: "rules", file: path.join(home, ".claude", "CLAUDE.md"), section: RULES_SECTION, contentHash: "x" }],
+      targets: [
+        { kind: "rules", file: path.join(home, ".claude", "CLAUDE.md"), section: RULES_SECTION, contentHash: "x" },
+        { kind: "rules", file: path.join(home, ".claude", "CLAUDE.md"), section: ROUTING_SECTION, contentHash: "x" },
+      ],
     });
     const afterRules = fs.readFileSync(path.join(home, ".claude", "CLAUDE.md"), "utf8");
     expect(afterRules).not.toContain("runecraft:workflow");
+    expect(afterRules).not.toContain("runecraft:routing");
     expect(afterRules).toContain("gentle-ai:x");
     expect(remove.removed.length).toBeGreaterThan(0);
   });
