@@ -39,7 +39,7 @@ managed.
 | Tier | Agents | Today | Roadmap |
 | --- | --- | --- | --- |
 | **Tier 1 — full layer** | **Pi** | the four tools + the full harness layer (guards, verification, resilience, memory, routing, persona), as Pi packages | reference implementation |
-| **Tier 2 — taskflow + rules** | **Claude Code**, **OpenCode**, **Codex**, **VS Code Copilot** | taskflow-MCP + workflow rules in each agent's native config | native parity per agent (Claude hooks + agent files, Codex hooks + profiles, OpenCode overlay, Copilot runSubagent) |
+| **Tier 2 — taskflow + rules** | **Claude Code**, **OpenCode**, **Codex**, **VS Code Copilot** | taskflow-MCP + workflow rules in each agent's native config; Claude Code also receives the B1 parity slice (7 role agents + coded routing) | native parity per agent (Claude hooks + agent files, Codex hooks + profiles, OpenCode overlay, Copilot runSubagent) |
 | **Tier 3 — detect-only** | Cursor, Grok, others | the CLI detects them and names the exact command you'd run yourself | an adapter, when a user actually needs one |
 
 The taskflow-MCP layer is what the non-Pi agents receive — the same DAG
@@ -103,7 +103,7 @@ the B1 parity slice):
 Verify the install:
 
 ```bash
-companion doctor                        # 22 checks: forks, state, collisions
+companion doctor                        # 24–25 checks: forks, state, collisions, parity (B0/B1)
 companion status                        # cross-state report: agents × components
 ```
 

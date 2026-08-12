@@ -26,8 +26,9 @@ repo root/
 `packages/harness/` structure: `src/` (CLI, adapters, extensions, guards,
 verification, evals, resilience, observability, memory, routing, persona),
 `test/` (suite + eval lanes), `docs/` (shipped docs, EN), `skills/`
-(shipped Pi skills), `agents/` (the 7 role agents), `assets/` + `chains/`
-(SDD chains), `bin/` (CLI entry), `scripts/` (prepack, gen-versions).
+(shipped Pi skills), `agents/` (the 7 role agents), `claude-agents/` (the 7
+Claude Code role agents, B1), `assets/` + `chains/` (SDD chains), `bin/`
+(CLI entry), `scripts/` (prepack, gen-versions).
 
 ## Mental model
 
@@ -49,7 +50,7 @@ Three layers:
 ### Test commands
 
 - Full harness suite (deterministic, offline): `bun run test` in
-  `packages/harness` (1193 tests; runs the eval lanes + ratchet + goldens).
+  `packages/harness` (runs the eval lanes + ratchet + goldens).
 - E2E offline tests (env-gated): `bun test scripts/eval-e2e` at the repo root
   (71 tests — without `RUNECRAFT_E2E=1` they skip, exit 0, zero tokens).
 - Real-model E2E benchmark: `RUNECRAFT_E2E=1 bun run eval:e2e` (not in CI).
@@ -82,6 +83,6 @@ Three layers:
 | Fork versions (single source of truth) | `packages/*/package.json` → generated `packages/harness/src/versions.ts` (`bun run generate:versions`) |
 | Routing golden chain | `docs/ROUTING.md` §9 ↔ `renderRules()` — pinned by `test/f19-routing.test.ts` |
 | Eval ratchets | `test/eval/baselines/{known-failures,command-coverage,e2e-passrate}.txt` |
-| Golden assets | `test/golden/*.golden` (11) — pinned by `test/eval/goldens.test.ts` |
+| Golden assets | `test/golden/*.golden` (12) — pinned by `test/eval/goldens.test.ts` |
 | E2E round schema | `scripts/eval-e2e/types.ts` — committed rounds under `results/<version>/<roundId>.json` (read leniently) |
 | Eval matrix governance | `test/EVAL-MATRIX.md` (additive policy: entries only ever added, never removed) |

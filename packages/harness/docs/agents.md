@@ -38,8 +38,9 @@ Properties:
 
 The CLI manages non-Pi agents in the same detect/inject/remove pattern. Each
 agent is a Tier 2 column: taskflow-MCP + workflow rules today (Claude Code,
-OpenCode, Codex) or repo-scoped rules + MCP (Copilot for VS Code), with
-native parity planned per agent — see [PARITY.md](PARITY.md).
+OpenCode, Codex) or repo-scoped rules + MCP (Copilot for VS Code) — Claude
+Code additionally receives the B1 parity slice (see below) — with the rest
+of the native parity planned per agent — see [PARITY.md](PARITY.md).
 
 | Agent | Binary detection | MCP | Rules | Delivery (v1 + parity B0/B1) |
 | --- | --- | --- | --- | --- |

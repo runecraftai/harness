@@ -13,7 +13,8 @@ The Runecraft harness loads four forked tools into a Pi session —
 `goal-loop-audit` (verifiable contract with an isolated auditor) and
 `pr-review` (structured review) — and manages non-Pi agents (Claude Code,
 OpenCode, Codex, Copilot) through their matrix column: taskflow-MCP +
-workflow rules.
+workflow rules (Claude Code also receives the B1 parity slice — section
+8.15).
 
 The four tools overlap; picking the wrong one costs time and, in the worst
 case, breaks the session (two-driver rule — section 2). Use this document in
@@ -144,9 +145,10 @@ non-Pi agents will get next, and through which native surface) live in
 
 ## 7. Coexistence
 
-- The harness manages exactly the `runecraft:workflow` block: append on
-  insert, in-place update by the stable id, nothing beyond the markers
-  (section engine).
+- The harness manages the `runecraft:workflow` block (plus, for Claude Code
+  since B1, the `runecraft:routing` directive section): append on insert,
+  in-place update by the stable id, nothing beyond the markers (section
+  engine).
 - **Other installers**: `gentle-ai:` marker sections are third-party content —
   the harness never touches them (append/upsert only of the runecraft: block;
   detected in `harness status` Owners / `harness doctor` check 14).
@@ -461,9 +463,9 @@ install refuses **fail-closed display-only** (zero writes) with a hint;
 status and doctor (check 21) report detect-only — the harness never installs
 runtimes.
 
-**Matrix**: the copilot column = taskflow-MCP + rules + 4 `unsupported` cells
-(subagents/goal-loop-audit/pr-review/guards — "is a Pi extension; use
-`--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
+**Matrix**: the copilot column = taskflow-MCP + rules + 5 `unsupported` cells
+(subagents/goal-loop-audit/pr-review/guards/routing — "is a Pi extension;
+use `--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
 [PARITY.md](PARITY.md)). Guards: VS Code exposes no tool-call hook surface —
 Copilot guards stay detect-only in v1 and on the roadmap (PARITY.md B2).
 
@@ -854,6 +856,15 @@ Recent verification runs:
   mandatory on high signals; the directive is injected via
   `before_agent_start` (no input event on the harness surface — the first
   message IS the prompt).
+- **2026-08-13**: Claude Code parity (section 8.15) — B0 capability manifest
+  (`src/capabilities/manifest.ts`): per-agent claims × capability, sha256
+  byte-stable digest, `capabilityReason` = single source for the matrix
+  unsupported cells; B1 roles + routing: 7 role agents
+  (`claude-agents/*.md`) materialized three-way to `~/.claude/agents/`, the
+  `runecraft:routing` directive section rendered from the SAME route catalog
+  as the classifier and injected by the marker engine, delegation via the
+  native `Agent` (Task) tool (only `builder`), doctor checks 24/25, status
+  Capabilities / Claude role agents / Routing sections.
 
 **Revalidation checklist** (on fork bumps or newly found limitations): table
 facts → section 3; injected text → section 9 (bump the workflow rules
