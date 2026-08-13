@@ -46,7 +46,9 @@ jobs:
       # goal-loop-audit's 2 pre-existing deterministic failures ("v0.28.34: notify
       # folds a default IN" / "v0.29.0: /loop audit") were fixed by root-cause test
       # repairs (2026-08-13 commander decision: fix, not cut) and its suite is back
-      # in the CI surface. The full `turbo run test` is still not CI-safe on main:
+      # in the CI surface. The pi-subagents drift test env-skips declaratively when
+      # pi-subagents is not installed (Bun's node:test shim has no runtime t.skip).
+      # The full `turbo run test` is still not CI-safe on main:
       # README-drift failures remain in pr-review (3) and subagents (141) from the
       # docs rewrite (b53b867/eab464a). Re-enable the full suite once those are
       # fixed or cut.
