@@ -39,6 +39,18 @@ function emptyRecords(): Record<string, ClaudeAgentRecord> {
   return {};
 }
 
+/** Cópia dos assets do pacote num root fake (espelho do fakePackageRoot do
+ *  F32 materialize.test.ts) — testes que MUTAM um asset (vN→vM) operam na
+ *  cópia, nunca no pacote shipped. */
+function fakePackageRoot(base: string): string {
+  const assetsDir = path.join(base, "claude-agents");
+  fs.mkdirSync(assetsDir, { recursive: true });
+  for (const id of ROLE_IDS) {
+    fs.copyFileSync(path.join(claudeAgentsAssetsDir(REAL_ROOT), `${id}.md`), path.join(assetsDir, `${id}.md`));
+  }
+  return base;
+}
+
 describe("assets — validação fail-closed (B1)", () => {
   test("os 7 assets versionados são válidos (frontmatter/tools/QA-5/deny-list)", () => {
     const assetsDir = claudeAgentsAssetsDir(REAL_ROOT);
@@ -154,27 +166,22 @@ describe("planClaudeAgents/applyClaudeAgents — three-way F19 D7 (B1)", () => {
 
   test("template mudou (vN→vM): arquivo == registrado → updated (copia o novo asset)", () => {
     const base = makeTmp();
+    const root = fakePackageRoot(base);
     const claudeHome = path.join(base, "claude-home");
     const records = emptyRecords();
-    applyClaudeAgents(claudeHome, records, planClaudeAgents(claudeHome, undefined));
+    applyClaudeAgents(claudeHome, records, planClaudeAgents(claudeHome, undefined, root), root);
 
-    // Asset do scout muda (novo template). Captura o ORIGINAL antes da mutação
-    // — claudeAgentsAssetsDir() e claudeAgentsAssetsDir(REAL_ROOT) são o MESMO
-    // diretório (root default == packageRoot() == packages/harness), então o
-    // restore precisa reescrever o conteúdo pré-mutação, não reler o arquivo.
-    const assetFile = path.join(claudeAgentsAssetsDir(), "scout.md");
+    // Asset do scout muda (novo template) — na CÓPIA do pacote (fake root),
+    // nunca no asset shipped (zero mutation do source tree / flake paralela).
+    const assetFile = path.join(claudeAgentsAssetsDir(root), "scout.md");
     const originalAsset = fs.readFileSync(assetFile, "utf8");
     fs.writeFileSync(assetFile, `${originalAsset}\n-- v2 --\n`, "utf8");
-    try {
-      const plans = planClaudeAgents(claudeHome, records);
-      expect(plans.find((p) => p.roleId === "scout")?.status).toBe("updated");
-      const result = applyClaudeAgents(claudeHome, records, plans);
-      expect(result.copied).toContain("scout.md");
-      expect(fs.readFileSync(path.join(claudeAgentsDir(claudeHome), "scout.md"), "utf8")).toBe(fs.readFileSync(assetFile, "utf8"));
-    } finally {
-      // restaura o asset (o teste mutou o pacote real — side effect reversível)
-      fs.writeFileSync(assetFile, originalAsset);
-    }
+
+    const plans = planClaudeAgents(claudeHome, records, root);
+    expect(plans.find((p) => p.roleId === "scout")?.status).toBe("updated");
+    const result = applyClaudeAgents(claudeHome, records, plans, root);
+    expect(result.copied).toContain("scout.md");
+    expect(fs.readFileSync(path.join(claudeAgentsDir(claudeHome), "scout.md"), "utf8")).toBe(fs.readFileSync(assetFile, "utf8"));
   });
 
   test("adoção: arquivo == asset sem registro → adopted (registra, sem write)", () => {
