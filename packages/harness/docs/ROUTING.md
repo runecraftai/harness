@@ -712,6 +712,8 @@ divergence is red. The markers are stable block delimiters; the text between
 them is what the section engine injects. The blocks are pinned and must not
 be edited by hand.
 
+B1 routing directive: golden `test/golden/section-routing-claude.golden` (EVAL-081) — the authoritative expected shape for routing directives.
+
 <!-- BEGIN runecraft:golden:pi -->
 Runecraft workflow rules (v1)
 
