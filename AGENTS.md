@@ -14,6 +14,7 @@ This file is the project's committed base for project-intrinsic agent knowledge:
 
 - Package: `packages/harness` — `bun test` (suite + ratchet chained), `bun run typecheck` (tsc), `bun run eval:ratchet --update` absorbs new coverage/goldens into `test/eval/baselines/`. Root `bun run lint` (biome) ignores `packages/**` by design — the harness gates are typecheck + tests.
 - Goldens: `test/golden/*.golden` (injected content byte-locked, incl. `section-routing-claude.golden`). Regenerate with `bun run eval:ratchet --update` (refuses with CI=true).
+- CI test surface (`.github/workflows/ci.yml`): `@runecraft/companion` + `@runecraft/goal-loop-audit` only. Full `turbo run test` stays scoped out because pr-review (3) and subagents (141) still fail on README-drift assertions from the docs rewrite (b53b867/eab464a) — their own fix-or-cut lane. glla's 2 were fixed as test defects (missing fs import / over-escaped regex; the F8 README doc-claim assertions were dropped — the v0.28.34 claims live in the CHANGELOG, the README keeps only the no-tintinweb pin). glla sharp edge: Bun's node:test shim has no runtime `t.skip()` (NotImplementedError) — the pi-subagents drift test declares its skip in the test options, computed at module scope, so it env-skips on CI runners without pi-subagents.
 
 ## Maintaining this file
 

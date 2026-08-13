@@ -156,18 +156,23 @@ test("defaultAgentDir points at ~/.pi/agent", () => {
 // If tintinweb changes the default Explore config (or pins a model on another
 // default agent), this test fails and prompts re-syncing the embedded copies
 // in extensions/goal-loop-subagents.ts.
+//
+// Source discovery happens at module scope so the skip can be declared in the
+// test options: Bun's node:test shim does NOT implement the runtime t.skip()
+// (throws NotImplementedError, failing the test instead of skipping it — the
+// CI runner has no pi-subagents installed). Same declarative-skip pattern as
+// tests/commit-survival-e2e.test.ts.
 
-test("drift: embedded Explore copy matches installed pi-subagents default", (t) => {
-  const candidates = [
-    path.join(os.homedir(), ".pi", "agent", "npm", "node_modules", "@tintinweb", "pi-subagents", "src", "default-agents.ts"),
-    process.env.PI_SUBAGENTS_DEFAULT_AGENTS ?? "",
-  ].filter(Boolean);
-  const src = candidates.find(p => fs.existsSync(p));
-  if (!src) {
-    t.skip("pi-subagents not installed in this environment — drift check skipped");
-    return;
-  }
-  const content = fs.readFileSync(src, "utf-8");
+const driftCandidates = [
+  path.join(os.homedir(), ".pi", "agent", "npm", "node_modules", "@tintinweb", "pi-subagents", "src", "default-agents.ts"),
+  process.env.PI_SUBAGENTS_DEFAULT_AGENTS ?? "",
+].filter(Boolean);
+const driftSource = driftCandidates.find(p => fs.existsSync(p));
+
+test("drift: embedded Explore copy matches installed pi-subagents default", {
+  skip: !driftSource && "pi-subagents not installed in this environment — drift check skipped",
+}, (t) => {
+  const content = fs.readFileSync(driftSource!, "utf-8");
   const exploreBlock = content.slice(content.indexOf('"Explore",'), content.indexOf('"Plan",'));
 
   // model pin: either absent (upstream fixed it) or still haiku — embedded
@@ -176,12 +181,14 @@ test("drift: embedded Explore copy matches installed pi-subagents default", (t) 
   const pinnedAgents = [...content.matchAll(/model:\s*"([^"]+)"/g)].map(m => m[1]);
   if (pinnedAgents.length === 0) {
     // Upstream removed all pins — our managed override is harmless but
-    // KNOWN_PINNED_DEFAULT_AGENTS should be emptied.
+    // KNOWN_PINNED_DEFAULT_AGENTS should be emptied. (t.skip() is not
+    // implemented in Bun's node:test shim, so this branch notes and returns
+    // instead — the assertion above stays live.)
     assert.deepEqual(
       [...KNOWN_PINNED_DEFAULT_AGENTS], [],
       "upstream no longer pins any default agent model — empty KNOWN_PINNED_DEFAULT_AGENTS",
     );
-    t.skip("upstream removed model pins");
+    t.diagnostic("upstream removed model pins — remaining drift checks skipped");
     return;
   }
 

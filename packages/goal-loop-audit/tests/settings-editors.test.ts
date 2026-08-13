@@ -140,12 +140,10 @@ test("v0.28.34: notify folds a default IN — auto-detect notify-send/osascript,
   assert.match(SRC, /Pushes fire only where there is something to DO/);
   const MENU = fs.readFileSync("extensions/settings-menu.ts", "utf-8");
   assert.match(MENU, /unset = auto-detect notify-send\/osascript · 'off' = silent/);
-  // README decoupling (user: "too married to our own eco"):
+  // Doc decoupling (user: "too married to our own eco") — the v0.28.34
+  // doc claims were dropped with the docs rewrite (F8) that replaced the
+  // package README with a pointer doc; only the durable decoupling
+  // property (no tintinweb tie) is asserted:
   const README = fs.readFileSync("README.md", "utf-8");
-  assert.match(README, /^## Subagents$/m);
-  assert.doesNotMatch(README, /## Subagents \(`@tintinweb\/pi-subagents`\)/);
-  assert.match(README, /any subagent provider — e\.g\. `@tintinweb\/pi-subagents` —/);
-  assert.match(README, /Overlaps — pick one/);
-  assert.match(README, /We ran both\s+and removed pi-tasks\./);
-  assert.match(README, /auto-detects `notify-send`\/`osascript`; `notify=off` silences/);
+  assert.doesNotMatch(README, /tintinweb/);
 });
