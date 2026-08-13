@@ -189,7 +189,8 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
 
   const filesTouched = filesTouchedByInstall(rt, scope);
   // Alvos dos agentes não-Pi entram no snapshot pré-write (F15 passo 5);
-  // F32 (T5): os papéis objetivos materializados (.pi/agents/) também.
+  // F32 (T5): os papéis objetivos materializados (.pi/agents/) também;
+  // B1: os papéis objetivos do Claude Code (~/.claude/agents/) também.
   const agentTargetFiles = nonPiAgents.flatMap((id) => {
     const p = ADAPTERS[id as keyof typeof ADAPTERS].paths(rt);
     return [p.rulesFile, p.mcpFile];
@@ -198,6 +199,19 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
     scope === "workspace"
       ? (() => {
           const dir = path.join(rt.cwd, ".pi", "agents");
+          try {
+            return fs.existsSync(dir)
+              ? fs.readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => path.join(dir, f))
+              : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+  const claudeAgentFiles =
+    nonPiAgents.includes("claude-code")
+      ? (() => {
+          const dir = path.join(claudeCodeHome(rt.env), "agents");
           try {
             return fs.existsSync(dir)
               ? fs.readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => path.join(dir, f))
@@ -275,7 +289,7 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
   let snapshot: SnapshotResult | undefined;
   try {
     snapshot = createSnapshot({
-      files: [...filesTouched, ...agentTargetFiles, ...roleAgentFiles],
+      files: [...filesTouched, ...agentTargetFiles, ...roleAgentFiles, ...claudeAgentFiles],
       destDir: backupsDir(rt, scope),
       reason: "install",
       scope,

@@ -365,13 +365,18 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
 
   // Backup pré-write (LIFE 3.4): falhou → aborta antes de modificar qualquer coisa.
   // Alvos dos agentes gerenciados entram no snapshot (F15 T8: reconciliação);
-  // F32: os papéis objetivos materializados (.pi/agents/) também (T5).
+  // F32: os papéis objetivos materializados (.pi/agents/) também (T5);
+  // B1: os papéis objetivos do Claude Code (~/.claude/agents/) também.
   const agentTargetFiles = Object.values(loaded.state.agents).flatMap((rec) =>
     rec.targets.map((t) => t.file),
   );
   const roleAgentFiles =
     scope === "workspace"
       ? rolePlans.map((p) => p.file).filter((file) => fs.existsSync(file))
+      : [];
+  const claudeAgentFiles =
+    loaded.state.agents["claude-code"] !== undefined
+      ? claudeAgentPlans.map((p) => p.file).filter((file) => fs.existsSync(file))
       : [];
   const pilotChainFiles =
     scope === "workspace"
@@ -380,7 +385,7 @@ async function runSyncCommandLocked(opts: SyncCommandOptions): Promise<number> {
   let backupFile: string | undefined;
   try {
     const snapshot = createSnapshot({
-      files: [...filesTouchedByInstall(rt, scope), ...agentTargetFiles, ...roleAgentFiles, ...pilotChainFiles],
+      files: [...filesTouchedByInstall(rt, scope), ...agentTargetFiles, ...roleAgentFiles, ...claudeAgentFiles, ...pilotChainFiles],
       destDir: backupsDir(rt, scope),
       reason: "sync",
       scope,
