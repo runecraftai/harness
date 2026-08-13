@@ -140,12 +140,18 @@ test("v0.28.34: notify folds a default IN — auto-detect notify-send/osascript,
   assert.match(SRC, /Pushes fire only where there is something to DO/);
   const MENU = fs.readFileSync("extensions/settings-menu.ts", "utf-8");
   assert.match(MENU, /unset = auto-detect notify-send\/osascript · 'off' = silent/);
-  // README decoupling (user: "too married to our own eco"):
+  // Doc decoupling (user: "too married to our own eco") — the v0.28.34
+  // claims live in the CHANGELOG since the docs rewrite (F8) replaced the
+  // package README with a pointer doc; the README keeps the durable
+  // decoupling property (no tintinweb tie):
   const README = fs.readFileSync("README.md", "utf-8");
-  assert.match(README, /^## Subagents$/m);
-  assert.doesNotMatch(README, /## Subagents \(`@tintinweb\/pi-subagents`\)/);
-  assert.match(README, /any subagent provider — e\.g\. `@tintinweb\/pi-subagents` —/);
-  assert.match(README, /Overlaps — pick one/);
-  assert.match(README, /We ran both\s+and removed pi-tasks\./);
-  assert.match(README, /auto-detects `notify-send`\/`osascript`; `notify=off` silences/);
+  assert.match(README, /provides the goal loop: durable goals driven to verified completion/);
+  assert.doesNotMatch(README, /tintinweb/);
+  const CHANGELOG = fs.readFileSync("CHANGELOG.md", "utf-8").replace(/\s+/g, " ");
+  assert.match(CHANGELOG, /Push notifications work out of the box\./);
+  assert.match(CHANGELOG, /auto-detects `notify-send` \(Linux\) or `osascript` \(macOS\)/);
+  assert.match(CHANGELOG, /`notify=off` is the explicit opt-out/);
+  assert.match(CHANGELOG, /README decoupled\./);
+  assert.match(CHANGELOG, /the guarantees come from glla's session-handle discrimination/);
+  assert.match(CHANGELOG, /Overlaps — pick one/);
 });
