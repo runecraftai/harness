@@ -154,7 +154,11 @@ non-Pi agents will get next, and through which native surface) live in
   detected in `harness status` Owners / `harness doctor` check 14).
 - **User edits**: a rules section the user edited is preserved and reported
   (`preserved (edited)`) — the sync never overwrites it; `uninstall` also
-  preserves it.
+  preserves it. The freeze is per cell (F2-sync): only the section the user
+  edited is frozen — a section that is simply MISSING is not a user edit and
+  is still re-injected (`re-injetado (<id> ausente)`), so `sync` recovers a
+  deleted `runecraft:routing` section even when the user edited
+  `runecraft:workflow`.
 - **Upstream collisions**: an upstream package of the same domain next to our
   fork is reported as a collision (two-driver) — never removed automatically.
 
