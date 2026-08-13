@@ -145,9 +145,12 @@ export const copilotAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    // Rules: marker section (append/upsert, idempotente). F19 D7:
-    // preserveRules (rules editada pelo usuário no sync) → nunca reescreve.
-    const rules = ctx.preserveRules
+    // Rules: marker section (append/upsert, idempotente). F2-sync per-cell:
+    // preserveSections (célula rules editada pelo usuário no sync) → congela
+    // só essa seção; nunca reescreve. preserveRules (legado) é alias da mesma
+    // célula (runecraft:workflow).
+    const frozen = ctx.preserveSections ?? (ctx.preserveRules ? [RULES_SECTION] : []);
+    const rules = frozen.includes(RULES_SECTION)
       ? { changed: false, created: false, replaced: false }
       : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);

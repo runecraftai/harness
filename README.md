@@ -103,7 +103,7 @@ the B1 parity slice):
 Verify the install:
 
 ```bash
-companion doctor                        # 24–25 checks: forks, state, collisions, parity (B0/B1)
+companion doctor                        # 24 checks (IDs 1–25): forks, state, collisions, parity (B0/B1)
 companion status                        # cross-state report: agents × components
 ```
 

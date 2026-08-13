@@ -47,7 +47,8 @@ export const opencodeAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    const rules = ctx.preserveRules
+    const frozen = ctx.preserveSections ?? (ctx.preserveRules ? [RULES_SECTION] : []);
+    const rules = frozen.includes(RULES_SECTION)
       ? { changed: false, created: false, replaced: false }
       : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
