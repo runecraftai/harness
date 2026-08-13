@@ -12,8 +12,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderRules, renderWorkflowRules, WORKFLOW_RULES_VERSION } from "../src/adapters/rulesContent.ts";
+import { removeSection, readSectionContent } from "../src/adapters/rules.ts";
 import { detectActiveDriver, readGllaLedger } from "../src/sessionDriver.ts";
 import { sectionContentHash, upsertSectionFamily } from "../src/sections.ts";
+import { ROUTING_SECTION } from "../src/routing/claudeSection.ts";
 import { makeSandbox, makeSandboxCleanPath, readJson, runHarness, stateFile, writeSettings, type Sandbox } from "./helpers.ts";
 
 const ROUTING_DOC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "ROUTING.md");
@@ -470,6 +472,72 @@ describe("sync — three-way por target rules (D7, ROUT-06)", () => {
       // rules do usuário intacta; entry MCP restaurada
       expect(fs.readFileSync(rulesFile, "utf8")).toBe(editedContent);
       expect((readJson(mcpFile).mcpServers as Record<string, unknown>).taskflow).toBeDefined();
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("F2-sync: workflow editada + routing ausente → célula congelada preservada, routing re-injetada", async () => {
+    const sb = sandboxWithClaude();
+    try {
+      await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      const rulesFile = claudeRulesFile(sb);
+      // usuário edita a célula workflow e APAGA a célula routing.
+      upsertSectionFamily(rulesFile, RULES_SECTION, renderRules("claude-code") + "\n\n# nota do usuário", "html");
+      const workflowEdited = readSectionContent(rulesFile, RULES_SECTION);
+      const afterRouting = removeSection(rulesFile, ROUTING_SECTION);
+      if (afterRouting !== null) fs.writeFileSync(rulesFile, afterRouting, "utf8");
+
+      const result = await runHarness(sb, ["sync"]);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("preservada (editada");
+      expect(result.stdout).toContain("re-injetado (routing ausente)");
+      // célula editada intacta (byte a byte — não reescrita); routing de volta.
+      expect(readSectionContent(rulesFile, RULES_SECTION)).toBe(workflowEdited);
+      expect(fs.readFileSync(rulesFile, "utf8")).toContain("<!-- runecraft:routing -->");
+
+      // doctor check 9 passa (routing presente) — o loop de no-recovery morreu.
+      const doctor = await runHarness(sb, ["doctor"]);
+      expect(doctor.code).toBe(0);
+      expect(doctor.stdout).not.toContain("seção 'runecraft:routing' ausente");
+
+      // rerun em sync — zero writes, sem novo re-inject (loop encerrado).
+      const rulesAfter = fs.readFileSync(rulesFile, "utf8");
+      const rerun = await runHarness(sb, ["sync"]);
+      expect(rerun.code).toBe(0);
+      expect(rerun.stdout).toContain("already in sync — zero mudanças");
+      expect(fs.readFileSync(rulesFile, "utf8")).toBe(rulesAfter);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("F2-sync: routing editada + workflow ausente → routing congelada, workflow re-injetada", async () => {
+    const sb = sandboxWithClaude();
+    try {
+      await runHarness(sb, ["install", "--agent", "claude-code", "--yes"]);
+      const rulesFile = claudeRulesFile(sb);
+      // usuário edita a célula routing e APAGA a célula workflow.
+      const routingBody = readSectionContent(rulesFile, ROUTING_SECTION);
+      upsertSectionFamily(rulesFile, ROUTING_SECTION, routingBody + "\n\n# rota do usuário", "html");
+      const routingEdited = readSectionContent(rulesFile, ROUTING_SECTION);
+      const afterWorkflow = removeSection(rulesFile, RULES_SECTION);
+      if (afterWorkflow !== null) fs.writeFileSync(rulesFile, afterWorkflow, "utf8");
+
+      const result = await runHarness(sb, ["sync"]);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("preservada (editada");
+      expect(result.stdout).toContain("re-injetado (rules ausente)");
+      // célula routing editada intacta (byte a byte); workflow de volta.
+      expect(readSectionContent(rulesFile, ROUTING_SECTION)).toBe(routingEdited);
+      expect(fs.readFileSync(rulesFile, "utf8")).toContain("<!-- runecraft:workflow -->");
+
+      // rerun em sync — loop encerrado (routing continua congelada, sem writes).
+      const rulesAfter = fs.readFileSync(rulesFile, "utf8");
+      const rerun = await runHarness(sb, ["sync"]);
+      expect(rerun.code).toBe(0);
+      expect(rerun.stdout).toContain("already in sync — zero mudanças");
+      expect(fs.readFileSync(rulesFile, "utf8")).toBe(rulesAfter);
     } finally {
       sb.cleanup();
     }

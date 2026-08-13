@@ -54,8 +54,12 @@ export interface AgentContext {
   mcpBinCommand?: string[];
   /** rendered rules section content (F15 rules.ts; F17 provides final text). */
   rulesContent: string;
-  /** F19 D7: when true, inject must NOT rewrite the rules section (user-edited
-   *  content is preserved; the sync reports `preserved (edited)` instead). */
+  /** F2-sync: ids of the runecraft sections to FREEZE (user-edited cells).
+   *  The inject upserts every OTHER section, including missing ones — a
+   *  missing cell is not a user edit. Empty/undefined → upsert all. */
+  preserveSections?: string[];
+  /** @deprecated F2-sync alias: freezes only the workflow section
+   *  (runecraft:workflow). Prefer preserveSections for per-cell control. */
   preserveRules?: boolean;
   /** command args after the bin (per-host; e.g. []). */
   mcpArgs: string[];

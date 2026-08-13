@@ -50,17 +50,21 @@ export const claudeAdapter: AgentAdapter = {
     const written: string[] = [];
     const conflicts: InjectResult["conflicts"] = [];
 
-    // Rules: marker section (append/upsert, idempotent). F19 D7: preserveRules
-    // (user-edited rules in the sync) → nunca reescreve a seção.
-    const rules = ctx.preserveRules
+    // Rules: marker section (append/upsert, idempotent). F2-sync per-cell:
+    // só a seção cujo id está em preserveSections é congelada (edição do
+    // usuário); as demais — inclusive as AUSENTES — são upsertadas (a célula
+    // faltante não é edição do usuário). preserveRules (legado) congela só a
+    // seção workflow.
+    const frozen = new Set(ctx.preserveSections ?? (ctx.preserveRules ? [RULES_SECTION] : []));
+    const rules = frozen.has(RULES_SECTION)
       ? { changed: false, created: false, replaced: false }
       : upsertSection(paths.rulesFile, RULES_SECTION, ctx.rulesContent);
     if (rules.changed) written.push(paths.rulesFile);
 
     // B1: coded-routing directive como SEGUNDA seção do CLAUDE.md (motor F18 —
-    // mesmo contrato do workflow: upsert por id estável, idempotente; preserveRules
-    // preserva AMBAS as seções — a edição do usuário numa seção preserva as duas).
-    const routing = ctx.preserveRules
+    // mesmo contrato do workflow: upsert por id estável, idempotente; F2-sync
+    // congela a célula runecraft:routing apenas quando o usuário a editou).
+    const routing = frozen.has(ROUTING_SECTION)
       ? { changed: false, created: false, replaced: false }
       : upsertSection(paths.rulesFile, ROUTING_SECTION, renderClaudeRoutingSection());
     if (routing.changed && !written.includes(paths.rulesFile)) written.push(paths.rulesFile);

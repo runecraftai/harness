@@ -70,7 +70,12 @@ export function buildAgentTargets(
 ): AgentTarget[] {
   const paths = adapter.paths(rt);
   const targets: AgentTarget[] = [];
-  const rulesWritten = result.written.includes(paths.rulesFile);
+  // F2-sync per-cell: uma seção congelada (preserveSections) NÃO conta como
+  // escrita — o target só é (re)registrado com hash novo quando a célula foi
+  // realmente gravada pelo inject (hash mentiroso corromperia o three-way do
+  // F19 D7: arquivo ≠ registrado deixaria de ser detectado como edição).
+  const frozen = new Set(ctx.preserveSections ?? (ctx.preserveRules ? [RULES_SECTION] : []));
+  const rulesWritten = result.written.includes(paths.rulesFile) && !frozen.has(RULES_SECTION);
   const rulesTarget = registered?.targets.find((t) => t.kind === "rules");
   if (rulesWritten) {
     if (fs.existsSync(paths.rulesFile)) {
@@ -88,12 +93,13 @@ export function buildAgentTargets(
   }
   // B1: target da seção de routing (componente `routing` da matriz — mesmo
   // contrato do workflow: registrado com contentHash quando escrito; rerun
-  // preserva o registro prévio; preserveRules → o inject não escreveu a
-  // seção e o registro anterior continua valendo). APENAS claude-code: a
-  // seção runecraft:routing é escrita pelo adapter do claude (os demais
-  // hosts não têm a directive — matriz: célula routing unsupported).
+  // preserva o registro prévio; célula congelada (preserveSections) → o
+  // inject não escreveu a seção e o registro anterior continua valendo).
+  // APENAS claude-code: a seção runecraft:routing é escrita pelo adapter do
+  // claude (os demais hosts não têm a directive — matriz: célula routing
+  // unsupported).
   const routingWritten =
-    adapter.id === "claude-code" && result.written.includes(paths.rulesFile) && !ctx.preserveRules;
+    adapter.id === "claude-code" && result.written.includes(paths.rulesFile) && !frozen.has(ROUTING_SECTION);
   const routingTarget = registered?.targets.find(
     (t): t is Extract<AgentTarget, { kind: "rules" }> => t.kind === "rules" && t.section === ROUTING_SECTION,
   );
