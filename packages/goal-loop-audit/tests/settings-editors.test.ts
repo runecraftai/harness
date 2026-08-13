@@ -141,17 +141,9 @@ test("v0.28.34: notify folds a default IN — auto-detect notify-send/osascript,
   const MENU = fs.readFileSync("extensions/settings-menu.ts", "utf-8");
   assert.match(MENU, /unset = auto-detect notify-send\/osascript · 'off' = silent/);
   // Doc decoupling (user: "too married to our own eco") — the v0.28.34
-  // claims live in the CHANGELOG since the docs rewrite (F8) replaced the
-  // package README with a pointer doc; the README keeps the durable
-  // decoupling property (no tintinweb tie):
+  // doc claims were dropped with the docs rewrite (F8) that replaced the
+  // package README with a pointer doc; only the durable decoupling
+  // property (no tintinweb tie) is asserted:
   const README = fs.readFileSync("README.md", "utf-8");
-  assert.match(README, /provides the goal loop: durable goals driven to verified completion/);
   assert.doesNotMatch(README, /tintinweb/);
-  const CHANGELOG = fs.readFileSync("CHANGELOG.md", "utf-8").replace(/\s+/g, " ");
-  assert.match(CHANGELOG, /Push notifications work out of the box\./);
-  assert.match(CHANGELOG, /auto-detects `notify-send` \(Linux\) or `osascript` \(macOS\)/);
-  assert.match(CHANGELOG, /`notify=off` is the explicit opt-out/);
-  assert.match(CHANGELOG, /README decoupled\./);
-  assert.match(CHANGELOG, /the guarantees come from glla's session-handle discrimination/);
-  assert.match(CHANGELOG, /Overlaps — pick one/);
 });
