@@ -20,8 +20,9 @@ fails — the copy cannot silently diverge.
   taskflow, goal-loop, pr-review) plus guards, verification, resilience,
   memory, routing and persona ship as Pi packages.
 - **Tier 2 — non-Pi agents** (Claude Code, OpenCode, Codex, VS Code
-  Copilot): taskflow + workflow rules today. The rest of the layer is
-  planned per agent on the roadmap below.
+  Copilot): taskflow + workflow rules today, plus the shipped B1 parity
+  slice for Claude Code (role agents + coded routing). The rest of the
+  layer is planned per agent on the roadmap below.
 - **Tier 3 — detect-only** (Cursor, Grok, others): the CLI detects them and
   names the exact command you'd run yourself. No adapter until a user
   actually needs one.
@@ -31,7 +32,9 @@ fails — the copy cannot silently diverge.
 The harness owns the hard parts of the full layer once: the DAG engine,
 review, receipts, verification, memory and coded routing. Pi receives all
 of it through the Pi SDK. Every other agent receives the shared taskflow +
-rules layer, and the remaining components are refused per cell.
+rules layer; Claude Code additionally received the B1 parity slice (7
+role agents + coded routing). The remaining components are refused per
+cell.
 
 The table compares today's delivery with the full layer a comparable
 harness (gentle-ai v2.3.0) gives its agents through each agent's native
@@ -41,7 +44,7 @@ per-agent native configuration does not.
 | Agent | Today (harness v1) | Full layer (reference surface) |
 | --- | --- | --- |
 | **Pi** | Full layer: the four tools as packages, plus guards, verification, evals, resilience, observability, memory, persona, per-agent model routing, 7 role agents, coded routing and receipts/gates. | Package-managed too — the reference implementation. |
-| **Claude Code** | taskflow-MCP (`taskflow-claude` in `.mcp.json`) + taskflow-only rules in `~/.claude/CLAUDE.md`. Subagents, goal-loop, pr-review and guards are refused. | Agent files + Task-tool subagents, output styles, slash commands, skills, per-server MCP files, PreToolUse hooks, persona via CLAUDE.md, model routing via agent-file `model:` — the richest surface. |
+| **Claude Code** | taskflow-MCP (`taskflow-claude` in `.mcp.json`) + rules in `~/.claude/CLAUDE.md` (`runecraft:workflow` + `runecraft:routing` sections) + **B1 shipped**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only `builder` spawns). Goal-loop, pr-review and guards are refused. | Agent files + Task-tool subagents, output styles, slash commands, skills, per-server MCP files, PreToolUse hooks, persona via CLAUDE.md, model routing via agent-file `model:` — the richest surface. |
 | **OpenCode** | taskflow-MCP (`taskflow-opencode` in `opencode.json`) + rules in `AGENTS.md`. Subagents, goal-loop, pr-review and guards are refused. | Multi-mode overlay (orchestrator + phase/review subagents), per-agent model profiles, slash commands, skills, merged MCP, native `task` subagents. |
 | **Codex** | taskflow-MCP (`[mcp_servers.taskflow]` in `config.toml`) + rules in `~/.codex/AGENTS.md` (solo). Subagents, goal-loop, pr-review and guards are refused. | Skills, system prompt, MCP upserts, model-selection profiles (`codex --profile`), PreToolUse hooks, advisory review. Solo-agent surface. |
 | **VS Code Copilot** | `servers.taskflow` in `.vscode/mcp.json` (repo-scoped) + `.github/copilot-instructions.md` rules. Subagents, goal-loop, pr-review and guards are refused. | Skills, a user-level instructions file, user-level MCP, `runSubagent` delegation (carried in the prompt). No tool-call hook surface. |
@@ -152,6 +155,7 @@ Some mechanisms are tied to the Pi SDK and will not be ported:
 
 ## Honesty note
 
-Tier 2 is taskflow + rules today. Nothing in this document changes that:
-the roadmap is a plan, not a claim, and each phase is verifiable via
-`companion doctor` before it is advertised.
+Tier 2 is taskflow + rules today, plus the shipped B1 slice for Claude
+Code (role agents + coded routing). Nothing else in this document
+changes: the roadmap is a plan, not a claim, and each phase is verifiable
+via `companion doctor` before it is advertised.
