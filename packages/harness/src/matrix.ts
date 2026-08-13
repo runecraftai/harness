@@ -86,7 +86,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   opencode: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: "~/.config/opencode/AGENTS.md", section: RULES_SECTION },
-    routing: { kind: "unsupported", reason: capabilityReason("opencode", "persona", "routing") },
+    routing: { kind: "unsupported", reason: capabilityReason("opencode", "routing", "routing") },
     subagents: { kind: "unsupported", reason: capabilityReason("opencode", "subagents", "subagents") },
     "goal-loop-audit": { kind: "unsupported", reason: capabilityReason("opencode", "goal-loop", "goal-loop-audit") },
     "pr-review": { kind: "unsupported", reason: capabilityReason("opencode", "pr-review", "pr-review") },
@@ -95,7 +95,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   codex: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: "~/.codex/AGENTS.md", section: RULES_SECTION },
-    routing: { kind: "unsupported", reason: capabilityReason("codex", "persona", "routing") },
+    routing: { kind: "unsupported", reason: capabilityReason("codex", "routing", "routing") },
     subagents: { kind: "unsupported", reason: capabilityReason("codex", "subagents", "subagents") },
     "goal-loop-audit": { kind: "unsupported", reason: capabilityReason("codex", "goal-loop", "goal-loop-audit") },
     "pr-review": { kind: "unsupported", reason: capabilityReason("codex", "pr-review", "pr-review") },
@@ -108,7 +108,7 @@ export const MATRIX: Record<MatrixAgentId, Partial<Record<ComponentId, Cell>>> =
   copilot: {
     taskflow: { kind: "mcp", entry: "taskflow" },
     rules: { kind: "rules", file: ".github/copilot-instructions.md", section: RULES_SECTION },
-    routing: { kind: "unsupported", reason: capabilityReason("copilot", "persona", "routing") },
+    routing: { kind: "unsupported", reason: capabilityReason("copilot", "routing", "routing") },
     subagents: { kind: "unsupported", reason: capabilityReason("copilot", "subagents", "subagents") },
     "goal-loop-audit": { kind: "unsupported", reason: capabilityReason("copilot", "goal-loop", "goal-loop-audit") },
     "pr-review": { kind: "unsupported", reason: capabilityReason("copilot", "pr-review", "pr-review") },
