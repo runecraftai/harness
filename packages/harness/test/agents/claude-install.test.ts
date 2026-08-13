@@ -13,6 +13,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { makeSandbox, readJson, runHarness, writeSettings, type Sandbox } from "../helpers.ts";
 import { claudeAgentsAssetsDir } from "../../src/adapters/claudeAgents.ts";
+import { roleAgentsDir } from "../../src/agents/materialize.ts";
+import { listSnapshots } from "../../src/backup.ts";
 import { ROLE_IDS } from "../../src/agents/catalog.ts";
 
 const ASSETS = claudeAgentsAssetsDir();
@@ -189,6 +191,43 @@ describe("install --agent claude-code (B1)", () => {
       expect(check24?.status).toBe("pass");
       expect(check25?.status).toBe("pass");
       expect(check24?.detail).toContain("7 papéis materializados");
+    } finally {
+      sb.cleanup();
+    }
+  });
+});
+
+describe("sync — snapshot pré-write cobre os role files (F32 + B1)", () => {
+  test("manifest do snapshot contém .pi/agents/*.md E ~/.claude/agents/*.md", async () => {
+    const sb = sandboxWithClaude();
+    try {
+      const project = path.join(sb.dir, "proj");
+      fs.mkdirSync(project, { recursive: true });
+      await runHarness(sb, ["install", "--agent", "pi,claude-code", "--scope", "workspace", "--yes"], { cwd: project });
+      // ambos os conjuntos de role files materializados
+      expect(fs.existsSync(path.join(project, ".pi", "agents"))).toBe(true);
+      expect(fs.existsSync(path.join(sb.claudeHome, "agents"))).toBe(true);
+
+      // força mudança no sync (package removido → reinstala) para o snapshot
+      // pré-write ser criado com os dois conjuntos presentes no disco.
+      const wsSettings = path.join(project, ".pi", "settings.json");
+      const settings = readJson(wsSettings);
+      settings.packages = (settings.packages as string[]).filter((p) => !p.includes("@runecraft/subagents"));
+      fs.writeFileSync(wsSettings, JSON.stringify(settings, null, 2));
+
+      const result = await runHarness(sb, ["sync", "--scope", "workspace"], { cwd: project });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("Reinstalado (1)");
+
+      const syncSnap = listSnapshots(path.join(project, ".runecraft", "backups")).find((s) => s.reason === "sync");
+      expect(syncSnap).toBeDefined();
+      const files = syncSnap!.files;
+      const piAgentsDir = roleAgentsDir(project);
+      const claudeDir = path.join(sb.claudeHome, "agents");
+      for (const id of ROLE_IDS) {
+        expect(files, `${id}.md: .pi/agents ausente do snapshot`).toContain(path.join(piAgentsDir, `${id}.md`));
+        expect(files, `${id}.md: ~/.claude/agents ausente do snapshot`).toContain(path.join(claudeDir, `${id}.md`));
+      }
     } finally {
       sb.cleanup();
     }
