@@ -15,6 +15,7 @@ import * as path from "node:path";
 import * as readline from "node:readline";
 import {
   backupsDir,
+  claudeCodeHome,
   filesTouchedByInstall,
   piAgentDir,
   piSettingsPath,
@@ -314,6 +315,11 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
       err.write(`  ✗ ${id} — ${outcome.error}\n`);
     }
   }
+  // B1: claude-code instalado com sucesso neste run? (gate da materialização
+  // dos papéis do Claude em ~/.claude/agents/ — passo 5e).
+  const installedClaude =
+    nonPiAgents.includes("claude-code") &&
+    agentOutcomes.some((o) => o.agentId === "claude-code" && o.status === "installed");
   // State dos agentes é gravado junto com o do Pi no passo 6 (mesmo arquivo).
 
   // 5c. F32 (T5): papéis objetivos — materialização three-way para
@@ -355,6 +361,29 @@ async function runInstallLocked(opts: InstallCommandOptions): Promise<number> {
       notes.push(...chainResult.notes);
     } catch (error) {
       notes.push(`pilot chains: materialização FALHOU — ${error instanceof Error ? error.message : String(error)} (rode doctor)`);
+    }
+  }
+
+  // 5e. B1 — papéis objetivos do Claude Code: materialização three-way para
+  // ~/.claude/agents/ (escopo USUÁRIO — o Claude descobre agent files de lá
+  // em todo projeto). Roda quando claude-code está entre os agentes
+  // instalados (qualquer scope — o alvo é HOME-based; o registro fica no
+  // state do scope do install, mesma convenção dos agent records).
+  // Best-effort — nunca falha o install; o reporte leva as notas.
+  if (installedClaude) {
+    try {
+      const { planClaudeAgents, applyClaudeAgents, claudeAgentsDir } = await import("../adapters/claudeAgents.ts");
+      const claudeHome = claudeCodeHome(rt.env);
+      const claudeAgents = state0.claudeAgents ?? {};
+      const claudePlans = planClaudeAgents(claudeHome, claudeAgents);
+      const claudeResult = applyClaudeAgents(claudeHome, claudeAgents, claudePlans);
+      if (claudeResult.changed) state0.claudeAgents = claudeAgents;
+      if (claudeResult.copied.length > 0) {
+        notes.push(`papéis objetivos do Claude Code materializados em ${claudeAgentsDir(claudeHome)}: ${claudeResult.copied.join(", ")} (B1)`);
+      }
+      notes.push(...claudeResult.notes);
+    } catch (error) {
+      notes.push(`papéis objetivos do Claude Code: materialização FALHOU — ${error instanceof Error ? error.message : String(error)} (rode doctor — check 24)`);
     }
   }
 

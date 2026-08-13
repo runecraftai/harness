@@ -36,6 +36,8 @@ manifest of `@runecraft/companion`). Kill switches follow the
 | **Persona & models** | persona + rules injection (`before_agent_start` chained), per-agent model resolution, models.json generation, SDD chains | `persona`/`models` in state.json; `harness models` / `harness sdd`; [PI.md](PI.md) |
 | **Copilot adapter** | repo-scoped rules + MCP for VS Code Copilot, detect/inject/remove, conflict handling | `--agent copilot`; [ROUTING.md](ROUTING.md) §8.12 |
 | **Coded routing** | route by code, never by LLM: before_agent_start directive injection, per-session freeze, `RUNECRAFT_ROUTING=0` kill switch | [ROUTING.md](ROUTING.md) §8.14 |
+| **Claude Code parity (B1)** | 7 role agents materialized to `~/.claude/agents/` (three-way F19 D7, user edits preserved) + coded-routing directive as the `runecraft:routing` CLAUDE.md section | `--agent claude-code`; [ROUTING.md](ROUTING.md) §8.15 |
+| **Capability manifest (B0)** | per-agent capability claims as a single source of truth, consumed by install refusals, `doctor` check 25 and `status` (Capabilities section) | `src/capabilities/manifest.ts`; [PARITY.md](PARITY.md) |
 
 Each component links to its canonical section in [ROUTING.md](ROUTING.md)
-§8.5–8.14 for operation details, defaults and thresholds.
+§8.5–8.15 for operation details, defaults and thresholds.

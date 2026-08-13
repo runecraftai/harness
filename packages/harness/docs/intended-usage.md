@@ -4,7 +4,9 @@ The Runecraft harness loads four forked tools into a Pi session — `subagents`
 (ad-hoc delegation), `taskflow` (multi-phase DAG work), `goal-loop-audit`
 (verifiable contract with an isolated auditor) and `pr-review` (structured
 review) — and manages non-Pi agents (Claude Code, OpenCode, Codex, Copilot)
-through their matrix column: taskflow-MCP + workflow rules.
+through their matrix column: taskflow-MCP + workflow rules (Claude Code also
+receives the B1 parity slice: role agents + coded routing —
+[agents.md](agents.md)).
 
 The four tools overlap; picking the wrong one costs time and, in the worst
 case, breaks the session (two-driver rule). Start here in 30 seconds:

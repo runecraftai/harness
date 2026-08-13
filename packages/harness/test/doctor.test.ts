@@ -44,9 +44,9 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor"]);
       expect(result.code).toBe(0);
       // 1–6 (F12) + 7 (detecção, informativo) + 12 (detect-only, informativo)
-      expect(summaryLine(result.stdout)).toContain("pass 14"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates, fora de repo git) + 18 (guards) + 19 (verification) + 21 (copilot — não detectado, informativo)
+      expect(summaryLine(result.stdout)).toContain("pass 16"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates, fora de repo git) + 18 (guards) + 19 (verification) + 21 (copilot — não detectado, informativo) + 24 (B1 claude — não detectado, informativo) + 25 (B0 manifest)
       expect(summaryLine(result.stdout)).toContain("fail 0");
-      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) expect(result.stdout).toContain(`[${id}]`);
+      for (const id of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]) expect(result.stdout).toContain(`[${id}]`);
 
       // read-only: nenhum arquivo foi tocado
       expect(fileHash(settingsFile(sb))).toBe(settingsBefore);
@@ -65,8 +65,8 @@ describe("doctor — pass e read-only (LIFE-01)", () => {
       const result = await runHarness(sb, ["doctor", "--json"]);
       expect(result.code).toBe(0);
       const json = JSON.parse(result.stdout) as DoctorReport;
-      expect(json.checks).toHaveLength(22); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates) + 18 (F24 guards) + 19 (F25 verification) + 20 (F30 models) + 21 (F31 copilot) + 22 (F32 role agents) + 23 (F33 coded routing)
-      expect(json.summary.pass + json.summary.warn).toBe(17); // check 20 (Models) = warn (models.json ausente no sandbox); check 21 (copilot) = pass; check 22 (role agents) = warn (fork presente, papéis não materializados no escopo global); check 23 (routing) = warn (pilot chains não materializadas)
+      expect(json.checks).toHaveLength(24); // 1,2,3,5,6 (F12) + 7–15 (F18) + 16 (F19 driver) + 17 (F20 gates) + 18 (F24 guards) + 19 (F25 verification) + 20 (F30 models) + 21 (F31 copilot) + 22 (F32 role agents) + 23 (F33 coded routing) + 24 (B1 claude role agents) + 25 (B0 capability manifest)
+      expect(json.summary.pass + json.summary.warn).toBe(19); // check 20 (Models) = warn (models.json ausente no sandbox); check 21 (copilot) = pass; check 22 (role agents) = warn (fork presente, papéis não materializados no escopo global); check 23 (routing) = warn (pilot chains não materializadas); 24 (B1) = pass; 25 (B0) = pass
       expect(json.summary.skip).toBe(5); // 8–11 e 13: nada de agentes para avaliar
       expect(json.exitCode).toBe(0);
       for (const check of json.checks) {
@@ -245,7 +245,7 @@ describe("doctor — warns (colisão) e scopes", () => {
       // check 3 vê o state do workspace e o pi list (global + project do fake pi)
       expect(result.stdout).toContain("[3] Components");
       expect(result.stdout).toContain("pass");
-      expect(summaryLine(result.stdout)).toContain("pass 16"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates) + 18 (guards) + 19 (verification) + 21 (copilot — não detectado) + 22 (role agents — materializados) + 23 (coded routing — pilot chains materializadas pelo install workspace)
+      expect(summaryLine(result.stdout)).toContain("pass 18"); // 1,2,3,5,6 + 7,12,14,16 (informativos) + 17 (gates) + 18 (guards) + 19 (verification) + 21 (copilot — não detectado) + 22 (role agents — materializados) + 23 (coded routing — pilot chains materializadas pelo install workspace) + 24 (B1 claude — detectado no ambiente, não gerenciado: pass informativo) + 25 (B0 manifest)
     } finally {
       sb.cleanup();
     }

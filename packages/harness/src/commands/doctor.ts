@@ -21,6 +21,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   backupsDir,
+  claudeCodeHome,
   piAgentDir,
   piSettingsPath,
   statePath,
@@ -38,6 +39,10 @@ import { copilotPaths, detectCopilotSync } from "../adapters/copilot.ts";
 import { hasSection, isValidUtf8, readSectionContent } from "../adapters/rules.ts";
 import { renderRules, WORKFLOW_RULES_VERSION } from "../adapters/rulesContent.ts";
 import { sectionContentHash } from "../sections.ts";
+import { ROUTING_SECTION, renderClaudeRoutingSection } from "../routing/claudeSection.ts";
+import { validateManifest, manifestDigest, allManifests, deliveredClaims } from "../capabilities/manifest.ts";
+import { planClaudeAgents, claudeAgentsDir } from "../adapters/claudeAgents.ts";
+import { ROLE_IDS } from "../agents/catalog.ts";
 import { MATRIX, type ComponentId, type MatrixAgentId } from "../matrix.ts";
 import { detectOwners, scanMcpUpstreams } from "../owners.ts";
 import { detectActiveDriver } from "../sessionDriver.ts";
@@ -393,10 +398,106 @@ export function runDoctorChecks(rt: Runtime, pi: PiInterop): DoctorReport {
   // F33: check 23 (coded routing) — independente do Pi (só lê state.json +
   // .pi/chains/ + env kill switch).
   checks.push(checkRouting(rt));
+  // B1: check 24 (papéis objetivos do Claude Code) — independente do Pi (só
+  // lê ~/.claude/agents/ + state; gate = claude detectado E gerenciado).
+  checks.push(checkClaudeRoleAgents(rt));
+  // B0: check 25 (capability manifest) — independente do Pi (validação
+  // estrutural do manifest + digest — fonte única dos claims).
+  checks.push(checkCapabilityManifest());
 
   const summary = { pass: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) summary[check.status] += 1;
   return { checks, summary, exitCode: summary.fail > 0 ? 1 : 0 };
+}
+
+/**
+ * B1 check 24 — Claude role agents (papéis objetivos do Claude Code).
+ * Read-only (LIFE-01). Gate: claude detectado (bin no PATH) + gerenciado
+ * (state com agent record) — papéis são dados inertes sem o claude; sem
+ * gerenciamento o harness não os materializa. Espelho do check 22 (F32):
+ * warn informativo quando faltam arquivos em ~/.claude/agents/ (remedy
+ * `harness sync` — three-way F19 D7; edições do usuário preservadas).
+ */
+function checkClaudeRoleAgents(rt: Runtime): DoctorCheck {
+  const detected = binOnPath("claude", rt);
+  if (!detected) {
+    return {
+      id: 24,
+      name: "Claude role agents (B1)",
+      status: "pass",
+      detail: "claude não detectado no PATH — os 7 papéis são dados inertes até o install (--agent claude-code)",
+    };
+  }
+  const stateFile = statePath(rt, "global");
+  const loaded = loadStateReadonly(stateFile, "global");
+  const managed = loaded.ok && loaded.state.agents["claude-code"] !== undefined;
+  if (!managed) {
+    return {
+      id: 24,
+      name: "Claude role agents (B1)",
+      status: "pass",
+      detail: "claude detectado mas não gerenciado — rode `companion install --agent claude-code` (papéis + routing section)",
+    };
+  }
+  const claudeHome = claudeCodeHome(rt.env);
+  const plans = planClaudeAgents(claudeHome, loaded.ok ? loaded.state.claudeAgents : undefined);
+  const missing = plans.filter((p) => p.status === "missing").map((p) => p.roleId);
+  const preserved = plans.filter((p) => p.status === "edited").map((p) => p.roleId);
+  const registered = Object.keys(loaded.ok ? loaded.state.claudeAgents ?? {} : {});
+  if (plans.length < ROLE_IDS.length) {
+    const unavailable = ROLE_IDS.filter((roleId) => !plans.some((p) => p.roleId === roleId));
+    return {
+      id: 24,
+      name: "Claude role agents (B1)",
+      status: "warn",
+      detail: `assets indisponíveis no pacote (${plans.length}/${ROLE_IDS.length} papéis): ${unavailable.join(", ")} · registrados: ${registered.join(", ") || "—"}`,
+      remedy: "instale o pacote completo (@runecraft/companion com o diretório claude-agents/) e rode `harness sync`",
+    };
+  }
+  if (missing.length > 0) {
+    return {
+      id: 24,
+      name: "Claude role agents (B1)",
+      status: "warn",
+      detail: `papéis ausentes em ${claudeAgentsDir(claudeHome)}: ${missing.join(", ")} · registrados: ${registered.join(", ") || "—"}`,
+      remedy: "rode `harness sync` — materialização three-way por conteúdo (F19 D7; edições do usuário preservadas)",
+    };
+  }
+  return {
+    id: 24,
+    name: "Claude role agents (B1)",
+    status: "pass",
+    detail: `${ROLE_IDS.length} papéis materializados em ${claudeAgentsDir(claudeHome)} · registrados: ${registered.join(", ") || "—"}${preserved.length > 0 ? ` · preservados (editados): ${preserved.join(", ")}` : ""} · delegação via Task tool (só o builder)`,
+  };
+}
+
+/**
+ * B0 check 25 — Capability manifest (fonte única dos claims por agente).
+ * Read-only (LIFE-01): valida a ESTRUTURA do manifest (agentes suportados
+ * cobertos, verdicts fechados, delivered↔verdict consistentes, mechanism
+ * não-vazio) e reporta o digest canônico (gentle-ai manifest_test.go —
+ * digest tests). Conteúdo é DADO (nunca julgado); contrato quebrado = fail
+ * apontando os campos (fail-closed — o doctor é o primeiro a ver o drift).
+ */
+function checkCapabilityManifest(): DoctorCheck {
+  const validation = validateManifest();
+  if (!validation.ok) {
+    return {
+      id: 25,
+      name: "Capability manifest (B0)",
+      status: "fail",
+      detail: `manifest inconsistente — ${validation.errors.join("; ")}`,
+      remedy: "corrija src/capabilities/manifest.ts (fonte única) e rode os testes (digest test falha no drift)",
+    };
+  }
+  const claims = allManifests().flatMap(({ agent }) => deliveredClaims(agent).map((c) => `${agent}:${c.capability}`));
+  const capabilityCount = allManifests()[0] !== undefined ? Object.keys(allManifests()[0]!.manifest).length : 0;
+  return {
+    id: 25,
+    name: "Capability manifest (B0)",
+    status: "pass",
+    detail: `${allManifests().length} agentes × ${capabilityCount} capabilities · digest ${manifestDigest()} · entregues hoje: ${claims.length} claims`,
+  };
 }
 
 /**
@@ -768,18 +869,20 @@ function checkAgentConfigs(rt: Runtime): DoctorCheck {
         }
         // F19 D7 sub-estado "desatualizado (template novo)": o arquivo bate com
         // o registrado, mas o render atual do template difere (CLI nova) → o
-        // sync aplica o update in-place pelo ID estável (ROUT-06).
+        // sync aplica o update in-place pelo ID estável (ROUT-06). O render
+        // por célula (B1): a seção `routing` compara contra o directive do
+        // Claude (renderClaudeRoutingSection), as demais contra renderRules.
         if (target.contentHash) {
           const fileContent = readSectionContent(target.file, target.section);
           const fileHash = sectionContentHash(target.section, fileContent ?? "");
           if (fileHash === target.contentHash) {
             const renderHash = sectionContentHash(
               target.section,
-              renderRules(agentId as MatrixAgentId),
+              target.section === ROUTING_SECTION ? renderClaudeRoutingSection() : renderRules(agentId as MatrixAgentId),
             );
             if (renderHash !== target.contentHash) {
               problems.push(
-                `${agentId}: seção '${target.section}' desatualizado (template novo v${WORKFLOW_RULES_VERSION}) em ${target.file}`,
+                `${agentId}: seção '${target.section}' desatualizado (template novo v${target.rulesVersion ?? WORKFLOW_RULES_VERSION}) em ${target.file}`,
               );
             }
           }

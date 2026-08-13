@@ -30,6 +30,7 @@ import { defaultModelsConfig } from "./models/config.ts";
 import type { PersonaConfig } from "./persona/config.ts";
 import { defaultPersonaConfig } from "./persona/config.ts";
 import type { RoleAgentRecord } from "./agents/materialize.ts";
+import type { ClaudeAgentRecord } from "./adapters/claudeAgents.ts";
 import type { RoutingConfig } from "./routing/config.ts";
 import { defaultRoutingConfig } from "./routing/config.ts";
 import type { PilotChainRecord } from "./routing/materialize.ts";
@@ -119,6 +120,11 @@ export interface HarnessState {
    *  contentHash por papel; aditivo, schemaVersion permanece 1 — o
    *  materialize.ts valida em runtime; ausente = nada materializado). */
   piAgents?: Record<string, RoleAgentRecord>;
+  /** papéis objetivos do Claude Code materializados em ~/.claude/agents/
+   *  (B1 — espelho do piAgents do F32; escopo usuário; contentHash por
+   *  papel; aditivo, schemaVersion permanece 1 — o claudeAgents.ts valida
+   *  em runtime; ausente = nada materializado). */
+  claudeAgents?: Record<string, ClaudeAgentRecord>;
   /** execution guards config (F24 D2; aditivo, schemaVersion permanece 1 — o
    *  guardKit valida em runtime; ausente = defaults fail-closed). */
   guards?: GuardsConfig;
@@ -161,6 +167,8 @@ export function emptyState(scope: Scope): HarnessState {
     preInstall: [],
     agents: {},
     piAgents: {},
+    // B1: papéis objetivos do Claude Code (~/.claude/agents/).
+    claudeAgents: {},
     // F24: fail-closed por padrão — o estado declara os guards LIGADOS (D10).
     guards: defaultGuardsConfig(),
     // F25: fail-closed por padrão — o estado declara a cascata de verificação LIGADA (D9).
@@ -220,6 +228,7 @@ function parseState(file: string, scope: Scope): HarnessState | null {
     preInstall: Array.isArray(raw.preInstall) ? (raw.preInstall as PreInstallRecord[]) : [],
     agents: raw.agents && typeof raw.agents === "object" ? (raw.agents as Record<string, AgentRecord>) : {},
     piAgents: raw.piAgents && typeof raw.piAgents === "object" ? (raw.piAgents as Record<string, RoleAgentRecord>) : {},
+    claudeAgents: raw.claudeAgents && typeof raw.claudeAgents === "object" ? (raw.claudeAgents as Record<string, ClaudeAgentRecord>) : {},
   };
 }
 

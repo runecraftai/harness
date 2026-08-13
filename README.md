@@ -39,7 +39,7 @@ managed.
 | Tier | Agents | Today | Roadmap |
 | --- | --- | --- | --- |
 | **Tier 1 — full layer** | **Pi** | the four tools + the full harness layer (guards, verification, resilience, memory, routing, persona), as Pi packages | reference implementation |
-| **Tier 2 — taskflow + rules** | **Claude Code**, **OpenCode**, **Codex**, **VS Code Copilot** | taskflow-MCP + workflow rules in each agent's native config | native parity per agent (Claude hooks + agent files, Codex hooks + profiles, OpenCode overlay, Copilot runSubagent) |
+| **Tier 2 — taskflow + rules** | **Claude Code**, **OpenCode**, **Codex**, **VS Code Copilot** | taskflow-MCP + workflow rules in each agent's native config; Claude Code also receives the B1 parity slice (7 role agents + coded routing) | native parity per agent (Claude hooks + agent files, Codex hooks + profiles, OpenCode overlay, Copilot runSubagent) |
 | **Tier 3 — detect-only** | Cursor, Grok, others | the CLI detects them and names the exact command you'd run yourself | an adapter, when a user actually needs one |
 
 The taskflow-MCP layer is what the non-Pi agents receive — the same DAG
@@ -49,11 +49,12 @@ the tools and harness layers ship as Pi packages, installed by
 
 ## Parity roadmap
 
-Tier 2 is taskflow + rules today, nothing more — the harness never claims
-the full layer for a non-Pi agent. The full surface (subagents, goal-loop,
-pr-review, guards, memory, model routing) is being ported to each agent's
-native configuration: Claude Code hooks and agent files, Codex hooks and
-profiles, OpenCode overlay agents, Copilot runSubagent. Where a native
+Tier 2 is taskflow + rules today, plus the first native-parity slice for
+Claude Code — the harness never claims the full layer for a non-Pi agent.
+The full surface (subagents, goal-loop, pr-review, guards, memory, model
+routing) is being ported to each agent's native configuration: Claude Code
+hooks and agent files (B1 shipped: role agents + coded routing), Codex hooks
+and profiles, OpenCode overlay agents, Copilot runSubagent. Where a native
 surface is missing, only the portable parts travel — Copilot guards reduce
 to advisory instructions (no tool-call hook surface), Copilot model routing
 to single-model guidance (no per-agent model config) — each marked in the
@@ -91,9 +92,10 @@ Install for Claude Code, OpenCode, Codex or Copilot (Tier 2):
 companion install --agent claude-code,opencode,codex   # or: copilot
 ```
 
-What you get per agent (taskflow + rules today; parity on the roadmap):
+What you get per agent (taskflow + rules today; Claude Code also receives
+the B1 parity slice):
 
-- **Claude Code** — taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md`.
+- **Claude Code** — taskflow-MCP (`taskflow-claude` in `.mcp.json`) + workflow rules in `CLAUDE.md` + **B1**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only `builder` spawns) + the coded-routing directive (`runecraft:routing` section).
 - **OpenCode** — taskflow-MCP (`taskflow-opencode`) + workflow rules in `AGENTS.md`.
 - **Codex** — taskflow-MCP (`taskflow-codex` in `config.toml`) + workflow rules in `AGENTS.md` (solo).
 - **VS Code Copilot** — `servers.taskflow` in `.vscode/mcp.json` + `.github/copilot-instructions.md` (repo-scoped).
@@ -101,7 +103,7 @@ What you get per agent (taskflow + rules today; parity on the roadmap):
 Verify the install:
 
 ```bash
-companion doctor                        # 22 checks: forks, state, collisions
+companion doctor                        # 24–25 checks: forks, state, collisions, parity (B0/B1)
 companion status                        # cross-state report: agents × components
 ```
 

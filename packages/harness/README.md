@@ -61,7 +61,7 @@ The CLI is `companion` (alias `harness`).
 Verify the install — read-only, works before anything is configured:
 
 ```bash
-companion doctor                        # 22 checks: forks, state, collisions
+companion doctor                        # 24–25 checks: forks, state, collisions, parity (B0/B1)
 companion status                        # cross-state report: pi list × state × manifest
 ```
 
@@ -90,6 +90,9 @@ companion install --agent claude-code,opencode,codex   # or: copilot
 
 They receive the taskflow-MCP layer (the same DAG engine as `/tf`) plus
 workflow rules — see [docs/agents.md](docs/agents.md) for the full matrix.
+Claude Code additionally receives the B1 parity slice: 7 role agents in
+`~/.claude/agents/` and the coded-routing directive (`runecraft:routing`
+section in `CLAUDE.md`).
 
 ## How work is routed
 

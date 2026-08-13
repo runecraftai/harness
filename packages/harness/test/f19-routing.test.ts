@@ -378,9 +378,12 @@ describe("sync — three-way por target rules (D7, ROUT-06)", () => {
 
       const result = await runHarness(sb, ["sync"]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain("re-injetado (rules ausente)");
+      // B1: as duas seções (workflow + routing) foram removidas pelo usuário →
+      // ambas re-injetadas (células rules da coluna claude-code).
+      expect(result.stdout).toContain("re-injetado (rules, routing ausente)");
       const content = fs.readFileSync(claudeRulesFile(sb), "utf8");
       expect(content).toContain("<!-- runecraft:workflow -->");
+      expect(content).toContain("<!-- runecraft:routing -->");
       expect(content).toContain("# só conteúdo do usuário");
     } finally {
       sb.cleanup();

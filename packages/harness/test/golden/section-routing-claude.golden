@@ -1,0 +1,44 @@
+<!-- runecraft:routing -->
+## Coded routing directive (deterministic — never LLM-selected)
+
+The harness routes work by explicit thresholds in code. This section is the directive
+rendered from the same route catalog (threshold 2; high-signal ×2, medium ×1;
+below threshold or no signal → direct: do the work yourself, no delegation).
+
+## Route table
+
+| Route | Role | When (high-signal keywords) |
+| --- | --- | --- |
+| explore | scout | `locate` `trace` `where is` `find where` `map the codebase` `codebase recon` `recon` |
+| research | researcher | `research` `look up docs` `look up documentation` `external docs` `check the docs` `search the web` `read the docs` `find documentation` |
+| review | reviewer | `review` `validate` `check my work` `approve` `verify my changes` `code review` `review my` |
+| implement | builder | `implement` `build` `refactor` `add feature` `port` `fix` `execute the plan` `write the code` `create the` |
+| planning | planner | `plan` `planning` `break down` `roadmap` `spec` `specification` `design` `redesign` `scope` `task list` `decompose` `estimate` `architecture` |
+| security | security | `auth` `authentication` `authorization` `crypto` `cryptographic` `token` `tokens` `secret` `secrets` `password` `passwords` `session` `sessions` `cors` `csp` `content security policy` `oauth` `oidc` `saml` `.env` `input validation` `signature` `signatures` `csrf` `xss` `credential` `credentials` `encrypt` `encryption` `sanitize` |
+
+Ties resolve deterministically: security > planning > implement > review > research > explore.
+Presence of `.specs/.../spec.md` (SDD) adds +2 to planning.
+
+## Security is MANDATORY
+
+When the task mentions any high-signal security keyword — `auth` `authentication` `authorization` `crypto` `cryptographic` `token` `tokens` `secret` `secrets` `password` `passwords` `session` `sessions` `cors` `csp` `content security policy` `oauth` `oidc` `saml` `.env` `input validation` `signature` `signatures` `csrf` `xss` `credential` `credentials` `encrypt` `encryption` `sanitize` —
+delegate to the `security` role via the Agent tool. This is NOT optional:
+do not skip it, do not substitute another role.
+
+## Delegation
+
+Delegate via the native Agent tool (the Task tool) naming the role —
+e.g. a recon before implementing delegates to `scout`, review of finished work delegates to `reviewer`.
+Only the `builder` role has the Agent tool in its allowlist: roles other than builder
+never spawn other agents (the routing directive is applied by the session, not by role agents).
+
+## Available roles
+
+- **planner** — Creates implementation plans from context and requirements — never implements
+- **builder** — Executes the plan with narrow, verified edits — the only role that delegates
+- **reviewer** — Read-only in-loop reviewer — plan review and work review with a structured verdict
+- **auditor** — Independent compliance auditor — writes audit reports in Markdown only
+- **scout** — Fast read-only codebase reconnaissance that returns compressed context
+- **researcher** — Read-only external research that returns a sourced brief
+- **security** — Read-only security and compliance reviewer with triage, fast exit, and a structured verdict
+<!-- /runecraft:routing -->

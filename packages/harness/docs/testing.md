@@ -8,7 +8,7 @@ goldens, and the env-gated E2E benchmark. The detailed framework reference is
 
 | Suite | Command | What it covers |
 | --- | --- | --- |
-| Full harness suite | `bun run test` (in `packages/harness`) | 1197 tests: unit + CLI + eval lanes (deterministic, guards, verification) + ratchet + goldens |
+| Full harness suite | `bun run test` (in `packages/harness`) | unit + CLI + eval lanes (deterministic, guards, verification, parity) + ratchet + goldens |
 | E2E offline | `bun test scripts/eval-e2e` (repo root) | 71 tests — env-gated: without `RUNECRAFT_E2E=1` they skip (exit 0, zero tokens) |
 | E2E benchmark | `RUNECRAFT_E2E=1 bun run eval:e2e` | real models, versioned committed rounds (not in CI) |
 | Lint / build | `bun run lint` / `bun run build` | biome + turbo build |
@@ -30,7 +30,7 @@ matrix ↔ tests correspondence).
 - **Ratchets**: `test/eval/baselines/{known-failures,command-coverage}.txt`
   — fail-only-on-worse non-regression for known failures and command
   coverage. The pass-rate ratchet (E2E) reads committed benchmark rounds.
-- **Goldens**: `test/golden/*.golden` (11 files) pin injected assets byte for
+- **Goldens**: `test/golden/*.golden` (12 files) pin injected assets byte for
   byte (rules sections, MCP configs, chains).
 - **Update policy**: ratchets/goldens are never updated in normal work; the
   canonical flow is `bun run eval:ratchet` (red with instructions) → human

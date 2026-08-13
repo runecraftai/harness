@@ -7,14 +7,22 @@ This document is the roadmap behind the tier table in the umbrella README.
 The v1 truth for what each matrix column actually has is [ROUTING.md](ROUTING.md)
 §6 — this document is the plan, not a claim.
 
+**Single source of truth:** the per-agent feature claims in this document's
+native-surface tables live in code — `src/capabilities/manifest.ts` (Phase
+B0). Install refusals, `companion doctor` check 25 and `companion status`
+read from the same manifest; `companion doctor` digests it (byte-stable
+sha256). If a table below drifts from the code, the manifest digest test
+fails — the copy cannot silently diverge.
+
 ## The tiers
 
 - **Tier 1 — Pi**: the reference implementation. The four tools (subagents,
   taskflow, goal-loop, pr-review) plus guards, verification, resilience,
   memory, routing and persona ship as Pi packages.
 - **Tier 2 — non-Pi agents** (Claude Code, OpenCode, Codex, VS Code
-  Copilot): taskflow + workflow rules today. The rest of the layer is
-  planned per agent on the roadmap below.
+  Copilot): taskflow + workflow rules today, plus the shipped B1 parity
+  slice for Claude Code (role agents + coded routing). The rest of the
+  layer is planned per agent on the roadmap below.
 - **Tier 3 — detect-only** (Cursor, Grok, others): the CLI detects them and
   names the exact command you'd run yourself. No adapter until a user
   actually needs one.
@@ -24,7 +32,9 @@ The v1 truth for what each matrix column actually has is [ROUTING.md](ROUTING.md
 The harness owns the hard parts of the full layer once: the DAG engine,
 review, receipts, verification, memory and coded routing. Pi receives all
 of it through the Pi SDK. Every other agent receives the shared taskflow +
-rules layer, and the remaining components are refused per cell.
+rules layer; Claude Code additionally received the B1 parity slice (7
+role agents + coded routing). The remaining components are refused per
+cell.
 
 The table compares today's delivery with the full layer a comparable
 harness (gentle-ai v2.3.0) gives its agents through each agent's native
@@ -34,7 +44,7 @@ per-agent native configuration does not.
 | Agent | Today (harness v1) | Full layer (reference surface) |
 | --- | --- | --- |
 | **Pi** | Full layer: the four tools as packages, plus guards, verification, evals, resilience, observability, memory, persona, per-agent model routing, 7 role agents, coded routing and receipts/gates. | Package-managed too — the reference implementation. |
-| **Claude Code** | taskflow-MCP (`taskflow-claude` in `.mcp.json`) + taskflow-only rules in `~/.claude/CLAUDE.md`. Subagents, goal-loop, pr-review and guards are refused. | Agent files + Task-tool subagents, output styles, slash commands, skills, per-server MCP files, PreToolUse hooks, persona via CLAUDE.md, model routing via agent-file `model:` — the richest surface. |
+| **Claude Code** | taskflow-MCP (`taskflow-claude` in `.mcp.json`) + rules in `~/.claude/CLAUDE.md` (`runecraft:workflow` + `runecraft:routing` sections) + **B1 shipped**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only `builder` spawns). Goal-loop, pr-review and guards are refused. | Agent files + Task-tool subagents, output styles, slash commands, skills, per-server MCP files, PreToolUse hooks, persona via CLAUDE.md, model routing via agent-file `model:` — the richest surface. |
 | **OpenCode** | taskflow-MCP (`taskflow-opencode` in `opencode.json`) + rules in `AGENTS.md`. Subagents, goal-loop, pr-review and guards are refused. | Multi-mode overlay (orchestrator + phase/review subagents), per-agent model profiles, slash commands, skills, merged MCP, native `task` subagents. |
 | **Codex** | taskflow-MCP (`[mcp_servers.taskflow]` in `config.toml`) + rules in `~/.codex/AGENTS.md` (solo). Subagents, goal-loop, pr-review and guards are refused. | Skills, system prompt, MCP upserts, model-selection profiles (`codex --profile`), PreToolUse hooks, advisory review. Solo-agent surface. |
 | **VS Code Copilot** | `servers.taskflow` in `.vscode/mcp.json` (repo-scoped) + `.github/copilot-instructions.md` rules. Subagents, goal-loop, pr-review and guards are refused. | Skills, a user-level instructions file, user-level MCP, `runSubagent` delegation (carried in the prompt). No tool-call hook surface. |
@@ -54,13 +64,13 @@ mechanism exists.
 
 | Component | Native mechanism | Verdict |
 | --- | --- | --- |
-| subagents | Task tool + agent files (`~/.claude/agents/*.md` with name/description/model/tools frontmatter). The harness's 7 role agents are already data — they materialize per agent. | native — highest-leverage port |
+| subagents | Task tool + agent files (`~/.claude/agents/*.md` with name/description/model/tools frontmatter). The harness's 7 role agents are already data — they materialize per agent. **Shipped in B1**: 7 role agents (`claude-agents/*.md`) materialized to `~/.claude/agents/` by install/sync, delegation via the native `Agent` (Task) tool, only the `builder` role carries the delegation tool (QA-5 mirror). | native — **highest-leverage port, SHIPPED (B1)** |
 | taskflow | Already delivered (MCP server spawning headless `claude -p`). | done |
 | goal-loop | No session-continuation API. Closest: an external supervisor CLI spawning headless `claude -p`, triggered by git hooks. | adapt (external loop) |
 | pr-review | Parallel Task-tool dispatch + `harness review` CLI + receipts. | adapt |
 | guards | PreToolUse hooks in `~/.claude/settings.json` (deny or rewrite tool calls), SessionStart context, Stop verification. The 4 guard semantics map 1:1. | native — closest 1:1 to the Pi guards |
 | memory | Expose the runes SQLite store as an MCP server. | adapt (MCP wrapper) |
-| persona / rules / routing | CLAUDE.md marker sections (the section engine already exists). The coded-routing directive is a section. | native |
+| persona / rules / routing | CLAUDE.md marker sections (the section engine already exists). The coded-routing directive is a section. **Shipped in B1**: the `runecraft:routing` section (deterministic directive rendered from the F33 route catalog — thresholds, security-mandatory, Task-tool delegation) injected alongside `runecraft:workflow` by the marker engine. | native — SHIPPED (B1) |
 | model routing | Agent-file `model:` frontmatter per subagent + `settings.json` model. | native |
 | SDD assets | Skills (`~/.claude/skills/`) + slash commands (`~/.claude/commands/`); the fork chains need a format conversion to agent files. | adapt (format conversion) |
 
@@ -121,8 +131,8 @@ with `companion doctor`.
 
 | Phase | Scope | Effort |
 | --- | --- | --- |
-| B0 | Foundation: a capability manifest — per-agent feature claims (hooks, subagents, MCP, models, guards) as a single source of truth consumed by install, doctor, status and this document. | 3–5 d |
-| B1 | Roles + routing for Claude Code: the 7 role agents as `~/.claude/agents/*.md`, the coded-routing directive as a CLAUDE.md section, delegation via the native Task tool. Unblocks 2 of the 4 tools for the most-used non-Pi agent. | 5–8 d |
+| B0 | Foundation: a capability manifest — per-agent feature claims (hooks, subagents, MCP, models, guards) as a single source of truth consumed by install, doctor, status and this document. | 3–5 d — **SHIPPED** |
+| B1 | Roles + routing for Claude Code: the 7 role agents as `~/.claude/agents/*.md`, the coded-routing directive as a CLAUDE.md section, delegation via the native Task tool. Unblocks 2 of the 4 tools for the most-used non-Pi agent. | 5–8 d — **SHIPPED** |
 | B2 | Guards via hooks for Claude Code + Codex: the 4 guard semantics as PreToolUse hooks. OpenCode gets a permission-overlay best-effort. Copilot is documented as having no surface. | 6–10 d |
 | B3 | Memory + observability via MCP: the runes SQLite store exposed as an MCP server, registered per agent. | 4–6 d |
 | B4 | pr-review as a headless CLI + receipts for all: parallel headless reviewers per host; git gates already work for any repo, so receipts become agent-agnostic. | 5–8 d |
@@ -145,6 +155,7 @@ Some mechanisms are tied to the Pi SDK and will not be ported:
 
 ## Honesty note
 
-Tier 2 is taskflow + rules today. Nothing in this document changes that:
-the roadmap is a plan, not a claim, and each phase is verifiable via
-`companion doctor` before it is advertised.
+Tier 2 is taskflow + rules today, plus the shipped B1 slice for Claude
+Code (role agents + coded routing). Nothing else in this document
+changes: the roadmap is a plan, not a claim, and each phase is verifiable
+via `companion doctor` before it is advertised.

@@ -13,7 +13,8 @@ The Runecraft harness loads four forked tools into a Pi session —
 `goal-loop-audit` (verifiable contract with an isolated auditor) and
 `pr-review` (structured review) — and manages non-Pi agents (Claude Code,
 OpenCode, Codex, Copilot) through their matrix column: taskflow-MCP +
-workflow rules.
+workflow rules (Claude Code also receives the B1 parity slice — section
+8.15).
 
 The four tools overlap; picking the wrong one costs time and, in the worst
 case, breaks the session (two-driver rule — section 2). Use this document in
@@ -132,7 +133,7 @@ cite a tool outside the column.
 | Agent | Column |
 | --- | --- |
 | **Pi** | full column: subagents + taskflow + goal-loop-audit + pr-review (extensions) + rules (native). The injected rules cover all 4 tools + two-driver + worker rule. |
-| **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md). No goal-loop/subagents/pr-review — Pi extensions only. |
+| **Claude Code** | taskflow-MCP + workflow rules (`runecraft:workflow` in ~/.claude/CLAUDE.md) + **B1**: 7 role agents in `~/.claude/agents/` (Task-tool delegation, only the builder spawns) + coded-routing directive (`runecraft:routing` section). No goal-loop/pr-review/guards — Pi extensions only (planned native surface: PARITY.md). |
 | **OpenCode** | taskflow-MCP + workflow rules (AGENTS.md). Same limits. |
 | **Codex** | taskflow-MCP + workflow rules (AGENTS.md). Solo agent (no permissions/output styles); the injected rules are the shared non-Pi template. |
 | **Copilot (VS Code)** | taskflow-MCP (`servers.taskflow` in `.vscode/mcp.json`) + workflow rules (`.github/copilot-instructions.md`) — repo-scoped. Same limits; the injected rules are the shared non-Pi template. |
@@ -144,9 +145,10 @@ non-Pi agents will get next, and through which native surface) live in
 
 ## 7. Coexistence
 
-- The harness manages exactly the `runecraft:workflow` block: append on
-  insert, in-place update by the stable id, nothing beyond the markers
-  (section engine).
+- The harness manages the `runecraft:workflow` block (plus, for Claude Code
+  since B1, the `runecraft:routing` directive section): append on insert,
+  in-place update by the stable id, nothing beyond the markers (section
+  engine).
 - **Other installers**: `gentle-ai:` marker sections are third-party content —
   the harness never touches them (append/upsert only of the runecraft: block;
   detected in `harness status` Owners / `harness doctor` check 14).
@@ -461,9 +463,9 @@ install refuses **fail-closed display-only** (zero writes) with a hint;
 status and doctor (check 21) report detect-only — the harness never installs
 runtimes.
 
-**Matrix**: the copilot column = taskflow-MCP + rules + 4 `unsupported` cells
-(subagents/goal-loop-audit/pr-review/guards — "is a Pi extension; use
-`--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
+**Matrix**: the copilot column = taskflow-MCP + rules + 5 `unsupported` cells
+(subagents/goal-loop-audit/pr-review/guards/routing — "is a Pi extension;
+use `--agent pi`" + "planned: <native mechanism>"; phase attribution lives in
 [PARITY.md](PARITY.md)). Guards: VS Code exposes no tool-call hook surface —
 Copilot guards stay detect-only in v1 and on the roadmap (PARITY.md B2).
 
@@ -657,6 +659,46 @@ runtime spawns the steps), not to the role — non-delegator roles do not spawn.
   route = pure function of input (contract test).
 - **Role agents**: catalog read-only; delegation policy preserved.
 
+## 8.15 Claude Code parity (B0/B1) — capability manifest + roles + routing
+
+Phase B0 (capability manifest) and B1 (Claude Code roles + routing) shipped:
+what each agent CLAIMS per capability now lives in one place
+(`src/capabilities/manifest.ts`), and Claude Code receives two of the four
+tools through its native surface.
+
+### Capability manifest (B0)
+
+- Per-agent feature claims (hooks / subagents / mcp / models / guards +
+taskflow / goal-loop / pr-review / memory / persona / sdds) as a single
+source of truth — install refusal reasons (`matrix.ts` cells), `doctor`
+check 25 and `status` (Capabilities section) all read from it.
+- `companion doctor` check 25 digests the manifest (byte-stable sha256,
+gentle-ai `manifest_test.go` pattern): drift between the manifest and the
+consumers is a red test, not a silent copy.
+- Honesty rules: Copilot declares `none` for guards/hooks (no hook surface —
+recon §4.4); goal-loop is `none` for all non-Pi agents (commander decision
+D2 — taskflow + subagents are the documented substitutes, B7 stays future).
+
+### Roles + routing for Claude Code (B1)
+
+- **7 role agents** (`planner`/`builder`/`reviewer`/`auditor`/`scout`/
+`researcher`/`security` — `claude-agents/*.md`, Claude agent-file format:
+frontmatter name/description/tools + system prompt) materialized to
+`~/.claude/agents/` by `companion install --agent claude-code` / `sync`
+(three-way by content — user edits preserved, F19 D7). The fork's `subagent`
+tool stays Pi-only; delegation uses the native **Task tool** (the `Agent`
+tool) naming the role. Only the `builder` role carries the delegation tool
+in its allowlist (QA-5 mirror); non-delegator roles never spawn.
+- **Coded-routing directive as a CLAUDE.md section**: `runecraft:routing` is
+injected by the marker engine (F18) next to `runecraft:workflow` — a
+deterministic directive rendered from the SAME route catalog as the F33
+classifier (thresholds explicit, security MANDATORY, fail-closed direct,
+delegation via Task tool). Claude Code has no extension surface, so the
+agent applies the directive; the deterministic classifier remains the
+Pi-side mechanism, and B8 asserts parity via evals.
+- Verified via `companion doctor` check 24 (Claude role agents) and the
+status Claude role agents / Routing sections.
+
 ## 9. Appendix: injected text (golden)
 
 The exact text injected by `renderRules(agentId)` — the same source of truth
@@ -814,6 +856,15 @@ Recent verification runs:
   mandatory on high signals; the directive is injected via
   `before_agent_start` (no input event on the harness surface — the first
   message IS the prompt).
+- **2026-08-13**: Claude Code parity (section 8.15) — B0 capability manifest
+  (`src/capabilities/manifest.ts`): per-agent claims × capability, sha256
+  byte-stable digest, `capabilityReason` = single source for the matrix
+  unsupported cells; B1 roles + routing: 7 role agents
+  (`claude-agents/*.md`) materialized three-way to `~/.claude/agents/`, the
+  `runecraft:routing` directive section rendered from the SAME route catalog
+  as the classifier and injected by the marker engine, delegation via the
+  native `Agent` (Task) tool (only `builder`), doctor checks 24/25, status
+  Capabilities / Claude role agents / Routing sections.
 
 **Revalidation checklist** (on fork bumps or newly found limitations): table
 facts → section 3; injected text → section 9 (bump the workflow rules

@@ -42,9 +42,22 @@ describe("install --agent (F15 ADPT-01..06)", () => {
       const agents = state.agents as Record<string, unknown>;
       expect(agents["claude-code"]).toBeDefined();
       const targets = (agents["claude-code"] as { targets: unknown[] }).targets;
-      expect(targets.length).toBe(2);
+      // B1: 3 targets — rules (workflow) + routing (directive) + mcp (taskflow).
+      expect(targets.length).toBe(3);
       expect((targets[0] as { kind: string }).kind).toBe("rules");
-      expect((targets[1] as { kind: string }).kind).toBe("mcp");
+      expect((targets[1] as { kind: string }).kind).toBe("rules");
+      expect((targets[1] as { section: string }).section).toBe("runecraft:routing");
+      expect((targets[2] as { kind: string }).kind).toBe("mcp");
+
+      // B1: seção runecraft:routing no CLAUDE.md (directive codificada).
+      expect(rules).toContain("runecraft:routing");
+      // B1: os 7 papéis objetivos materializados em ~/.claude/agents/.
+      const agentsDir = path.join(claudeHome, "agents");
+      for (const role of ["planner", "builder", "reviewer", "auditor", "scout", "researcher", "security"]) {
+        expect(fs.existsSync(path.join(agentsDir, `${role}.md`))).toBe(true);
+      }
+      const claudeState = state.claudeAgents as Record<string, unknown> | undefined;
+      expect(Object.keys(claudeState ?? {}).sort()).toEqual(["auditor", "builder", "planner", "researcher", "reviewer", "scout", "security"]);
     } finally {
       sb.cleanup();
     }
