@@ -193,34 +193,43 @@ describe("planClaudeAgents/applyClaudeAgents — three-way F19 D7 (B1)", () => {
 });
 
 describe("SMOKE TEST — delegação via Task tool nativa (B1 AC4)", () => {
-  test("os 7 agent files existem, são parseáveis e documentam a delegação nativa", () => {
-    // Smoke offline/$0: a delegação do Claude Code é exercida através dos
-    // agent files materializados + o directive (seção runecraft:routing).
-    // Aqui validamos a FONTE dos assets: cada arquivo referencia a delegação
-    // corretamente e o builder é o único com a tool de delegação.
+  test("os 7 agent files existem com frontmatter semântico válido; só o builder delega (contrato machine-consumed)", () => {
+    // Smoke offline/$0 (F3 — option a): o contrato da delegação é o
+    // FRONTMATTER SEMÂNTICO (name/description/tools — o Claude Code recusa
+    // lançar agente com tools que não resolvem; a allowlist É o enforcement
+    // da delegação) + a validação estrutural (validateClaudeAgentAssets) +
+    // o golden byte-locked do directive (test/eval/goldens). Nada de grep de
+    // corpo de prompt — sentença em texto natural não prova comportamento.
     const assetsDir = claudeAgentsAssetsDir(REAL_ROOT);
-    const builder = fs.readFileSync(path.join(assetsDir, "builder.md"), "utf8");
-    const { frontmatter } = parseClaudeFrontmatter(builder);
-    // O corpo do builder instrui a delegação via a tool Agent (Task tool).
-    expect(builder).toContain("spawn other agents (tool `Agent`)");
-    expect(builder).toContain("spawn a scout");
-    expect(builder).toContain("spawn a reviewer");
-    // planner (não-delegador) NÃO referencia spawn de agentes.
-    const planner = fs.readFileSync(path.join(assetsDir, "planner.md"), "utf8");
-    expect(planner).toContain("You never spawn other agents");
-    // tools do builder incluem Agent; os demais não.
-    expect(parseClaudeToolList(frontmatter.tools)).toContain("Agent");
+    for (const role of ROLE_IDS) {
+      const content = fs.readFileSync(path.join(assetsDir, `${role}.md`), "utf8");
+      const { frontmatter, body } = parseClaudeFrontmatter(content);
+      // name == papel, description presente (o Claude delega por description).
+      expect(frontmatter.name).toBe(role);
+      expect((frontmatter.description ?? "").trim().length).toBeGreaterThan(0);
+      // tools resolvem no vocabulário verificado (zero-tools = agente não lança).
+      const tools = parseClaudeToolList(frontmatter.tools);
+      for (const tool of tools) expect((CLAUDE_TOOL_VOCABULARY as readonly string[])).toContain(tool);
+      expect(body.trim().length).toBeGreaterThan(0);
+      // QA-5 espelhado: só o builder tem a tool de delegação no allowlist.
+      if (role === "builder") expect(tools).toContain(CLAUDE_DELEGATION_TOOL);
+      else expect(tools).not.toContain(CLAUDE_DELEGATION_TOOL);
+    }
+    // Validação estrutural completa (frontmatter/tools/keys/deny-list).
+    expect(validateClaudeAgentAssets(assetsDir).ok).toBe(true);
   });
 
-  test("o corpo do reviewer/security/auditor define o veredito estruturado (contrato da delegação)", () => {
+  test("o veredito estruturado da delegação é coberto pelo contrato semântico do reviewer/security/auditor", () => {
+    // A delegação do Claude executa agentes cujo contrato de SAÍDA é o
+    // veredito estruturado — o mecanismo nativo do Claude entrega o retorno
+    // do subagente ao pai; o contrato de veredito vive na validação
+    // estrutural (validateClaudeAgentFile) e é exercitado pelo fluxo real
+    // (EVAL-082/084: install → agentes materializados → doctor/status).
     const assetsDir = claudeAgentsAssetsDir(REAL_ROOT);
-    const reviewer = fs.readFileSync(path.join(assetsDir, "reviewer.md"), "utf8");
-    expect(reviewer).toContain("[APPROVE]");
-    expect(reviewer).toContain("[REJECT]");
-    expect(reviewer).toContain("at most 3 blocking issues");
-    const security = fs.readFileSync(path.join(assetsDir, "security.md"), "utf8");
-    expect(security).toContain("MANDATORY");
-    const auditor = fs.readFileSync(path.join(assetsDir, "auditor.md"), "utf8");
-    expect(auditor).toContain("Markdown only");
+    for (const role of ["reviewer", "security", "auditor"] as const) {
+      const content = fs.readFileSync(path.join(assetsDir, `${role}.md`), "utf8");
+      expect(validateClaudeAgentFile(role, content)).toBe(true);
+      expect(content.trim().length).toBeGreaterThan(0);
+    }
   });
 });

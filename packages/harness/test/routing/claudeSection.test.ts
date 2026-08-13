@@ -1,67 +1,39 @@
 // routing/claudeSection.test.ts — B1: coded-routing directive como seção de
 // CLAUDE.md (motor F18). Render PURO determinístico (F21 D10) a partir do
-// MESMO catálogo do F33 (ROUTE_CATALOG) + papéis do F32: rotas × papéis ×
-// keywords × threshold, segurança OBRIGATÓRIA, fail-closed direct, delegação
-// via a tool nativa Agent (Task tool) — só o builder delegador.
+// MESMO catálogo do F33 (ROUTE_CATALOG) + papéis do F32.
+//
+// Contrato de teste (F3 — option a): o directive é um artefato gerado e
+// injetado (interface intencional entregue ao agente) — o contrato é o
+// GOLDEN byte-locked (test/golden/section-routing-claude.golden) + o
+// determinismo do render (2 runs byte-idênticos) + as constantes de
+// contrato (id da seção, versão do template, threshold do catálogo). Nada
+// de grep de substring do corpo — texto natural não prova comportamento.
 import { describe, expect, test } from "bun:test";
-import { renderClaudeRoutingSection, ROUTING_SECTION, CLAUDE_ROUTING_SECTION_VERSION, claudeRouteRole } from "../../src/routing/claudeSection.ts";
-import { ROUTE_CATALOG, DELEGATABLE_ROUTE_IDS } from "../../src/routing/routes.ts";
+import { renderClaudeRoutingSection, ROUTING_SECTION, CLAUDE_ROUTING_SECTION_VERSION } from "../../src/routing/claudeSection.ts";
 import { ROUTE_THRESHOLD } from "../../src/routing/classifier.ts";
-import { roleList, ROLE_IDS } from "../../src/agents/catalog.ts";
-import { CLAUDE_DELEGATION_TOOL } from "../../src/adapters/claudeAgents.ts";
+import { renderSectionClaudeRouting, readGolden } from "../eval/goldens.ts";
 
 describe("renderClaudeRoutingSection — directive codificada (B1)", () => {
-  const rendered = renderClaudeRoutingSection();
-
   test("determinismo: 2 runs byte-idênticos (F21 D10)", () => {
-    expect(rendered).toBe(renderClaudeRoutingSection());
-    for (let i = 0; i < rendered.length; i++) {
-      expect(rendered.charCodeAt(i)).toBe(renderClaudeRoutingSection().charCodeAt(i));
+    const a = renderClaudeRoutingSection();
+    const b = renderClaudeRoutingSection();
+    expect(a).toBe(b);
+    for (let i = 0; i < a.length; i++) {
+      expect(a.charCodeAt(i)).toBe(b.charCodeAt(i));
     }
   });
 
-  test("threshold explícito + fail-closed (abaixo → direct)", () => {
-    expect(rendered).toContain(`threshold ${ROUTE_THRESHOLD}`);
-    expect(rendered).toContain("below threshold or no signal → direct");
+  test("contrato do artefato injetado: a seção completa == golden byte-locked", () => {
+    // O directive É o que o adapter do claude injeta no CLAUDE.md (motor F18);
+    // o golden é o contrato de bytes versionado (mesmo padrão dos goldens do
+    // workflow F19/F23 — drift de conteúdo = diff revisável no teste).
+    expect(renderSectionClaudeRouting()).toBe(readGolden("section-routing-claude.golden"));
   });
 
-  test("tabela de rotas: TODAS as rotas delegáveis do catálogo com o papel alvo", () => {
-    const roles = roleList();
-    for (const route of DELEGATABLE_ROUTE_IDS) {
-      const definition = ROUTE_CATALOG[route];
-      const role = claudeRouteRole(route, roles);
-      expect(rendered).toContain(`| ${route} | ${role?.id ?? "—"} |`);
-      // keywords high do catálogo presentes no directive (o agente aplica os
-      // mesmos sinais do classificador do F33).
-      for (const keyword of definition.keywords.high.slice(0, 2)) {
-        expect(rendered).toContain(`\`${keyword}\``);
-      }
-    }
-  });
-
-  test("segurança OBRIGATÓRIA (paladin — NOT optional)", () => {
-    expect(rendered).toContain("Security is MANDATORY");
-    expect(rendered).toContain("NOT optional");
-    expect(rendered).toContain("`auth`");
-    expect(rendered).toContain("`crypto`");
-    expect(rendered).toContain("`.env`");
-  });
-
-  test("delegação via a tool nativa (Task tool / Agent) — só o builder", () => {
-    expect(rendered).toContain(CLAUDE_DELEGATION_TOOL);
-    expect(rendered).toContain("the Task tool");
-    expect(rendered).toContain("Only the `builder` role has the");
-    expect(rendered).toContain("never spawn other agents");
-  });
-
-  test("lista os 7 papéis do F32 (alvos válidos da delegação)", () => {
-    for (const role of ROLE_IDS) {
-      expect(rendered).toContain(`**${role}**`);
-    }
-  });
-
-  test("id da seção estável + versão de template", () => {
+  test("constantes de contrato estáveis (id da seção, versão do template, threshold)", () => {
     expect(ROUTING_SECTION).toBe("runecraft:routing");
     expect(CLAUDE_ROUTING_SECTION_VERSION).toBe("1");
+    // O threshold é a MESMA constante do classificador do F33 (fonte única).
+    expect(ROUTE_THRESHOLD).toBe(2);
   });
 });

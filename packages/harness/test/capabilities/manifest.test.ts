@@ -75,6 +75,29 @@ describe("validateManifest — estrutura (B0)", () => {
     expect(claim.mechanism).toContain("~/.claude/agents/");
     expect(claim.mechanism).toContain("Task tool");
   });
+
+  test("F4: dimensão routing dedicada — honesta por agente (claude-code entregue; demais não)", () => {
+    // A dimensão routing é DEDICADA (não reusa persona): claude-code entregue
+    // via seção runecraft:routing (B1); opencode/codex adapt (regras); copilot
+    // none. Os motivos das células unsupported da matriz NUNCA leem entregue
+    // para um agente sem a capacidade.
+    expect(claimFor("claude-code", "routing").verdict).toBe("native");
+    expect(claimFor("claude-code", "routing").delivered).toBe(true);
+    expect(claimFor("claude-code", "routing").mechanism).toContain("runecraft:routing");
+    expect(claimFor("opencode", "routing").delivered).toBe(false);
+    expect(claimFor("codex", "routing").delivered).toBe(false);
+    expect(claimFor("copilot", "routing").verdict).toBe("none");
+    // reason do opencode routing: planned (nunca "nativo entregue").
+    expect(capabilityReason("opencode", "routing", "routing")).toContain("planned:");
+    expect(capabilityReason("opencode", "routing", "routing")).not.toContain("nativo entregue");
+  });
+
+  test("F4: reason de capacidade ENTREGUE diz 'nativo entregue' (sem contradição com o fork Pi-only)", () => {
+    const reason = capabilityReason("claude-code", "subagents", "subagents");
+    expect(reason).toContain("subagents é extensão Pi; use --agent pi");
+    expect(reason).toContain("nativo entregue:");
+    expect(reason).not.toContain("(native)");
+  });
 });
 
 describe("digest (manifest_test.go pattern — byte-stável)", () => {
