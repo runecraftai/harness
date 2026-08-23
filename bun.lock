@@ -9,19 +9,6 @@
         "turbo": "^2.5.0",
       },
     },
-    "packages/claude-auth": {
-      "name": "@runecraft/claude-auth",
-      "version": "0.1.0",
-      "bin": {
-        "sync-claude-auth": "./src/sync.mjs",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": "*",
-      },
-      "optionalPeers": [
-        "@earendil-works/pi-coding-agent",
-      ],
-    },
     "packages/goal-loop-audit": {
       "name": "@runecraft/goal-loop-audit",
       "version": "0.28.34",
@@ -379,8 +366,6 @@
     "@protobufjs/pool": ["@protobufjs/pool@1.1.0", "", {}, "sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw=="],
 
     "@protobufjs/utf8": ["@protobufjs/utf8@1.1.2", "", {}, "sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug=="],
-
-    "@runecraft/claude-auth": ["@runecraft/claude-auth@workspace:packages/claude-auth"],
 
     "@runecraft/companion": ["@runecraft/companion@workspace:packages/harness"],
 
