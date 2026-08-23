@@ -24,7 +24,7 @@
 //     observability verde (case observability-block: guard F24 bloqueia numa
 //     sessão REAL com a extensão do F28 → guard:blocked no store).
 //   EVAL-030 tools:snapshot event fires at session_start and
-//     before_agent_start with plausible payload shape (activeTools,
+//     tool_execution_end with plausible payload shape (activeTools,
 //     toolCount, schemaTokenEstimate, schemaChars).
 //
 // Delta vs EVAL-006/007/014/019 documentado em cada case (D6 — sem
@@ -608,7 +608,7 @@ describe("EVAL-029 — export round-trip (D8)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// tools:snapshot — event fires at session_start + before_agent_start with
+// tools:snapshot — event fires at session_start + tool_execution_end with
 // plausible payload shape (activeTools, toolCount, schemaTokenEstimate,
 // schemaChars). Asserts observable event content, not internal implementation.
 // ---------------------------------------------------------------------------
@@ -712,7 +712,7 @@ describe("tools:snapshot — observability event", () => {
           .filter(Boolean)
           .map((l) => JSON.parse(l)) as Array<{ kind: string; payload: Record<string, unknown>; seq: number }>;
 
-        // Assert: at least 2 tools:snapshot events (session_start + before_agent_start)
+        // Assert: at least 2 tools:snapshot events (session_start + tool_execution_end)
         const snapshots = events.filter((e) => e.kind === "tools:snapshot");
         expect(snapshots.length).toBeGreaterThanOrEqual(2);
 
