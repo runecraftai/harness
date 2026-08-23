@@ -33,6 +33,7 @@ export const EVENT_KINDS = [
   "lesson:reincidence",
   "lesson:promoted",
   "adendo:injected",
+  "tools:snapshot",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -212,6 +213,19 @@ export interface AdendoInjectedPayload {
   at?: string;
 }
 
+/** Snapshot dos tools ativos — mede o custo de schema no contexto. */
+export interface ToolsSnapshotPayload {
+  /** nomes dos tools ativos (ordem do SDK). */
+  activeTools: string[];
+  /** contagem de tools ativos. */
+  toolCount: number;
+  /** estimativa de tokens do JSON serializado dos schemas ativos (chars / 4). */
+  schemaTokenEstimate: number;
+  /** contagem total de chars usada no cálculo (transparência). */
+  schemaChars: number;
+  at?: string;
+}
+
 export type EventPayload =
   | SessionStartedPayload
   | SessionEndedPayload
@@ -227,7 +241,8 @@ export type EventPayload =
   | LessonCapturedPayload
   | LessonReincidencePayload
   | LessonPromotedPayload
-  | AdendoInjectedPayload;
+  | AdendoInjectedPayload
+  | ToolsSnapshotPayload;
 
 // ---------------------------------------------------------------------------
 // EventRecord — discriminated union (D2)

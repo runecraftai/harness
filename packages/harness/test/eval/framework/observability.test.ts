@@ -23,6 +23,9 @@
 //     bridges verify-verdicts/ledger → source:"bridge" + prevHash) + suite
 //     observability verde (case observability-block: guard F24 bloqueia numa
 //     sessão REAL com a extensão do F28 → guard:blocked no store).
+//   EVAL-030 tools:snapshot event fires at session_start and
+//     before_agent_start with plausible payload shape (activeTools,
+//     toolCount, schemaTokenEstimate, schemaChars).
 //
 // Delta vs EVAL-006/007/014/019 documentado em cada case (D6 — sem
 // double-test): o mecanismo do guard/veredito/stall já é coberto pelos
@@ -601,5 +604,156 @@ describe("EVAL-029 — export round-trip (D8)", () => {
         expect(lines.some((l) => l.includes(`"evalId":"${id}"`))).toBe(true);
       }
     }, { evalId: "EVAL-029" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tools:snapshot — event fires at session_start + before_agent_start with
+// plausible payload shape (activeTools, toolCount, schemaTokenEstimate,
+// schemaChars). Asserts observable event content, not internal implementation.
+// ---------------------------------------------------------------------------
+
+describe("tools:snapshot — observability event", () => {
+  test("fires at session_start and tool_execution_end with plausible payload", async () => {
+    await evalTest("tools:snapshot: fires at session_start + tool_execution_end with plausible payload", async () => {
+      const base = makeTmp();
+      try {
+        const repo = path.join(base, "repo");
+        fs.mkdirSync(repo, { recursive: true });
+
+        const mockTools = [
+          { name: "read", description: "Read file contents", parameters: { type: "object", properties: { path: { type: "string" } } } },
+          { name: "write", description: "Write content to a file", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } } },
+          { name: "bash", description: "Execute a bash command", parameters: { type: "object", properties: { command: { type: "string" } } } },
+        ];
+        let activeToolsList = ["read", "write", "bash"];
+
+        const handlers = new Map<string, Array<(e: unknown, c: unknown) => unknown>>();
+        const fakePi = {
+          on(event: string, h: (e: unknown, c: unknown) => unknown) {
+            const list = handlers.get(event) ?? [];
+            list.push(h);
+            handlers.set(event, list);
+          },
+          registerCommand() {},
+          sendUserMessage() {},
+          getSessionName() {
+            return undefined;
+          },
+          getActiveTools() {
+            return [...activeToolsList];
+          },
+          getAllTools() {
+            return mockTools.map((t) => ({ ...t, promptGuidelines: [] }));
+          },
+          setActiveTools(next: string[]) {
+            activeToolsList = [...next];
+          },
+        };
+        installObservability(fakePi as never, {
+          env: { ...process.env },
+          now: () => 0,
+          isoNow: NOW,
+          collectBundle: () => BUNDLE_BASE,
+          gitHead: () => null,
+        });
+        const ctx = {
+          cwd: repo,
+          mode: "rpc",
+          hasUI: false,
+          ui: {},
+          sessionManager: { getSessionId: () => "sess-snap" },
+          modelRegistry: {},
+          model: { id: "m" },
+          isIdle: () => true,
+          isProjectTrusted: () => true,
+          signal: undefined,
+          abort: () => {},
+          hasPendingMessages: () => false,
+          shutdown: () => {},
+          getContextUsage: () => undefined,
+          compact: () => {},
+          getSystemPrompt: () => "",
+        };
+        const emit = async (t: string, e: unknown) => {
+          let result: unknown;
+          for (const h of handlers.get(t) ?? []) result = await h(e, ctx);
+          return result;
+        };
+
+        // 1) session_start → tools:snapshot emitted (initial state)
+        await emit("session_start", { type: "session_start", reason: "startup" });
+
+        // 2) Simulate a setActiveTools call (as goal-loop or pr-review would)
+        fakePi.setActiveTools(["read", "bash"]);
+
+        // 3) tool_execution_end → tools:snapshot emitted with updated tools
+        //    (goal-loop-audit/pr-review call setActiveTools in their tool_call
+        //    handlers; tool_execution_end fires after ALL tool_call handlers
+        //    complete, so the snapshot captures the post-setActiveTools state)
+        await emit("tool_execution_end", {
+          type: "tool_execution_end",
+          toolCallId: "c1",
+          toolName: "read",
+          result: { content: [{ type: "text", text: "ok" }] },
+          isError: false,
+        });
+
+        // 4) Clean up
+        await emit("agent_end", { type: "agent_end", messages: [] });
+
+        // Read events from store
+        const eventsFile = path.join(repo, ".runecraft", "events", "sess-snap.jsonl");
+        expect(fs.existsSync(eventsFile)).toBe(true);
+        const events = fs
+          .readFileSync(eventsFile, "utf8")
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((l) => JSON.parse(l)) as Array<{ kind: string; payload: Record<string, unknown>; seq: number }>;
+
+        // Assert: at least 2 tools:snapshot events (session_start + before_agent_start)
+        const snapshots = events.filter((e) => e.kind === "tools:snapshot");
+        expect(snapshots.length).toBeGreaterThanOrEqual(2);
+
+        // First snapshot (session_start): all 3 tools active
+        const firstSnapshot = snapshots[0]!;
+        expect(firstSnapshot.kind).toBe("tools:snapshot");
+        expect(Array.isArray(firstSnapshot.payload.activeTools)).toBe(true);
+        expect(firstSnapshot.payload.activeTools).toContain("read");
+        expect(firstSnapshot.payload.activeTools).toContain("write");
+        expect(firstSnapshot.payload.activeTools).toContain("bash");
+        expect(firstSnapshot.payload.toolCount).toBe(3);
+        expect(typeof firstSnapshot.payload.schemaTokenEstimate).toBe("number");
+        expect(firstSnapshot.payload.schemaTokenEstimate).toBeGreaterThan(0);
+        expect(typeof firstSnapshot.payload.schemaChars).toBe("number");
+        expect(firstSnapshot.payload.schemaChars).toBeGreaterThan(0);
+        // Token estimate ≈ chars / 4 (heuristic documented in source)
+        expect(firstSnapshot.payload.schemaTokenEstimate).toBe(
+          Math.ceil((firstSnapshot.payload.schemaChars as number) / 4),
+        );
+
+        // Second snapshot (tool_execution_end): 2 tools active after setActiveTools
+        const secondSnapshot = snapshots[1]!;
+        expect(secondSnapshot.payload.activeTools).toEqual(["read", "bash"]);
+        expect(secondSnapshot.payload.toolCount).toBe(2);
+        expect(secondSnapshot.payload.schemaTokenEstimate).toBeGreaterThan(0);
+        // Fewer tools → smaller estimate
+        expect(secondSnapshot.payload.schemaTokenEstimate).toBeLessThan(
+          firstSnapshot.payload.schemaTokenEstimate as number,
+        );
+
+        // Payload shape: all required fields present and plausibly typed
+        for (const snap of snapshots) {
+          expect(typeof snap.payload.activeTools).toBe("object");
+          expect(typeof snap.payload.toolCount).toBe("number");
+          expect(typeof snap.payload.schemaTokenEstimate).toBe("number");
+          expect(typeof snap.payload.schemaChars).toBe("number");
+          expect(snap.seq).toBeGreaterThanOrEqual(0);
+        }
+      } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+      }
+    }, { evalId: "EVAL-030" });
   });
 });
