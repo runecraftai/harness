@@ -55,6 +55,7 @@ Best-effort writes (same pattern as the verification verdict recorder —
 | `lesson:reincidence` | lessonId, triggerSignature, count, at | observability (same trigger+gate) |
 | `lesson:promoted` | lessonId, triggerSignature, priority, count, at | observability (threshold → promoted.jsonl) |
 | `adendo:injected` | track, gate?, lessonIds[], textHash, at | observability (before_agent_start) |
+| `tools:snapshot` | activeTools[], toolCount, schemaTokenEstimate, schemaChars, at | observability (session_start + tool_execution_end — captures state after goal-loop-audit/pr-review setActiveTools calls in tool_call) |
 
 ### CONTRACT kinds (reserved — v1 does NOT emit)
 
@@ -114,6 +115,7 @@ memory; consumed by the memory layer).
 | `resilience:signal` | span `resilience` (attributes signal/detail) | observation `resilience` |
 | `lesson:captured/reincidence/promoted` | span `lesson` (attributes lessonId/gate) | observation `lesson` |
 | `adendo:injected` | span `adendo` (attributes track/lessonIds) | observation `adendo` |
+| `tools:snapshot` | span `tools.snapshot` (attributes activeTools/toolCount/schemaTokenEstimate) | observation `tools.snapshot` |
 
 General rule: `trace_id = runId|sessionId`; `span = kind`; `attributes =
 payload` (minus `at` — the span timestamp). Langfuse: `trace = session`,
@@ -143,3 +145,12 @@ payload` (minus `at` — the span timestamp). Langfuse: `trace = session`,
   via tool_execution_end; fail/halt from verify-verdicts.jsonl + resilience
   signals in the end-of-session sweep — deduped by triggerSignature); soft
   verdicts (skip) do not capture lessons in v1.
+- **tools:snapshot**: emitted at `session_start` (initial state) and at every
+  `tool_execution_end` (after goal-loop-audit and pr-review call
+  `setActiveTools` in their `tool_call` handlers). The SDK dispatches
+  `tool_call` in registration order (FIFO — observability registers before
+  goal-loop/pr-review), so `tool_execution_end` is the first lifecycle
+  event that fires after ALL `tool_call` handlers have completed.
+  Token estimate is a heuristic (`JSON.stringify` of `name + description +
+  parameters` per active tool, divided by 4) — useful for tracking context
+  cost of tool schemas over time, not for billing.

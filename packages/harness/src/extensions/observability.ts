@@ -58,6 +58,7 @@ import {
 } from "../observability/lessons.ts";
 import { HARNESS_VERSIONS } from "../versions.ts";
 import { propagateForkAgentIdentity } from "../agents/identity.ts";
+import { ToolInfo } from "@earendil-works/pi-coding-agent";
 import { guardLog } from "../guards/guardKit.ts";
 import { GUARD_REASON_IDS, type GuardId } from "../guards/guardKit.ts";
 import { VERIFY_REASON_ID } from "../verify/verdict.ts";
@@ -176,6 +177,55 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   const sessionConfig = new SessionObservabilityConfig(env);
 
   let session: SessionState | null = null;
+
+  /**
+   * Estimativa de tokens do schema serializado dos tools ativos.
+   * Aproximação: JSON.stringify(name + description + parameters) → chars / 4.
+   * Esta heurística é baseada na observação de que tokens GPT/Claude
+   * representam ~4 caracteres em inglês; é suficiente para observabilidade,
+   * não para billing.
+   */
+  const estimateToolsSchemaTokens = (pi: ExtensionAPI): { activeTools: string[]; toolCount: number; schemaTokenEstimate: number; schemaChars: number } => {
+    let activeTools: string[] = [];
+    try {
+      activeTools = pi.getActiveTools();
+    } catch {
+      // older pi without getActiveTools
+      return { activeTools: [], toolCount: 0, schemaTokenEstimate: 0, schemaChars: 0 };
+    }
+    let allTools: ToolInfo[] = [];
+    try {
+      allTools = pi.getAllTools();
+    } catch {
+      // fallback: only names, no schema estimate
+      return { activeTools, toolCount: activeTools.length, schemaTokenEstimate: 0, schemaChars: 0 };
+    }
+    const activeSet = new Set(activeTools);
+    let schemaChars = 0;
+    for (const tool of allTools) {
+      if (!activeSet.has(tool.name)) continue;
+      const serialized = JSON.stringify({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      });
+      schemaChars += serialized.length;
+    }
+    const schemaTokenEstimate = Math.ceil(schemaChars / 4);
+    return { activeTools, toolCount: activeTools.length, schemaTokenEstimate, schemaChars };
+  };
+
+  /** Emite tools:snapshot (source: internal). */
+  const emitToolsSnapshot = (ctx: ExtensionContext, sessionId: string): void => {
+    const snapshot = estimateToolsSchemaTokens(pi);
+    append(ctx, sessionId, "tools:snapshot", {
+      activeTools: snapshot.activeTools,
+      toolCount: snapshot.toolCount,
+      schemaTokenEstimate: snapshot.schemaTokenEstimate,
+      schemaChars: snapshot.schemaChars,
+    });
+    log.debug(`tools:snapshot — ${snapshot.toolCount} tools, ~${snapshot.schemaTokenEstimate} tokens (${snapshot.schemaChars} chars)`);
+  };
 
   const sessionIdOf = (ctx: ExtensionContext): string | null => {
     if (deps.sessionId) return deps.sessionId(ctx);
@@ -360,6 +410,9 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
     }
 
     log.debug(`session started: ${sessionId} (bundle ${bundleShort})`);
+
+    // tools:snapshot — captura o estado inicial dos tools ativos.
+    emitToolsSnapshot(ctx, sessionId);
   });
 
   // ---------------------------------------------------------------
@@ -379,7 +432,9 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   pi.on("before_agent_start", (event: BeforeAgentStartEvent, ctx: ExtensionContext): { systemPrompt?: string } | undefined => {
     const frozen = sessionConfig.frozen(ctx.cwd);
     if (frozen.killSwitch || !frozen.config.enabled) return undefined;
-    if (session === null || session.pendingAdendo === null) return undefined;
+    if (session === null) return undefined;
+
+    if (session.pendingAdendo === null) return undefined;
 
     const adendo = session.pendingAdendo;
     session.pendingAdendo = null;
@@ -447,12 +502,19 @@ export function installObservability(pi: ExtensionAPI, deps: ObservabilityDeps =
   });
 
   // ---------------------------------------------------------------
-  // tool_execution_end — tool:result + observação de bloqueio (D7a)
+  // tool_execution_end — tool:result + observação de bloqueio (D7a) +
+  //   tools:snapshot (após setActiveTools de goal-loop/pr-review no
+  //   tool_call — SDK FIFO: observability registra ANTES, mas
+  //   tool_execution_end dispara DEPOIS de todos os tool_call handlers)
   // ---------------------------------------------------------------
   pi.on("tool_execution_end", (event: ToolExecutionEndEvent, ctx: ExtensionContext) => {
     const frozen = sessionConfig.frozen(ctx.cwd);
     if (frozen.killSwitch || !frozen.config.enabled) return;
     if (session === null) return;
+
+    // tools:snapshot — reflete o estado APÓS setActiveTools de
+    // goal-loop-audit/pr-review (tool_call handlers anteriores no FIFO).
+    emitToolsSnapshot(ctx, session.sessionId);
 
     const text = toolResultText(event.result);
     const block = event.isError ? detectBlockFromText(text) : null;
