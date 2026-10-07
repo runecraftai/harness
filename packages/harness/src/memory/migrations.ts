@@ -1,5 +1,5 @@
-// memory/migrations.ts — migração idempotente do schema v1 (port de
-// db/migrations.ts do runes). SCHEMA_VERSION=1.
+// memory/migrations.ts — migração idempotente do schema v2 (port de
+// db/migrations.ts do runes). SCHEMA_VERSION=2.
 //
 // O schema.sql é executado AS-IS (IF NOT EXISTS → idempotente) e a versão é
 // upsertada em schema_meta (mesma tabela do source). A resolução do schema
@@ -10,7 +10,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DatabaseLike } from "./client.ts";
 
-export const SCHEMA_VERSION = 1;
+// SCHEMA_VERSION=2: adds `memories.imported_from` (lesson-revocation fix —
+// distinguishes bridge-owned rows from user memories that collide on
+// `where_ref`, see import-lessons.ts). schema.sql already declares the
+// column for fresh databases; the ALTER TABLE below is only needed to
+// backfill a database created under v1 (CREATE TABLE IF NOT EXISTS does not
+// retrofit existing tables).
+export const SCHEMA_VERSION = 2;
+
+function hasImportedFromColumn(db: DatabaseLike): boolean {
+	const columns = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+	return columns.some((c) => c.name === "imported_from");
+}
 
 function readIfExists(path: string): string | null {
 	try {
@@ -37,6 +48,9 @@ export function loadSchema(): string {
 /** Executa o schema + upsert da versão — idempotente (2× → mesmo resultado). */
 export function runMigrations(db: DatabaseLike): void {
 	db.exec(loadSchema());
+	if (!hasImportedFromColumn(db)) {
+		db.exec("ALTER TABLE memories ADD COLUMN imported_from TEXT");
+	}
 	db.exec("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 	db.prepare(
 		"INSERT INTO schema_meta (key, value) VALUES ('version', ?) " +

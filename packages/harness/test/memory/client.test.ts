@@ -1,5 +1,5 @@
 // test/memory/client.test.ts — T1 (MEM-01): openDatabase em arquivo temp →
-// WAL; migrações 2× idempotentes (schema_meta version=1); schema.sql REAL
+// WAL; migrações 2× idempotentes (schema_meta version=SCHEMA_VERSION); schema.sql REAL
 // executa (FTS5 + triggers + round-trip save/match/soft-delete — espelho do
 // probe D12); zero deps novas (só bun:sqlite + node builtins).
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -101,7 +101,7 @@ describe("selectDriver (F35, SQL-04)", () => {
 });
 
 describe("migrations idempotentes (D4)", () => {
-	test("schema_meta version = 1 após a abertura", () => {
+	test("schema_meta version = SCHEMA_VERSION após a abertura", () => {
 		db = openDatabase(sandbox);
 		expect(readSchemaVersion(db)).toBe(String(SCHEMA_VERSION));
 	});
@@ -110,7 +110,7 @@ describe("migrations idempotentes (D4)", () => {
 		db = openDatabase(sandbox);
 		runMigrations(db);
 		runMigrations(db);
-		expect(readSchemaVersion(db)).toBe("1");
+		expect(readSchemaVersion(db)).toBe(String(SCHEMA_VERSION));
 		const tables = db
 			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') AND name LIKE 'memories%' ORDER BY name")
 			.all() as Array<{ name: string }>;
@@ -121,6 +121,65 @@ describe("migrations idempotentes (D4)", () => {
 		expect(names).toContain("memories_ad");
 		expect(names).toContain("memories_au");
 		expect(names).toContain("memories_soft_delete_au");
+	});
+
+	test("upgrade de um DB v1 (sem imported_from) → coluna adicionada, dados preservados (lesson-revocation fix)", () => {
+		db = openDatabase(sandbox);
+		// Popula um DB v1 com uma linha real para provar que o ALTER TABLE
+		// adiciona a coluna sem perder as memórias existentes.
+		db.prepare(
+			"INSERT INTO projects (slug, root_path, remote_url, created_at) VALUES (?, ?, ?, ?)",
+		).run("legacy", "/tmp/legacy", null, 1);
+		db.prepare(
+			"INSERT INTO memories (id, project_id, category, title, what, where_ref, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		).run("legacy-m1", 1, "learnings", "legacy title", "legacy what", "lesson:legacy", 5, 1000, 1000);
+		// Simula um DB criado antes do schema v2: remove a coluna recém-aditiva
+		// recriando a tabela como era no v1 (sem imported_from).
+		db.exec(`
+			CREATE TABLE memories_v1_sim (
+				rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+				id TEXT NOT NULL UNIQUE,
+				project_id INTEGER NOT NULL,
+				session_id TEXT,
+				category TEXT NOT NULL,
+				title TEXT NOT NULL,
+				what TEXT NOT NULL,
+				why TEXT,
+				where_ref TEXT,
+				learned TEXT,
+				importance INTEGER NOT NULL DEFAULT 5,
+				soft_deleted INTEGER NOT NULL DEFAULT 0,
+				created_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL
+			)
+		`);
+		db.exec("INSERT INTO memories_v1_sim SELECT rowid, id, project_id, session_id, category, title, what, why, where_ref, learned, importance, soft_deleted, created_at, updated_at FROM memories");
+		db.exec("DROP TABLE memories");
+		db.exec("ALTER TABLE memories_v1_sim RENAME TO memories");
+
+		const before = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+		expect(before.some((c) => c.name === "imported_from")).toBe(false);
+
+		runMigrations(db);
+
+		const after = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+		expect(after.some((c) => c.name === "imported_from")).toBe(true);
+		expect(readSchemaVersion(db)).toBe(String(SCHEMA_VERSION));
+
+		const preserved = db
+			.prepare("SELECT id, title, what, where_ref, imported_from FROM memories WHERE id = ?")
+			.get("legacy-m1") as
+			| { id: string; title: string; what: string; where_ref: string; imported_from: string | null }
+			| undefined;
+		expect(preserved).toBeDefined();
+		expect(preserved?.title).toBe("legacy title");
+		expect(preserved?.what).toBe("legacy what");
+		expect(preserved?.where_ref).toBe("lesson:legacy");
+		expect(preserved?.imported_from).toBeNull();
+
+		// Idempotente: correr de novo não falha (coluna já existe).
+		runMigrations(db);
+		expect(readSchemaVersion(db)).toBe(String(SCHEMA_VERSION));
 	});
 });
 

@@ -120,7 +120,12 @@ export function installMemory(pi: ExtensionAPI, deps: MemoryDeps = {}): void {
 			log.debug(`tools registered (${Object.keys(filtered).length}) — project ${project.slug}`);
 			if (frozen.config.importLessonsOnStart) {
 				const report = importLessons(repo, project.id, promotedLessonsPath(cwd));
-				log.debug(`importLessonsOnStart: imported=${report.imported} skipped=${report.skipped}`);
+				log.debug(
+					`importLessonsOnStart: imported=${report.imported} skipped=${report.skipped} updated=${report.updated} revoked=${report.revoked} truncated=${report.truncated}`,
+				);
+				if (report.truncated > 0) {
+					log.warn(`importLessonsOnStart: ${report.truncated} lesson(s) exceeded the 4000-char cap and were cut`);
+				}
 			}
 		} catch (error) {
 			// Fail-closed (D1/D5): a sessão segue sem memória; nada registrado.

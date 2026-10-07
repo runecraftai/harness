@@ -26,19 +26,22 @@ content.
   failure → tools absent + warning (fail-closed — the session continues
   without memory; `harness memory doctor` diagnoses).
 
-## Schema (AS-IS from runes v1)
+## Schema (runes port; additive v2)
 
-`schema.sql` ported in full (verified executable in bun:sqlite — and in
-node:sqlite on Node ≥22.19 with FTS5):
+`schema.sql` ported from runes, extended additively in v2
+(`memories.imported_from` — `migrations.ts` ALTER-backfills a v1 store);
+verified executable in bun:sqlite — and in node:sqlite on Node ≥22.19 with
+FTS5:
 
 - `projects` (id, slug UNIQUE, root_path, remote_url, created_at)
 - `sessions` (id, project_id FK, agent, started_at, ended_at, summary)
 - `memories` (id UNIQUE, project_id, session_id, category, title, what, why,
-  where_ref, learned, importance, soft_deleted, created_at, updated_at)
+  where_ref, learned, importance, soft_deleted, created_at, updated_at,
+  imported_from)
 - `memories_fts` — FTS5 `tokenize='unicode61 remove_diacritics 2'` (matches
   "café" and "cafe") with triggers `memories_ai/ad/au/soft_delete_au`
   (soft-delete removes from the index)
-- `schema_meta` — `SCHEMA_VERSION = 1` (idempotent migration; future changes
+- `schema_meta` — `SCHEMA_VERSION = 2` (idempotent migration; future changes
   are ADDITIVE)
 
 ## Tools (10/10 ported, SAME names)
@@ -118,14 +121,53 @@ guards/verification/resilience/observability):
 observability layer) into `learnings` memories:
 
 - `title` = trigger · `what` = "Anti-pattern: …\nPreferred pattern: …" ·
-  `where_ref = "lesson:<lessonId>"` (idempotency key) · importance = mapped
-  priority (low=3 / med=5 / high=8).
-- **Idempotent**: a 2nd import → zero inserts (where_ref collision → skip —
-  never overwrites user memory). **Source never rewritten** (opened
-  read-only; a test asserts byte-for-byte hash).
+  `where_ref = "lesson:<lessonId>"` (idempotency key) · `imported_from` marks
+  the row as bridge-owned (schema v2) · importance = mapped priority
+  (low=3 / med=5 / high=8).
+- **Source never rewritten** (opened read-only; a test asserts byte-for-byte
+  hash).
+
+**Revocation and source changes** — two deterministic rules, both applied on
+every import:
+
+1. **Source lesson changed** (same `lessonId`, different trigger/antiPattern/
+   preferred/priority) → the stored copy is refreshed in place to match the
+   current source (`updated` in the report).
+2. **Source lesson disappeared** (a `lessonId` that was previously imported
+   is no longer in `promoted.jsonl`) → its memory is revoked (soft-deleted)
+   by the import itself (`revoked` in the report). This applies unconditionally
+   whenever the file was read, including when the file is still present but
+   now has zero valid lesson lines (emptied, or every line removed) — that
+   state means every previously imported lesson has disappeared, not that
+   the import was a no-op. It re-applies on every import, so the revocation
+   is durable: as long as the lesson stays out of the source, it stays
+   revoked. A line that fails validation (`malformed`) does NOT count as its
+   lessonId disappearing — a single broken line never revokes an otherwise
+   still-present lesson.
+
+**Deleting only the imported copy (`rune_delete`) is NOT a revocation
+mechanism.** If the lesson is still listed in `promoted.jsonl`, the next
+import recreates it from the current source content — never from whatever
+the deleted row used to say. To actually revoke a lesson, fix or remove it
+at the source the observability layer owns.
+
+A memory that collides on `where_ref` but lacks the `imported_from` marker
+(a real user memory, or a row imported before this behavior shipped) is
+never touched — the import reports it as `skipped`.
+
+**Truncation**: the composed `what` is capped at 4000 characters (`WHAT_MAX`
+in `validate.ts`, the same limit `rune_save`/`rune_update` enforce). A long
+`antiPattern` can push the `preferred` remedy past that cut; the report's
+`truncated` count says how many lesson lines this happened to, instead of
+importing silently truncated guidance.
+
 - `importLessonsOnStart: true` → import at extension init (after registering
-  tools). `--dry-run` → report without writing. Missing/empty file → no-op
-  (exit 0).
+  tools). `--dry-run` → report without writing (counts reflect what would
+  happen; nothing is saved/updated/revoked). **Missing** file → no-op (exit
+  0, `revoked: 0` — rule 2 never runs because this bridge never read the
+  source). A **present but empty** file is different: it reads as zero
+  valid lessons, so rule 2 revokes every previously imported row (see
+  above).
 
 ## CLI
 
