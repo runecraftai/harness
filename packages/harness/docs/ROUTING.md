@@ -366,7 +366,7 @@ The memory layer provides durable memory queryable by tool:
 
 | Mechanism | Exists (SDK / runes / harness) | The harness builds |
 | --- | --- | --- |
-| SQLite + FTS5 + WAL | `bun:sqlite` (Bun 1.3.14) · `node:sqlite`/DatabaseSync (Node ≥22.19) — probes: WAL `"wal"`, FTS5 diacritics, real schema executes | `src/memory/client.ts` (dual driver) + `schema.sql` AS-IS |
+| SQLite + FTS5 + WAL | `bun:sqlite` (Bun 1.3.14) · `node:sqlite`/DatabaseSync (Node ≥22.19) — probes: WAL `"wal"`, FTS5 diacritics, real schema executes | `src/memory/client.ts` (dual driver) + `schema.sql` (ported, additive v2 — see `docs/MEMORY.md`) |
 | Pi tool registration | `pi.registerTool(defineTool(...))` | `src/memory/tools.ts` — 10 × `rune_*` |
 | Harness Pi extension | `extensions/{guards,resilience,observability}.ts` + `pi.extensions` manifest | `extensions/memory.ts` |
 | Additive config + freeze + kill switch | state.ts sections (same pattern as other layers) | `src/memory/config.ts` section `memory` |

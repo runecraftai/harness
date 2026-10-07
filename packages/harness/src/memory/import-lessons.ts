@@ -224,10 +224,10 @@ export function importLessonsFromLines(
 			}
 			try {
 				repo.updateMemory(existing.id, projectId, {
-				title: fields.title,
-				what: fields.what,
-				importance: fields.importance,
-			});
+					title: fields.title,
+					what: fields.what,
+					importance: fields.importance,
+				});
 				updated++;
 			} catch (err) {
 				if (err instanceof ValidationError) {

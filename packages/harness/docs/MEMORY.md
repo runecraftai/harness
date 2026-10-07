@@ -26,10 +26,12 @@ content.
   failure → tools absent + warning (fail-closed — the session continues
   without memory; `harness memory doctor` diagnoses).
 
-## Schema (AS-IS from runes v1)
+## Schema (runes port; additive v2)
 
-`schema.sql` ported in full (verified executable in bun:sqlite — and in
-node:sqlite on Node ≥22.19 with FTS5):
+`schema.sql` ported from runes, extended additively in v2
+(`memories.imported_from` — `migrations.ts` ALTER-backfills a v1 store);
+verified executable in bun:sqlite — and in node:sqlite on Node ≥22.19 with
+FTS5:
 
 - `projects` (id, slug UNIQUE, root_path, remote_url, created_at)
 - `sessions` (id, project_id FK, agent, started_at, ended_at, summary)
