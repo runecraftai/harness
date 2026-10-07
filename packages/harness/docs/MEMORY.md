@@ -34,11 +34,12 @@ node:sqlite on Node ≥22.19 with FTS5):
 - `projects` (id, slug UNIQUE, root_path, remote_url, created_at)
 - `sessions` (id, project_id FK, agent, started_at, ended_at, summary)
 - `memories` (id UNIQUE, project_id, session_id, category, title, what, why,
-  where_ref, learned, importance, soft_deleted, created_at, updated_at)
+  where_ref, learned, importance, soft_deleted, created_at, updated_at,
+  imported_from)
 - `memories_fts` — FTS5 `tokenize='unicode61 remove_diacritics 2'` (matches
   "café" and "cafe") with triggers `memories_ai/ad/au/soft_delete_au`
   (soft-delete removes from the index)
-- `schema_meta` — `SCHEMA_VERSION = 1` (idempotent migration; future changes
+- `schema_meta` — `SCHEMA_VERSION = 2` (idempotent migration; future changes
   are ADDITIVE)
 
 ## Tools (10/10 ported, SAME names)

@@ -3,7 +3,7 @@
 // Tudo determinístico e offline/$0 (zero LLM — F29 é determinístico por
 // construção; DB temp via RUNECRAFT_MEMORY_DATA_DIR):
 //   EVAL-030 port round-trip (db+repository): migrate 2× idempotente +
-//     save/get/search/stats/soft-delete + schema_meta version=1;
+//     save/get/search/stats/soft-delete + schema_meta version=SCHEMA_VERSION;
 //   EVAL-031 10 tools no fixture Pi: sessão REAL (extensão memory
 //     materializada) → rune_save → rune_search round-trip no loop + tools
 //     rune_* no request + suite memory verde;
@@ -79,7 +79,7 @@ function openRepo(dir: string, env: NodeJS.ProcessEnv): { db: DatabaseLike; repo
 // ---------------------------------------------------------------------------
 
 describe("EVAL-030 — port round-trip (D1/D4/D12)", () => {
-  test("migrate 2× idempotente + save/get/search/stats/soft-delete + schema_meta version=1", async () => {
+  test("migrate 2× idempotente + save/get/search/stats/soft-delete + schema_meta version=SCHEMA_VERSION", async () => {
     await evalTest(
       "EVAL-030: round-trip db/repository — migração idempotente + save/get/search/stats/soft-delete (schema.sql REAL em bun:sqlite)",
       async () => {

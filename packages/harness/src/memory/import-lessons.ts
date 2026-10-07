@@ -285,7 +285,8 @@ export function importLessonsFromLines(
 
 /**
  * Bridge completa: lê promoted.jsonl (read-only), importa idempotente e
- * devolve o relatório. Arquivo ausente/vazio → no-op (exit 0).
+ * devolve o relatório. Arquivo AUSENTE → no-op (exit 0); arquivo PRESENTE
+ * mas vazio → rule 2 roda e revoga tudo que estava ativo (não é no-op).
  */
 export function importLessons(
 	repo: Repository,

@@ -1,8 +1,11 @@
--- Runes schema v1. Idempotent (use IF NOT EXISTS everywhere).
+-- Runes schema v2. Idempotent (use IF NOT EXISTS everywhere).
 --
--- F29 (harness memory) não altera o schema: FTS5 + triggers + índices são o
--- contrato verificado empiricamente em bun:sqlite (D12). Migrações futuras
--- são ADITIVAS (novas tabelas/colunas + bump de SCHEMA_VERSION — política F13).
+-- F29 (harness memory) porta o schema do runes; o v2 adiciona de forma
+-- ADITIVA `memories.imported_from` (ownership das linhas da bridge F28 — ver
+-- import-lessons.ts; backfill via ALTER em migrations.ts). FTS5 + triggers +
+-- índices são o contrato verificado empiricamente em bun:sqlite (D12).
+-- Migrações futuras são ADITIVAS (novas tabelas/colunas + bump de
+-- SCHEMA_VERSION — política F13).
 
 CREATE TABLE IF NOT EXISTS projects (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
