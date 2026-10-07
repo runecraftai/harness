@@ -19,6 +19,7 @@ import {
 	runDoctor,
 	SEARCH_LIMIT,
 	type DoctorView,
+	type ImportReportView,
 	type StatsView,
 } from "../memory/cli.ts";
 
@@ -107,7 +108,7 @@ export async function runMemoryCommand(opts: MemoryCommandOptions): Promise<numb
 function jsonPayload(
 	subcommand: string,
 	repo: Repository,
-	result: { code: number },
+	result: { code: number; report?: ImportReportView },
 	args: string[],
 ): Record<string, unknown> {
 	const base: Record<string, unknown> = { exitCode: result.code };
@@ -134,6 +135,12 @@ function jsonPayload(
 			const purge = args.includes("--purge");
 			const view = runDoctor(repo, purge);
 			return { ...base, ...doctorJson(view) };
+		}
+		case "import-lessons": {
+			// result.report comes straight from dispatchMemoryCli's single call
+			// to importFn — re-running the import here would double-apply the
+			// revocation/refresh passes and hide the real counts (see cli.ts).
+			return result.report ? { ...base, ...result.report } : base;
 		}
 		default:
 			return base;

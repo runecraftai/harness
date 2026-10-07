@@ -94,7 +94,7 @@ describe("importLessons (bridge idempotente)", () => {
 
 	test("arquivo ausente → no-op (exit 0, sem ruído)", () => {
 		const report = importLessons(repo, projectId, join(sandbox, "missing.jsonl"));
-		expect(report).toEqual({ imported: 0, skipped: 0, total: 0, malformed: 0 });
+		expect(report).toEqual({ imported: 0, skipped: 0, updated: 0, revoked: 0, total: 0, malformed: 0, truncated: 0 });
 	});
 
 	test("linha malformada → skip + contagem; as válidas importam", () => {
@@ -118,5 +118,101 @@ describe("importLessons (bridge idempotente)", () => {
 	test("importLessonsOnStart não existe no bridge — o init da extensão decide (D7)", () => {
 		// Fronteira: o bridge NUNCA escreve na fonte (nenhum path de escrita).
 		expect(existsSync(join(sandbox, "promoted.jsonl"))).toBe(false);
+	});
+});
+
+describe("revocation and source changes (lesson-revocation fix)", () => {
+	test("source changed → the stored copy is refreshed to match the current source (rule 1)", () => {
+		const changed = { ...LESSON_A, antiPattern: "old anti-pattern", preferred: "old preferred" };
+		const file1 = promotedFixture([changed]);
+		const first = importLessons(repo, projectId, file1);
+		expect(first.imported).toBe(1);
+		const before = repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"));
+		expect(before?.what).toContain("old anti-pattern");
+
+		const updatedLesson = { ...LESSON_A, antiPattern: "new anti-pattern", preferred: "new preferred" };
+		const file2 = promotedFixture([updatedLesson]);
+		const second = importLessons(repo, projectId, file2);
+		expect(second.imported).toBe(0);
+		expect(second.skipped).toBe(0);
+		expect(second.updated).toBe(1);
+
+		const after = repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"));
+		expect(after?.id).toBe(before?.id); // same row, refreshed in place
+		expect(after?.what).toContain("new anti-pattern");
+		expect(after?.what).toContain("new preferred");
+		expect(after?.what).not.toContain("old anti-pattern");
+	});
+
+	test("source lesson disappeared → the imported copy is revoked and does not resurrect as current (rule 2)", () => {
+		const file1 = promotedFixture([LESSON_A, LESSON_B]);
+		importLessons(repo, projectId, file1);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).not.toBeNull();
+
+		// LESSON_A removed from the source — only LESSON_B remains.
+		const file2 = promotedFixture([LESSON_B]);
+		const report = importLessons(repo, projectId, file2);
+		expect(report.revoked).toBe(1);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).toBeNull();
+
+		// Durable: re-importing the same (still-missing) source keeps it revoked,
+		// not re-created — no resurrection on repeated runs.
+		const report2 = importLessons(repo, projectId, file2);
+		expect(report2.revoked).toBe(0); // already revoked — nothing left to revoke
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).toBeNull();
+	});
+
+	test("deleting only the imported copy is not a revocation mechanism — next import reflects current source, never stale content", () => {
+		const oldLesson = { ...LESSON_A, antiPattern: "stale anti-pattern", preferred: "stale preferred" };
+		const file1 = promotedFixture([oldLesson]);
+		importLessons(repo, projectId, file1);
+
+		// Source corrects the lesson (rule 1 refreshes the row to "current").
+		const currentLesson = { ...LESSON_A, antiPattern: "current anti-pattern", preferred: "current preferred" };
+		const file2 = promotedFixture([currentLesson]);
+		importLessons(repo, projectId, file2);
+		const row = repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))!;
+		expect(row.what).toContain("current anti-pattern");
+
+		// Someone deletes the imported copy directly (not through the source).
+		repo.softDeleteMemory(row.id, projectId);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).toBeNull();
+
+		// Re-import with the SAME (unchanged, already-corrected) source: the
+		// recreated row must carry current content, never the stale value that
+		// was overwritten before the deletion.
+		const report = importLessons(repo, projectId, file2);
+		expect(report.imported).toBe(1);
+		const recreated = repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"));
+		expect(recreated?.what).toContain("current anti-pattern");
+		expect(recreated?.what).not.toContain("stale anti-pattern");
+	});
+
+	test("long anti-pattern → truncation is reported instead of silently importing cut guidance", () => {
+		const huge = { ...LESSON_A, antiPattern: "x".repeat(4100), preferred: "never deploy on Fridays" };
+		const file = promotedFixture([huge]);
+		const report = importLessons(repo, projectId, file);
+		expect(report.imported).toBe(1);
+		expect(report.truncated).toBe(1);
+		const row = repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"));
+		expect(row?.what.length).toBe(4000);
+		expect(row?.what.includes("never deploy on Fridays")).toBe(false);
+	});
+
+	test("user memory still protected: a user row with no imported_from marker is never refreshed or revoked", () => {
+		const file1 = promotedFixture([LESSON_A]);
+		// Simulate a pre-fix row: same where_ref, no `imported_from` marker.
+		repo.saveMemory({ projectId, category: "learnings", title: "user memory", what: "do not touch", whereRef: lessonWhereRef("abc123") });
+		const report = importLessons(repo, projectId, file1);
+		expect(report.skipped).toBe(1);
+		expect(report.updated).toBe(0);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))?.title).toBe("user memory");
+
+		// Even when the lesson later disappears from the source, the
+		// user-owned row (not bridge-owned) must not be revoked by rule 2.
+		const file2 = promotedFixture([LESSON_B]);
+		const report2 = importLessons(repo, projectId, file2);
+		expect(report2.revoked).toBe(0);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))?.title).toBe("user memory");
 	});
 });

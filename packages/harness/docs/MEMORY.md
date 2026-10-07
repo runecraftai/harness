@@ -118,14 +118,45 @@ guards/verification/resilience/observability):
 observability layer) into `learnings` memories:
 
 - `title` = trigger · `what` = "Anti-pattern: …\nPreferred pattern: …" ·
-  `where_ref = "lesson:<lessonId>"` (idempotency key) · importance = mapped
-  priority (low=3 / med=5 / high=8).
-- **Idempotent**: a 2nd import → zero inserts (where_ref collision → skip —
-  never overwrites user memory). **Source never rewritten** (opened
-  read-only; a test asserts byte-for-byte hash).
+  `where_ref = "lesson:<lessonId>"` (idempotency key) · `imported_from` marks
+  the row as bridge-owned (schema v2) · importance = mapped priority
+  (low=3 / med=5 / high=8).
+- **Source never rewritten** (opened read-only; a test asserts byte-for-byte
+  hash).
+
+**Revocation and source changes** — two deterministic rules, both applied on
+every import:
+
+1. **Source lesson changed** (same `lessonId`, different trigger/antiPattern/
+   preferred/priority) → the stored copy is refreshed in place to match the
+   current source (`updated` in the report).
+2. **Source lesson disappeared** (a `lessonId` that was previously imported
+   is no longer in `promoted.jsonl`) → its memory is revoked (soft-deleted)
+   by the import itself (`revoked` in the report). This re-applies on every
+   import, so the revocation is durable: as long as the lesson stays out of
+   the source, it stays revoked.
+
+**Deleting only the imported copy (`rune_delete`) is NOT a revocation
+mechanism.** If the lesson is still listed in `promoted.jsonl`, the next
+import recreates it from the current source content — never from whatever
+the deleted row used to say. To actually revoke a lesson, fix or remove it
+at the source the observability layer owns.
+
+A memory that collides on `where_ref` but lacks the `imported_from` marker
+(a real user memory, or a row imported before this behavior shipped) is
+never touched — the import reports it as `skipped`.
+
+**Truncation**: the composed `what` is capped at 4000 characters (`WHAT_MAX`
+in `validate.ts`, the same limit `rune_save`/`rune_update` enforce). A long
+`antiPattern` can push the `preferred` remedy past that cut; the report's
+`truncated` count says how many lesson lines this happened to, instead of
+importing silently truncated guidance.
+
 - `importLessonsOnStart: true` → import at extension init (after registering
-  tools). `--dry-run` → report without writing. Missing/empty file → no-op
-  (exit 0).
+  tools). `--dry-run` → report without writing (counts reflect what would
+  happen; nothing is saved/updated/revoked). Missing/empty file → no-op
+  (exit 0) — this cannot trigger rule 2, so it never mass-revokes an
+  existing import.
 
 ## CLI
 

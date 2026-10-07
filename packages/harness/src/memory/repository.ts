@@ -55,6 +55,8 @@ export interface SaveMemoryInput {
 	whereRef?: string | null;
 	learned?: string | null;
 	importance?: number;
+	/** Ownership marker for bridge-written rows (e.g. import-lessons.ts). */
+	importedFrom?: string | null;
 }
 
 export interface SearchMemoryInput {
@@ -88,6 +90,7 @@ function rowToMemory(row: Record<string, unknown>): Memory {
 		soft_deleted: (row.soft_deleted as 0 | 1) ?? 0,
 		created_at: row.created_at as number,
 		updated_at: row.updated_at as number,
+		imported_from: (row.imported_from as string | null) ?? null,
 	};
 }
 
@@ -189,8 +192,8 @@ export class Repository {
 		this.db
 			.prepare(
 				`INSERT INTO memories
-				(id, project_id, session_id, category, title, what, why, where_ref, learned, importance, soft_deleted, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+				(id, project_id, session_id, category, title, what, why, where_ref, learned, importance, soft_deleted, created_at, updated_at, imported_from)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -205,6 +208,7 @@ export class Repository {
 				importance,
 				now,
 				now,
+				input.importedFrom ?? null,
 			);
 		return this.getMemory(id, input.projectId) as Memory;
 	}
@@ -269,6 +273,20 @@ export class Repository {
 			)
 			.get(projectId, whereRef) as Record<string, unknown> | undefined;
 		return row ? rowToMemory(row) : null;
+	}
+
+	/** Active rows a bridge previously wrote (ownership via `imported_from`
+	 * — see import-lessons.ts disappearance/revocation pass). */
+	listActiveImportedMemories(
+		projectId: number,
+		importedFrom: string,
+	): Array<{ id: string; where_ref: string | null }> {
+		const rows = this.db
+			.prepare(
+				"SELECT id, where_ref FROM memories WHERE project_id = ? AND imported_from = ? AND soft_deleted = 0",
+			)
+			.all(projectId, importedFrom) as Array<{ id: string; where_ref: string | null }>;
+		return rows;
 	}
 
 	/** Scoped to the selected project — a foreign id is treated as NOT_FOUND

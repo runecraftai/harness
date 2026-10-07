@@ -56,6 +56,11 @@ export interface Memory {
 	soft_deleted: 0 | 1;
 	created_at: number;
 	updated_at: number;
+	/** Ownership marker for rows written by an automated bridge (e.g. the
+	 * lesson importer) — null for ordinary user-saved memories. Added in
+	 * schema v2 so bridges can tell their own rows apart from a user memory
+	 * that happens to collide on `where_ref` (see import-lessons.ts). */
+	imported_from: string | null;
 }
 
 export interface Stats {

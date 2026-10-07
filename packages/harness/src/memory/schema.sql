@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS memories (
 	importance INTEGER NOT NULL DEFAULT 5,
 	soft_deleted INTEGER NOT NULL DEFAULT 0,
 	created_at INTEGER NOT NULL,
-	updated_at INTEGER NOT NULL
+	updated_at INTEGER NOT NULL,
+	imported_from TEXT
 );
 
 CREATE INDEX IF NOT EXISTS memories_id_idx ON memories (id);

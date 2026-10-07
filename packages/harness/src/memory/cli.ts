@@ -138,13 +138,31 @@ Usage:
   harness memory stats                 Show per-category counts
   harness memory doctor [--purge]      Check the store; with --purge, hard-delete soft-deleted rows and rebuild the FTS index
   harness memory import-lessons [--dry-run]  Import F28 promoted lessons (idempotent)
+                                        A changed lesson refreshes its stored copy; a lesson
+                                        removed from the source revokes (soft-deletes) its copy.
+                                        Deleting only the imported copy is NOT revocation — if the
+                                        lesson is still in the source, the next import recreates it.
+                                        Long lessons are capped at 4000 chars; "truncated" in the
+                                        report counts how many lines lost content to that cap.
   harness memory help                  Show this help
 `;
 
+/** Report shape returned by ImportFn — carried on the result so callers
+ * (e.g. the JSON renderer) don't have to re-run the import to see it. */
+export interface ImportReportView {
+	imported: number;
+	skipped: number;
+	updated: number;
+	revoked: number;
+	total: number;
+	malformed: number;
+	truncated: number;
+}
+
 export type MemoryCliResult =
-	| { code: 0; text: string }
-	| { code: 1; text: string }
-	| { code: 2; text: string };
+	| { code: 0; text: string; report?: ImportReportView }
+	| { code: 1; text: string; report?: ImportReportView }
+	| { code: 2; text: string; report?: ImportReportView };
 
 /** Assinatura da bridge (importLessons do import-lessons.ts). */
 export interface ImportFn {
@@ -153,7 +171,15 @@ export interface ImportFn {
 		projectId: number,
 		lessonsFile: string,
 		opts: { dryRun?: boolean },
-	): { imported: number; skipped: number; total: number; malformed: number };
+	): {
+		imported: number;
+		skipped: number;
+		updated: number;
+		revoked: number;
+		total: number;
+		malformed: number;
+		truncated: number;
+	};
 }
 
 /** Dispatcher puro do `harness memory` (subcommand + args → exit code/texto). */
@@ -200,11 +226,17 @@ export function dispatchMemoryCli(
 		const lines = [
 			`imported: ${report.imported}`,
 			`skipped: ${report.skipped}`,
+			`updated: ${report.updated}`,
+			`revoked: ${report.revoked}`,
 			`total: ${report.total}`,
 			`malformed: ${report.malformed}`,
+			`truncated: ${report.truncated}`,
 		];
+		if (report.truncated > 0) {
+			lines.push(`note: ${report.truncated} lesson(s) exceeded the 4000-char cap on antiPattern+preferred — guidance may be cut off.`);
+		}
 		if (dryRun) lines.unshift("dry-run (nada escrito):");
-		return { code: 0, text: `${lines.join("\n")}\n` };
+		return { code: 0, text: `${lines.join("\n")}\n`, report };
 	}
 
 	return { code: 2, text: `harness memory: unknown subcommand '${subcommand}'\n${MEMORY_HELP}` };
