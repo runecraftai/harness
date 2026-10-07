@@ -159,13 +159,12 @@ export class Repository {
 		return { id, project_id: projectId, agent, started_at: startedAt, ended_at: null, summary: null };
 	}
 
-	/** Scoped to the project+agent that own the session (same binding model as
-	 *  findActiveSession) — a foreign or unknown session cannot be ended. */
-	endSession(sessionId: string, projectId: number, agent: string, summary?: string | null): boolean {
+	/** Scoped to the owning project — a foreign or unknown session cannot be ended. */
+	endSession(sessionId: string, projectId: number, summary?: string | null): boolean {
 		const endedAt = this.clock();
 		const result = this.db
-			.prepare("UPDATE sessions SET ended_at = ?, summary = ? WHERE id = ? AND project_id = ? AND agent = ?")
-			.run(endedAt, summary ?? null, sessionId, projectId, agent);
+			.prepare("UPDATE sessions SET ended_at = ?, summary = ? WHERE id = ? AND project_id = ?")
+			.run(endedAt, summary ?? null, sessionId, projectId);
 		return Number(result.changes) > 0;
 	}
 

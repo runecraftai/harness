@@ -159,6 +159,16 @@ describe("agent default (adaptação documentada)", () => {
 	});
 });
 
+describe("same-project session binding (project-only, option A)", () => {
+	test("rune_session_end ends a session started with an explicit agent override", async () => {
+		const started = await run("rune_session_start", { agent: "other-agent" });
+		expect(started.reused).toBe(false);
+		const ended = await run("rune_session_end", { session_id: started.session_id as string, summary: "done" });
+		expect(ended.ok).toBe(true);
+		expect(repo.findActiveSession(projectId, "other-agent")).toBeNull();
+	});
+});
+
 describe("cross-project binding (defect fix — north cannot touch south by known id)", () => {
 	let southProjectId: number;
 

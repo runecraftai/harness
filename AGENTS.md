@@ -12,7 +12,7 @@ This file is the project's committed base for project-intrinsic agent knowledge:
 
 ## Memory layer scoping (`packages/harness/src/memory/`)
 
-- `Repository.getMemory`/`updateMemory`/`softDeleteMemory` take a `projectId` and `endSession` takes `(sessionId, projectId, agent)` — all ID-based reads/mutations and session ops are bound to the calling project (sessions also to the agent), matching the existing `findActiveSession`/search project-scoping model. A foreign id/session is refused as `NOT_FOUND` (never a distinct "exists elsewhere" signal). `saveMemory`'s optional `sessionId` is checked via `Repository.getSession(id, projectId)` and refused with a `SESSION_NOT_FOUND` `ValidationError` if it belongs to another project. See `docs/MEMORY.md` for the tool-contract wording and `test/memory/{repository,tools}.test.ts` for the cross-project regression tests.
+- `Repository.getMemory`/`updateMemory`/`softDeleteMemory` take a `projectId` and `endSession` takes `(sessionId, projectId, summary?)` — all ID-based reads/mutations and session ops are bound to the calling project, matching the existing `findActiveSession`/search project-scoping model. A foreign id/session is refused as `NOT_FOUND` (never a distinct "exists elsewhere" signal). `saveMemory`'s optional `sessionId` is checked via `Repository.getSession(id, projectId)` and refused with a `SESSION_NOT_FOUND` `ValidationError` if it belongs to another project. See `docs/MEMORY.md` for the tool-contract wording and `test/memory/{repository,tools}.test.ts` for the cross-project regression tests.
 
 ## Build & test
 

@@ -351,14 +351,14 @@ function createSessionEndTool(deps: ToolDeps): RuneTool {
 		name: "rune_session_end",
 		label: "End session",
 		description:
-			"Mark a session as ended. Optionally attach a summary describing what was done. The session then appears in `rune_timeline` with the summary attached. Returns NOT_FOUND if the session id does not exist or belongs to a different project/agent.",
+			"Mark a session as ended. Optionally attach a summary describing what was done. The session then appears in `rune_timeline` with the summary attached. Returns NOT_FOUND if the session id does not exist or belongs to a different project.",
 		parameters: Type.Object({
 			session_id: Type.String({ minLength: 1 }),
 			summary: Type.Optional(Type.String({ maxLength: 2000 })),
 		}),
 		async execute(args) {
 			const input = args as { session_id: string; summary?: string };
-			const ok = deps.repository.endSession(input.session_id, deps.projectId, deps.agentId, input.summary ?? null);
+			const ok = deps.repository.endSession(input.session_id, deps.projectId, input.summary ?? null);
 			if (!ok) {
 				return textResult(JSON.stringify({ ok: false, error: { code: "NOT_FOUND" } }));
 			}

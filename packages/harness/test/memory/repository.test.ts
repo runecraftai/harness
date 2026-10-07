@@ -103,6 +103,12 @@ describe("saveMemory", () => {
 });
 
 describe("project binding — cross-project ID access is refused (defect fix)", () => {
+	test("endSession can end a same-project session started under another agent", () => {
+		const session = repo.startSession(projectId, "other-agent");
+		expect(repo.endSession(session.id, projectId, "done")).toBe(true);
+		expect(repo.getSession(session.id, projectId)?.ended_at).not.toBeNull();
+	});
+
 	test("getMemory/updateMemory/softDeleteMemory refuse a known id from another project", () => {
 		const other = repo.getOrCreateProject("south", "/tmp/south", null);
 		const foreign = repo.saveMemory({ projectId: other.id, category: "decisions", title: "private", what: "south secret" });
@@ -121,10 +127,10 @@ describe("project binding — cross-project ID access is refused (defect fix)", 
 		const other = repo.getOrCreateProject("south-session", "/tmp/south-session", null);
 		const foreignSession = repo.startSession(other.id, "pi");
 
-		expect(repo.endSession(foreignSession.id, projectId, "pi", "hijacked")).toBe(false);
+		expect(repo.endSession(foreignSession.id, projectId, "hijacked")).toBe(false);
 		expect(repo.findActiveSession(other.id, "pi")?.id).toBe(foreignSession.id);
 
-		expect(repo.endSession(foreignSession.id, other.id, "pi", "legit")).toBe(true);
+		expect(repo.endSession(foreignSession.id, other.id, "legit")).toBe(true);
 	});
 });
 
@@ -215,11 +221,11 @@ describe("sessions", () => {
 	test("start/end com summary; findActiveSession; idempotência do session_start", () => {
 		const a = repo.startSession(projectId, "pi");
 		const b = repo.startSession(projectId, "pi");
-		repo.endSession(a.id, projectId, "pi", "did things");
+		repo.endSession(a.id, projectId, "did things");
 		expect(repo.findActiveSession(projectId, "pi")?.id).toBe(b.id);
 		const sessions = repo.listSessions("test-slug");
 		expect(sessions.find((s) => s.id === a.id)?.summary).toBe("did things");
-		expect(repo.endSession("missing", projectId, "pi")).toBe(false);
+		expect(repo.endSession("missing", projectId)).toBe(false);
 	});
 
 	test("tie-break determinístico: listSessions ORDER BY started_at DESC, id DESC", () => {

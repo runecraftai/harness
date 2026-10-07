@@ -54,14 +54,13 @@ node:sqlite on Node ≥22.19 with FTS5):
 | `rune_timeline` | recent sessions (started_at DESC) |
 | `rune_stats` | totals per category + last activity |
 | `rune_session_start` | starts a session (idempotent — reuses the active one) |
-| `rune_session_end` | ends a session, scoped to this project + agent (NOT_FOUND when missing or foreign) |
+| `rune_session_end` | ends a session, scoped to this project (NOT_FOUND when missing or foreign) |
 
 ID-based access (`rune_get`/`rune_update`/`rune_delete`) and session mutations
 (`rune_session_end`, and `rune_save`'s `session_id` attach) are bound to the
-calling project (sessions also to the calling agent) — a known id/session from
-another project in the same database is refused as NOT_FOUND /
-SESSION_NOT_FOUND, the same refusal shape as a missing id, so the response
-never confirms that a foreign row exists.
+calling project — a known id/session from another project in the same database
+is refused as NOT_FOUND / SESSION_NOT_FOUND, the same refusal shape as a
+missing id, so the response never confirms that a foreign row exists.
 
 Port adaptations: `tool()` of `@opencode-ai/plugin` → `defineTool` of the Pi
 SDK; zod → TypeBox `parameters` (the real defineTool shape) + manual

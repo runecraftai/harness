@@ -261,7 +261,7 @@ describe("EVAL-033 — semântica search/context (D3/D6)", () => {
             expect(ranked[0]?.title).toBe("café rule");
             // rune_context: recent + relevant.
             const session = repo.startSession(p.id, "pi");
-            repo.endSession(session.id, p.id, "pi", "did sem");
+            repo.endSession(session.id, p.id, "did sem");
             const active = repo.findActiveSession(p.id, "pi");
             expect(active).toBeNull();
             const recent = repo.recentMemories(p.id, 10);
