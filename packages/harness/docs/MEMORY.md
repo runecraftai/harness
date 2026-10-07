@@ -45,16 +45,23 @@ node:sqlite on Node ≥22.19 with FTS5):
 
 | Tool | What it does |
 | --- | --- |
-| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal |
-| `rune_search` | FTS5 over titles/content, ordered by rank; category filter; soft-deleted excluded |
-| `rune_get` | fetch by id (NOT_FOUND when soft-deleted) |
-| `rune_update` | field patch (importance clamp [1,10]; NOT_FOUND) |
-| `rune_delete` | soft-delete (disappears from search/get/context; `doctor --purge` hard-deletes) |
+| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal; an optional `session_id` must belong to this project (SESSION_NOT_FOUND otherwise) |
+| `rune_search` | FTS5 over titles/content, ordered by rank; category + **project** filter; soft-deleted excluded |
+| `rune_get` | fetch by id, scoped to this project (NOT_FOUND when soft-deleted, missing, or owned by another project) |
+| `rune_update` | field patch scoped to this project (importance clamp [1,10]; NOT_FOUND when missing or foreign) |
+| `rune_delete` | soft-delete scoped to this project (disappears from search/get/context; `doctor --purge` hard-deletes; NOT_FOUND when missing or foreign) |
 | `rune_context` | snapshot: project + active session + 10 recent + relevant (query) by importance |
 | `rune_timeline` | recent sessions (started_at DESC) |
 | `rune_stats` | totals per category + last activity |
 | `rune_session_start` | starts a session (idempotent — reuses the active one) |
-| `rune_session_end` | ends a session with an optional summary |
+| `rune_session_end` | ends a session, scoped to this project + agent (NOT_FOUND when missing or foreign) |
+
+ID-based access (`rune_get`/`rune_update`/`rune_delete`) and session mutations
+(`rune_session_end`, and `rune_save`'s `session_id` attach) are bound to the
+calling project (sessions also to the calling agent) — a known id/session from
+another project in the same database is refused as NOT_FOUND /
+SESSION_NOT_FOUND, the same refusal shape as a missing id, so the response
+never confirms that a foreign row exists.
 
 Port adaptations: `tool()` of `@opencode-ai/plugin` → `defineTool` of the Pi
 SDK; zod → TypeBox `parameters` (the real defineTool shape) + manual

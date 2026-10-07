@@ -159,17 +159,31 @@ export class Repository {
 		return { id, project_id: projectId, agent, started_at: startedAt, ended_at: null, summary: null };
 	}
 
-	endSession(sessionId: string, summary?: string | null): boolean {
+	/** Scoped to the project+agent that own the session (same binding model as
+	 *  findActiveSession) — a foreign or unknown session cannot be ended. */
+	endSession(sessionId: string, projectId: number, agent: string, summary?: string | null): boolean {
 		const endedAt = this.clock();
 		const result = this.db
-			.prepare("UPDATE sessions SET ended_at = ?, summary = ? WHERE id = ?")
-			.run(endedAt, summary ?? null, sessionId);
+			.prepare("UPDATE sessions SET ended_at = ?, summary = ? WHERE id = ? AND project_id = ? AND agent = ?")
+			.run(endedAt, summary ?? null, sessionId, projectId, agent);
 		return Number(result.changes) > 0;
+	}
+
+	/** Session scoped to a project — used to validate a session_id before
+	 *  attaching a memory to it (a foreign session_id must be refused). */
+	getSession(id: string, projectId: number): Session | null {
+		const row = this.db
+			.prepare("SELECT * FROM sessions WHERE id = ? AND project_id = ?")
+			.get(id, projectId) as Record<string, unknown> | undefined;
+		return row ? rowToSession(row) : null;
 	}
 
 	saveMemory(input: SaveMemoryInput): Memory {
 		// Validação manual (D3 — mesmos códigos do source).
 		validateSave({ category: input.category, title: input.title, what: input.what, importance: input.importance });
+		if (input.sessionId && !this.getSession(input.sessionId, input.projectId)) {
+			throw new ValidationError("SESSION_NOT_FOUND", "session_id not found for this project");
+		}
 		const id = this.idGen();
 		const now = this.clock();
 		const importance = clampImportance(input.importance);
@@ -193,7 +207,7 @@ export class Repository {
 				now,
 				now,
 			);
-		return this.getMemory(id) as Memory;
+		return this.getMemory(id, input.projectId) as Memory;
 	}
 
 	searchMemories(input: SearchMemoryInput): { results: Memory[]; total: number } {
@@ -239,10 +253,12 @@ export class Repository {
 		};
 	}
 
-	getMemory(id: string): Memory | null {
+	/** Scoped to the selected project — a foreign id is treated as NOT_FOUND
+	 *  (same refusal as a missing id; avoids confirming a foreign row exists). */
+	getMemory(id: string, projectId: number): Memory | null {
 		const row = this.db
-			.prepare("SELECT * FROM memories WHERE id = ? AND soft_deleted = 0")
-			.get(id) as Record<string, unknown> | undefined;
+			.prepare("SELECT * FROM memories WHERE id = ? AND project_id = ? AND soft_deleted = 0")
+			.get(id, projectId) as Record<string, unknown> | undefined;
 		return row ? rowToMemory(row) : null;
 	}
 
@@ -256,10 +272,12 @@ export class Repository {
 		return row ? rowToMemory(row) : null;
 	}
 
-	updateMemory(id: string, fields: UpdateMemoryInput): Memory | null {
+	/** Scoped to the selected project — a foreign id is treated as NOT_FOUND
+	 *  (same refusal as a missing id; avoids confirming a foreign row exists). */
+	updateMemory(id: string, projectId: number, fields: UpdateMemoryInput): Memory | null {
 		const existing = this.db
-			.prepare("SELECT id FROM memories WHERE id = ? AND soft_deleted = 0")
-			.get(id) as { id: string } | undefined;
+			.prepare("SELECT id FROM memories WHERE id = ? AND project_id = ? AND soft_deleted = 0")
+			.get(id, projectId) as { id: string } | undefined;
 		if (!existing) return null;
 
 		validateUpdate({ title: fields.title, what: fields.what });
@@ -292,23 +310,25 @@ export class Repository {
 			params.push(clampImportance(fields.importance));
 		}
 
-		if (updates.length === 0) return this.getMemory(id);
+		if (updates.length === 0) return this.getMemory(id, projectId);
 
 		updates.push("updated_at = ?");
 		params.push(this.clock());
 		params.push(id);
 
 		this.db.prepare(`UPDATE memories SET ${updates.join(", ")} WHERE id = ?`).run(...params);
-		return this.getMemory(id);
+		return this.getMemory(id, projectId);
 	}
 
-	softDeleteMemory(id: string): { ok: boolean; soft_deleted_at: number | null } {
+	/** Scoped to the selected project — a foreign id is treated as NOT_FOUND
+	 *  (same refusal as a missing id; avoids confirming a foreign row exists). */
+	softDeleteMemory(id: string, projectId: number): { ok: boolean; soft_deleted_at: number | null } {
 		const now = this.clock();
 		const result = this.db
 			.prepare(
-				"UPDATE memories SET soft_deleted = 1, updated_at = ? WHERE id = ? AND soft_deleted = 0",
+				"UPDATE memories SET soft_deleted = 1, updated_at = ? WHERE id = ? AND project_id = ? AND soft_deleted = 0",
 			)
-			.run(now, id);
+			.run(now, id, projectId);
 		if (Number(result.changes) === 0) {
 			return { ok: false, soft_deleted_at: null };
 		}

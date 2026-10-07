@@ -55,7 +55,7 @@ function createSaveTool(deps: ToolDeps): RuneTool {
 		name: "rune_save",
 		label: "Save memory",
 		description:
-			"Save a memory to the project's persistent memory store. Use this when you make or learn something durable — a decision, a correction, a convention, a config value, a name rule, an architecture note, a constraint, or a learning. The `category` field controls how the memory is grouped. Memories persist across sessions and are recalled on demand via rune_context or rune_search. When the category exceeds its configured cap, the response includes a `compaction` field with candidates to summarize or prune.",
+			"Save a memory to the project's persistent memory store. Use this when you make or learn something durable — a decision, a correction, a convention, a config value, a name rule, an architecture note, a constraint, or a learning. The `category` field controls how the memory is grouped. Memories persist across sessions and are recalled on demand via rune_context or rune_search. When the category exceeds its configured cap, the response includes a `compaction` field with candidates to summarize or prune. If `session_id` is provided it must belong to this project; a foreign or unknown session_id is refused with a SESSION_NOT_FOUND error.",
 		parameters: Type.Object({
 			category: CATEGORY_SCHEMA,
 			title: Type.String({ minLength: 1, maxLength: 200 }),
@@ -138,13 +138,13 @@ function createGetTool(deps: ToolDeps): RuneTool {
 		name: "rune_get",
 		label: "Get memory",
 		description:
-			"Fetch a single memory by its id. Returns the full memory record, or a NOT_FOUND error if the id does not exist or the memory was soft-deleted.",
+			"Fetch a single memory by its id. Returns the full memory record, or a NOT_FOUND error if the id does not exist, belongs to a different project, or the memory was soft-deleted.",
 		parameters: Type.Object({
 			id: Type.String({ minLength: 1 }),
 		}),
 		async execute(args) {
 			const input = args as { id: string };
-			const memory = deps.repository.getMemory(input.id);
+			const memory = deps.repository.getMemory(input.id, deps.projectId);
 			if (!memory) {
 				return textResult(JSON.stringify({ ok: false, error: { code: "NOT_FOUND" } }));
 			}
@@ -158,7 +158,7 @@ function createUpdateTool(deps: ToolDeps): RuneTool {
 		name: "rune_update",
 		label: "Update memory",
 		description:
-			"Update fields of an existing memory by id. Only the fields you provide are changed. Returns the updated memory or a NOT_FOUND error. Importance is clamped to [1,10]. Soft-deleted memories cannot be updated.",
+			"Update fields of an existing memory by id. Only the fields you provide are changed. Returns the updated memory or a NOT_FOUND error if the id does not exist, belongs to a different project, or the memory was soft-deleted. Importance is clamped to [1,10].",
 		parameters: Type.Object({
 			id: Type.String({ minLength: 1 }),
 			title: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
@@ -179,7 +179,7 @@ function createUpdateTool(deps: ToolDeps): RuneTool {
 				importance?: number;
 			};
 			try {
-				const memory = deps.repository.updateMemory(input.id, {
+				const memory = deps.repository.updateMemory(input.id, deps.projectId, {
 					title: input.title,
 					what: input.what,
 					why: input.why,
@@ -208,13 +208,13 @@ function createDeleteTool(deps: ToolDeps): RuneTool {
 		name: "rune_delete",
 		label: "Delete memory",
 		description:
-			"Soft-delete a memory by id. The memory is hidden from search and get, but remains in storage for audit. Use `harness memory doctor --purge` to hard-delete soft-deleted rows. Returns NOT_FOUND if the id does not exist or is already deleted.",
+			"Soft-delete a memory by id. The memory is hidden from search and get, but remains in storage for audit. Use `harness memory doctor --purge` to hard-delete soft-deleted rows. Returns NOT_FOUND if the id does not exist, belongs to a different project, or is already deleted.",
 		parameters: Type.Object({
 			id: Type.String({ minLength: 1 }),
 		}),
 		async execute(args) {
 			const input = args as { id: string };
-			const result = deps.repository.softDeleteMemory(input.id);
+			const result = deps.repository.softDeleteMemory(input.id, deps.projectId);
 			if (!result.ok) {
 				return textResult(JSON.stringify({ ok: false, error: { code: "NOT_FOUND" } }));
 			}
@@ -351,14 +351,14 @@ function createSessionEndTool(deps: ToolDeps): RuneTool {
 		name: "rune_session_end",
 		label: "End session",
 		description:
-			"Mark a session as ended. Optionally attach a summary describing what was done. The session then appears in `rune_timeline` with the summary attached.",
+			"Mark a session as ended. Optionally attach a summary describing what was done. The session then appears in `rune_timeline` with the summary attached. Returns NOT_FOUND if the session id does not exist or belongs to a different project/agent.",
 		parameters: Type.Object({
 			session_id: Type.String({ minLength: 1 }),
 			summary: Type.Optional(Type.String({ maxLength: 2000 })),
 		}),
 		async execute(args) {
 			const input = args as { session_id: string; summary?: string };
-			const ok = deps.repository.endSession(input.session_id, input.summary ?? null);
+			const ok = deps.repository.endSession(input.session_id, deps.projectId, deps.agentId, input.summary ?? null);
 			if (!ok) {
 				return textResult(JSON.stringify({ ok: false, error: { code: "NOT_FOUND" } }));
 			}
