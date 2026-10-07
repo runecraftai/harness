@@ -32,7 +32,7 @@
 //    revoked, so this is the durable tombstone: fix/remove the lesson in
 //    `promoted.jsonl`, not in the memory store.
 //
-// Deleting ONLY the imported copy (`rune_delete` / CLI `memory delete`) is
+// Deleting ONLY the imported copy (`rune_delete`) is
 // explicitly NOT a revocation mechanism: if the source still lists the
 // lessonId, the next import recreates the row from the CURRENT source
 // content (never from whatever the deleted row used to contain). The one
