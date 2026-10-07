@@ -10,6 +10,10 @@ This file is the project's committed base for project-intrinsic agent knowledge:
 - **Claude Code roles + routing (B1)** — 7 role agents live in `packages/harness/claude-agents/*.md` (Claude agent-file format) and are three-way materialized to `~/.claude/agents/` by `install`/`sync` (`src/adapters/claudeAgents.ts` — mirror of F32 `src/agents/materialize.ts`, state section `claudeAgents`). The coded-routing directive is a second CLAUDE.md section `runecraft:routing` rendered from `src/routing/claudeSection.ts` — same ROUTE_CATALOG as the F33 Pi classifier; only the `builder` role carries the `Agent` (Task) delegation tool (QA-5 mirror).
 - Doctor check numbering: 1–23 (F12..F33), 24 = Claude role agents (B1), 25 = capability manifest (B0). Eval lane: `test/eval/framework/parity.test.ts` EVAL-079..084; `MIN_EVIDENCE_FILES = 22` in `test/eval/ratchet-run.ts` (bump when a new evidence file joins).
 
+## Memory layer scoping (`packages/harness/src/memory/`)
+
+- `Repository.getMemory`/`updateMemory`/`softDeleteMemory` take a `projectId` and `endSession` takes `(sessionId, projectId, summary?)` — all ID-based reads/mutations and session ops are bound to the calling project, matching the existing `findActiveSession`/search project-scoping model. A foreign id/session is refused as `NOT_FOUND` (never a distinct "exists elsewhere" signal). `saveMemory`'s optional `sessionId` is checked via `Repository.getSession(id, projectId)` and refused with a `SESSION_NOT_FOUND` `ValidationError` if it belongs to another project. See `docs/MEMORY.md` for the tool-contract wording and `test/memory/{repository,tools}.test.ts` for the cross-project regression tests.
+
 ## Build & test
 
 - Package: `packages/harness` — `bun test` (suite + ratchet chained), `bun run typecheck` (tsc), `bun run eval:ratchet --update` absorbs new coverage/goldens into `test/eval/baselines/`. Root `bun run lint` (biome) ignores `packages/**` by design — the harness gates are typecheck + tests.

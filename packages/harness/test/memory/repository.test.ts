@@ -82,6 +82,56 @@ describe("saveMemory", () => {
 		const m = repo.saveMemory({ projectId, sessionId: s.id, category: "learnings", title: "t", what: "w" });
 		expect(m.session_id).toBe(s.id);
 	});
+
+	test("rejeita session_id de outro projeto (SESSION_NOT_FOUND)", () => {
+		const other = repo.getOrCreateProject("other-save", "/tmp/other-save", null);
+		const foreignSession = repo.startSession(other.id, "pi");
+		const code = (fn: () => unknown): string => {
+			try {
+				fn();
+			} catch (err) {
+				return (err as ValidationError).code;
+			}
+			throw new Error("esperava ValidationError");
+		};
+		expect(
+			code(() =>
+				repo.saveMemory({ projectId, sessionId: foreignSession.id, category: "learnings", title: "t", what: "w" }),
+			),
+		).toBe("SESSION_NOT_FOUND");
+	});
+});
+
+describe("project binding — cross-project ID access is refused (defect fix)", () => {
+	test("endSession can end a same-project session started under another agent", () => {
+		const session = repo.startSession(projectId, "other-agent");
+		expect(repo.endSession(session.id, projectId, "done")).toBe(true);
+		expect(repo.getSession(session.id, projectId)?.ended_at).not.toBeNull();
+	});
+
+	test("getMemory/updateMemory/softDeleteMemory refuse a known id from another project", () => {
+		const other = repo.getOrCreateProject("south", "/tmp/south", null);
+		const foreign = repo.saveMemory({ projectId: other.id, category: "decisions", title: "private", what: "south secret" });
+
+		expect(repo.getMemory(foreign.id, projectId)).toBeNull();
+		expect(repo.getMemory(foreign.id, other.id)?.id).toBe(foreign.id);
+
+		expect(repo.updateMemory(foreign.id, projectId, { title: "hijacked" })).toBeNull();
+		expect(repo.getMemory(foreign.id, other.id)?.title).toBe("private");
+
+		expect(repo.softDeleteMemory(foreign.id, projectId).ok).toBe(false);
+		expect(repo.getMemory(foreign.id, other.id)).not.toBeNull();
+	});
+
+	test("endSession refuses a session started by another project", () => {
+		const other = repo.getOrCreateProject("south-session", "/tmp/south-session", null);
+		const foreignSession = repo.startSession(other.id, "pi");
+
+		expect(repo.endSession(foreignSession.id, projectId, "hijacked")).toBe(false);
+		expect(repo.findActiveSession(other.id, "pi")?.id).toBe(foreignSession.id);
+
+		expect(repo.endSession(foreignSession.id, other.id, "legit")).toBe(true);
+	});
 });
 
 describe("searchMemories (FTS5 + categoria + soft-delete)", () => {
@@ -120,7 +170,7 @@ describe("searchMemories (FTS5 + categoria + soft-delete)", () => {
 
 	test("soft-deleted excluído de search", () => {
 		const m = repo.saveMemory({ projectId, category: "decisions", title: "Unique Keyword Phrase AlphaBeta", what: "unique" });
-		repo.softDeleteMemory(m.id);
+		repo.softDeleteMemory(m.id, projectId);
 		const { results, total } = repo.searchMemories({ projectId, query: "AlphaBeta" });
 		expect(results).toEqual([]);
 		expect(total).toBe(0);
@@ -130,18 +180,18 @@ describe("searchMemories (FTS5 + categoria + soft-delete)", () => {
 describe("getMemory / updateMemory / softDeleteMemory", () => {
 	test("get por id; null quando ausente ou soft-deleted", () => {
 		const m = repo.saveMemory({ projectId, category: "decisions", title: "t", what: "w" });
-		expect(repo.getMemory(m.id)?.id).toBe(m.id);
-		expect(repo.getMemory("missing")).toBeNull();
-		repo.softDeleteMemory(m.id);
-		expect(repo.getMemory(m.id)).toBeNull();
+		expect(repo.getMemory(m.id, projectId)?.id).toBe(m.id);
+		expect(repo.getMemory("missing", projectId)).toBeNull();
+		repo.softDeleteMemory(m.id, projectId);
+		expect(repo.getMemory(m.id, projectId)).toBeNull();
 	});
 
 	test("update patch com clamps; NOT_FOUND → null", () => {
 		const m = repo.saveMemory({ projectId, category: "decisions", title: "old", what: "w" });
-		const updated = repo.updateMemory(m.id, { title: "new", importance: 99 });
+		const updated = repo.updateMemory(m.id, projectId, { title: "new", importance: 99 });
 		expect(updated?.title).toBe("new");
 		expect(updated?.importance).toBe(10);
-		expect(repo.updateMemory("missing", { title: "x" })).toBeNull();
+		expect(repo.updateMemory("missing", projectId, { title: "x" })).toBeNull();
 	});
 
 	test("update valida título/what (INVALID_TITLE/INVALID_WHAT)", () => {
@@ -154,16 +204,16 @@ describe("getMemory / updateMemory / softDeleteMemory", () => {
 			}
 			throw new Error("esperava ValidationError");
 		};
-		expect(code(() => repo.updateMemory(m.id, { title: "" }))).toBe("INVALID_TITLE");
-		expect(code(() => repo.updateMemory(m.id, { what: "" }))).toBe("INVALID_WHAT");
+		expect(code(() => repo.updateMemory(m.id, projectId, { title: "" }))).toBe("INVALID_TITLE");
+		expect(code(() => repo.updateMemory(m.id, projectId, { what: "" }))).toBe("INVALID_WHAT");
 	});
 
 	test("soft-delete: ok + soft_deleted_at; missing → ok=false", () => {
 		const m = repo.saveMemory({ projectId, category: "decisions", title: "t", what: "w" });
-		const r = repo.softDeleteMemory(m.id);
+		const r = repo.softDeleteMemory(m.id, projectId);
 		expect(r.ok).toBe(true);
 		expect(r.soft_deleted_at).not.toBeNull();
-		expect(repo.softDeleteMemory("missing").ok).toBe(false);
+		expect(repo.softDeleteMemory("missing", projectId).ok).toBe(false);
 	});
 });
 
@@ -171,11 +221,11 @@ describe("sessions", () => {
 	test("start/end com summary; findActiveSession; idempotência do session_start", () => {
 		const a = repo.startSession(projectId, "pi");
 		const b = repo.startSession(projectId, "pi");
-		repo.endSession(a.id, "did things");
+		repo.endSession(a.id, projectId, "did things");
 		expect(repo.findActiveSession(projectId, "pi")?.id).toBe(b.id);
 		const sessions = repo.listSessions("test-slug");
 		expect(sessions.find((s) => s.id === a.id)?.summary).toBe("did things");
-		expect(repo.endSession("missing")).toBe(false);
+		expect(repo.endSession("missing", projectId)).toBe(false);
 	});
 
 	test("tie-break determinístico: listSessions ORDER BY started_at DESC, id DESC", () => {
@@ -195,7 +245,7 @@ describe("stats", () => {
 		repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
 		repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
 		const c = repo.saveMemory({ projectId, category: "corrections", title: "c", what: "z" });
-		repo.softDeleteMemory(c.id);
+		repo.softDeleteMemory(c.id, projectId);
 		const stats = repo.getStats("test-slug");
 		expect(stats.total).toBe(2);
 		expect(stats.by_category.decisions).toBe(2);
@@ -219,10 +269,10 @@ describe("purge e rebuild", () => {
 	test("purgeSoftDeleted remove só soft-deleted; rebuildFts restaura o índice", () => {
 		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
 		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
-		repo.softDeleteMemory(a.id);
+		repo.softDeleteMemory(a.id, projectId);
 		expect(repo.purgeSoftDeleted()).toBe(1);
-		expect(repo.getMemory(a.id)).toBeNull();
-		expect(repo.getMemory(b.id)).not.toBeNull();
+		expect(repo.getMemory(a.id, projectId)).toBeNull();
+		expect(repo.getMemory(b.id, projectId)).not.toBeNull();
 		// Drift induzido (delete direto do índice) → rebuild corrige.
 		db.prepare("DELETE FROM memories_fts WHERE rowid = (SELECT rowid FROM memories WHERE id = ?)").run(b.id);
 		expect(repo.ftsRowCount()).toBe(0);
@@ -279,7 +329,7 @@ describe("compaction (D6 — poda transacional + tie-break)", () => {
 	test("exclui soft-deleted de contagem e candidatos", () => {
 		makeMemories(softCap + 3);
 		const recent = repo.recentMemories(projectId, 2);
-		for (const m of recent) repo.softDeleteMemory(m.id);
+		for (const m of recent) repo.softDeleteMemory(m.id, projectId);
 		const signal = repo.checkAndEnforceCompaction(projectId, "decisions", { softCap, hardCap: 10 });
 		const activeCount = repo.countMemoriesByCategory(projectId, "decisions");
 		expect(activeCount).toBe(softCap + 3 - recent.length);
@@ -305,9 +355,9 @@ describe("determinismo (D6/F21 D10)", () => {
 				const p = r.getOrCreateProject("det-slug", "/tmp/det", null);
 				const m1 = r.saveMemory({ projectId: p.id, category: "decisions", title: "alpha", what: "first decision", importance: 8 });
 				const m2 = r.saveMemory({ projectId: p.id, category: "learnings", title: "beta", what: "café lesson", importance: 3 });
-				r.updateMemory(m1.id, { title: "alpha-updated" });
+				r.updateMemory(m1.id, p.id, { title: "alpha-updated" });
 				r.startSession(p.id, "pi");
-				r.softDeleteMemory(m2.id);
+				r.softDeleteMemory(m2.id, p.id);
 				return [
 					{ step: "recent", value: r.recentMemories(p.id, 10) },
 					{ step: "search", value: r.searchMemories({ projectId: p.id, query: "cafe" }) },

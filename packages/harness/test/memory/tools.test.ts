@@ -158,3 +158,66 @@ describe("agent default (adaptação documentada)", () => {
 		expect(sessions[0]?.agent).toBe("test-agent");
 	});
 });
+
+describe("same-project session binding (project-only, option A)", () => {
+	test("rune_session_end ends a session started with an explicit agent override", async () => {
+		const started = await run("rune_session_start", { agent: "other-agent" });
+		expect(started.reused).toBe(false);
+		const ended = await run("rune_session_end", { session_id: started.session_id as string, summary: "done" });
+		expect(ended.ok).toBe(true);
+		expect(repo.findActiveSession(projectId, "other-agent")).toBeNull();
+	});
+});
+
+describe("cross-project binding (defect fix — north cannot touch south by known id)", () => {
+	let southProjectId: number;
+
+	beforeEach(() => {
+		const south = repo.getOrCreateProject("south-slug", sandbox, null);
+		southProjectId = south.id;
+	});
+
+	test("rune_get refuses a known id from another project (NOT_FOUND)", async () => {
+		const foreign = repo.saveMemory({ projectId: southProjectId, category: "decisions", title: "south secret", what: "private" });
+		const got = await run("rune_get", { id: foreign.id });
+		expect(got.ok).toBe(false);
+		expect((got.error as { code: string }).code).toBe("NOT_FOUND");
+	});
+
+	test("rune_update refuses a known id from another project (NOT_FOUND, content unchanged)", async () => {
+		const foreign = repo.saveMemory({ projectId: southProjectId, category: "decisions", title: "south secret", what: "private" });
+		const updated = await run("rune_update", { id: foreign.id, title: "hijacked" });
+		expect(updated.ok).toBe(false);
+		expect((updated.error as { code: string }).code).toBe("NOT_FOUND");
+		expect(repo.getMemory(foreign.id, southProjectId)?.title).toBe("south secret");
+	});
+
+	test("rune_delete refuses a known id from another project (NOT_FOUND, row survives)", async () => {
+		const foreign = repo.saveMemory({ projectId: southProjectId, category: "decisions", title: "south secret", what: "private" });
+		const deleted = await run("rune_delete", { id: foreign.id });
+		expect(deleted.ok).toBe(false);
+		expect((deleted.error as { code: string }).code).toBe("NOT_FOUND");
+		expect(repo.getMemory(foreign.id, southProjectId)).not.toBeNull();
+	});
+
+	test("rune_session_end refuses a foreign session (NOT_FOUND, session stays active)", async () => {
+		const foreignSession = repo.startSession(southProjectId, "south-agent");
+		const ended = await run("rune_session_end", { session_id: foreignSession.id, summary: "hijacked" });
+		expect(ended.ok).toBe(false);
+		expect((ended.error as { code: string }).code).toBe("NOT_FOUND");
+		expect(repo.findActiveSession(southProjectId, "south-agent")?.id).toBe(foreignSession.id);
+	});
+
+	test("rune_save refuses to attach a memory to a foreign session_id", async () => {
+		const foreignSession = repo.startSession(southProjectId, "south-agent");
+		const result = await run("rune_save", {
+			category: "learnings",
+			title: "cross session",
+			what: "cross-project session reference",
+			session_id: foreignSession.id,
+		});
+		expect(result.ok).toBe(false);
+		expect((result.error as { code: string }).code).toBe("SESSION_NOT_FOUND");
+		expect(repo.searchMemories({ projectId, query: "cross session" }).total).toBe(0);
+	});
+});

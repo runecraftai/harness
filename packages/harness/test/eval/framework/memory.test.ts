@@ -91,14 +91,14 @@ describe("EVAL-030 — port round-trip (D1/D4/D12)", () => {
             expect(readSchemaVersion(db)).toBe(String(SCHEMA_VERSION));
             const p = repo.getOrCreateProject("roundtrip", "/tmp/roundtrip", "https://github.com/foo/bar.git");
             const m = repo.saveMemory({ projectId: p.id, category: "decisions", title: "Use DDD", what: "We chose DDD for payments", importance: 9 });
-            expect(repo.getMemory(m.id)?.title).toBe("Use DDD");
+            expect(repo.getMemory(m.id, p.id)?.title).toBe("Use DDD");
             const search = repo.searchMemories({ projectId: p.id, query: "payments" });
             expect(search.results.length).toBe(1);
             expect(search.total).toBe(1);
             const stats = repo.getStats("roundtrip");
             expect(stats.by_category.decisions).toBe(1);
-            repo.softDeleteMemory(m.id);
-            expect(repo.getMemory(m.id)).toBeNull();
+            repo.softDeleteMemory(m.id, p.id);
+            expect(repo.getMemory(m.id, p.id)).toBeNull();
             // FTS5 + triggers reais (prova do D12 no harness).
             expect(repo.ftsRowCount()).toBe(0);
           } finally {
@@ -254,14 +254,14 @@ describe("EVAL-033 — semântica search/context (D3/D6)", () => {
             // Filtro de categoria.
             expect(repo.searchMemories({ projectId: p.id, query: "use", category: "decisions" }).results.every((r) => r.category === "decisions")).toBe(true);
             // Soft-deleted excluído.
-            repo.softDeleteMemory(del.id);
+            repo.softDeleteMemory(del.id, p.id);
             expect(repo.searchMemories({ projectId: p.id, query: "any" }).results).toEqual([]);
             // Ordem rank: memória com title exact é top.
             const ranked = repo.searchMemories({ projectId: p.id, query: "café" }).results;
             expect(ranked[0]?.title).toBe("café rule");
             // rune_context: recent + relevant.
             const session = repo.startSession(p.id, "pi");
-            repo.endSession(session.id, "did sem");
+            repo.endSession(session.id, p.id, "did sem");
             const active = repo.findActiveSession(p.id, "pi");
             expect(active).toBeNull();
             const recent = repo.recentMemories(p.id, 10);
@@ -480,9 +480,9 @@ describe("EVAL-037 — determinismo (D6, F21 D10)", () => {
               const p = repo.getOrCreateProject("det", "/tmp/det", null);
               const m1 = repo.saveMemory({ projectId: p.id, category: "decisions", title: "alpha", what: "first decision", importance: 8 });
               const m2 = repo.saveMemory({ projectId: p.id, category: "learnings", title: "beta", what: "café lesson", importance: 3 });
-              repo.updateMemory(m1.id, { title: "alpha-updated" });
+              repo.updateMemory(m1.id, p.id, { title: "alpha-updated" });
               repo.startSession(p.id, "pi");
-              repo.softDeleteMemory(m2.id);
+              repo.softDeleteMemory(m2.id, p.id);
               return JSON.stringify([
                 repo.recentMemories(p.id, 10),
                 repo.searchMemories({ projectId: p.id, query: "cafe" }),
