@@ -1,5 +1,5 @@
-// memory/migrations.ts — migração idempotente do schema v1 (port de
-// db/migrations.ts do runes). SCHEMA_VERSION=1.
+// memory/migrations.ts — migração idempotente do schema v2 (port de
+// db/migrations.ts do runes). SCHEMA_VERSION=2.
 //
 // O schema.sql é executado AS-IS (IF NOT EXISTS → idempotente) e a versão é
 // upsertada em schema_meta (mesma tabela do source). A resolução do schema
