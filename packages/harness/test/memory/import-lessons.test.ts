@@ -215,4 +215,36 @@ describe("revocation and source changes (lesson-revocation fix)", () => {
 		expect(report2.revoked).toBe(0);
 		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))?.title).toBe("user memory");
 	});
+
+	test("source emptied to zero valid lessons (file still present) → rule 2 still revokes every previously imported row (F1 fix)", () => {
+		const file = promotedFixture([LESSON_A, LESSON_B]);
+		importLessons(repo, projectId, file);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).not.toBeNull();
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("def456"))).not.toBeNull();
+
+		// The source file is still present but now has zero valid lesson
+		// lines (emptied) — unlike a MISSING file, this must not be a no-op:
+		// every previously imported lesson has effectively disappeared.
+		writeFileSync(file, "\n", "utf8");
+		const report = importLessons(repo, projectId, file);
+		expect(report.revoked).toBe(2);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).toBeNull();
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("def456"))).toBeNull();
+	});
+
+	test("a malformed line still marks its lessonId present → rule 2 does not wrongly revoke it (F2 fix)", () => {
+		const file = promotedFixture([LESSON_A, LESSON_B]);
+		importLessons(repo, projectId, file);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).not.toBeNull();
+
+		// abc123's line is corrupted (lessonId present, other fields missing)
+		// while def456 stays valid — abc123 did NOT disappear from the
+		// source, it is just malformed on this line.
+		const corrupted = JSON.stringify({ lessonId: "abc123" });
+		writeFileSync(file, `${corrupted}\n${JSON.stringify(LESSON_B)}\n`, "utf8");
+		const report = importLessons(repo, projectId, file);
+		expect(report.malformed).toBe(1);
+		expect(report.revoked).toBe(0);
+		expect(repo.getMemoryByWhereRef(projectId, lessonWhereRef("abc123"))).not.toBeNull();
+	});
 });

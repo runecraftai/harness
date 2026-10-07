@@ -132,9 +132,15 @@ every import:
    current source (`updated` in the report).
 2. **Source lesson disappeared** (a `lessonId` that was previously imported
    is no longer in `promoted.jsonl`) → its memory is revoked (soft-deleted)
-   by the import itself (`revoked` in the report). This re-applies on every
-   import, so the revocation is durable: as long as the lesson stays out of
-   the source, it stays revoked.
+   by the import itself (`revoked` in the report). This applies unconditionally
+   whenever the file was read, including when the file is still present but
+   now has zero valid lesson lines (emptied, or every line removed) — that
+   state means every previously imported lesson has disappeared, not that
+   the import was a no-op. It re-applies on every import, so the revocation
+   is durable: as long as the lesson stays out of the source, it stays
+   revoked. A line that fails validation (`malformed`) does NOT count as its
+   lessonId disappearing — a single broken line never revokes an otherwise
+   still-present lesson.
 
 **Deleting only the imported copy (`rune_delete`) is NOT a revocation
 mechanism.** If the lesson is still listed in `promoted.jsonl`, the next
@@ -154,9 +160,11 @@ importing silently truncated guidance.
 
 - `importLessonsOnStart: true` → import at extension init (after registering
   tools). `--dry-run` → report without writing (counts reflect what would
-  happen; nothing is saved/updated/revoked). Missing/empty file → no-op
-  (exit 0) — this cannot trigger rule 2, so it never mass-revokes an
-  existing import.
+  happen; nothing is saved/updated/revoked). **Missing** file → no-op (exit
+  0, `revoked: 0` — rule 2 never runs because this bridge never read the
+  source). A **present but empty** file is different: it reads as zero
+  valid lessons, so rule 2 revokes every previously imported row (see
+  above).
 
 ## CLI
 

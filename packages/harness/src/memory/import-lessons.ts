@@ -15,8 +15,12 @@
 //
 // Fronteira (D7): o F28 é dono do arquivo — F29 abre SÓ para leitura (nunca
 // reescreve; o teste asserta hash byte-a-byte antes/depois). Linha
-// malformada → skip (fail-soft) com contagem. Arquivo ausente/vazio → no-op
-// (imported=0, skipped=0, total=0 — exit 0, sem ruído).
+// malformada → skip (fail-soft) com contagem; seu lessonId (quando
+// identificável) ainda conta como "presente" para a rule 2 — ver F2 abaixo.
+// Arquivo AUSENTE → no-op (imported=0, skipped=0, revoked=0, total=0 — exit
+// 0, sem ruído; `importLessons` nunca chama a função abaixo nesse caso).
+// Arquivo PRESENTE mas sem nenhuma lesson válida (vazio ou só malformado)
+// NÃO é no-op: a rule 2 roda e revoga tudo que estava ativo — ver F1 abaixo.
 //
 // REVOCATION RULES (two, deterministic — fixes the stale-import/resurrection
 // bug found in data/runes-vs-optmem-memory-recon/report.md §4/§7 item 2):
@@ -28,9 +32,22 @@
 // 2. Source lesson DISAPPEARED (lessonId no longer present in this import's
 //    lines, but a bridge-owned row for it is still active): the row is
 //    soft-deleted (revoked) by the import itself. This re-runs on every
-//    import — as long as the lesson stays out of the source, the row stays
-//    revoked, so this is the durable tombstone: fix/remove the lesson in
+//    import, UNCONDITIONALLY — including when the source was read and
+//    turned out to have zero valid lesson lines (emptied file, every line
+//    removed, or every remaining line malformed). The missing-file case is
+//    already a no-op one level up (`importLessons`'s `existsSync` check),
+//    and an unreadable file throws, so there is no "transiently empty read"
+//    left for a guard here to protect against — a present-but-empty file
+//    IS the lesson having disappeared, for every lesson that was active.
+//    As long as the lesson stays out of the source, the row stays revoked,
+//    so this is the durable tombstone: fix/remove the lesson in
 //    `promoted.jsonl`, not in the memory store.
+//
+//    A line that fails field validation (malformed) does NOT count as its
+//    lessonId disappearing: `parseLessonLine` still surfaces the lessonId
+//    when the JSON parsed as an object and has one, so a single broken
+//    line never revokes an otherwise-still-present lesson (fail-soft stays
+//    fail-soft — it only affects THAT line's own import, not revocation).
 //
 // Deleting ONLY the imported copy (`rune_delete`) is
 // explicitly NOT a revocation mechanism: if the source still lists the
@@ -88,8 +105,13 @@ export interface LessonContract {
 	priority?: string;
 }
 
-/** Parse fail-soft de UMA linha (malformada → null + motivo estável). */
-export function parseLessonLine(raw: string): { lesson?: LessonContract; error?: string } | null {
+/** Parse fail-soft de UMA linha (malformada → null + motivo estável).
+ * Quando o objeto tem um `lessonId` válido mas outro campo falha, o erro
+ * carrega esse `lessonId` — a rule 2 (disappearance) usa isso para nunca
+ * tratar uma linha quebrada como "lesson removida da fonte" (F2 fix). */
+export function parseLessonLine(
+	raw: string,
+): { lesson?: LessonContract; error?: string; lessonId?: string } | null {
 	const line = raw.trim();
 	if (line === "") return null;
 	let parsed: unknown;
@@ -101,12 +123,13 @@ export function parseLessonLine(raw: string): { lesson?: LessonContract; error?:
 	if (parsed === null || typeof parsed !== "object") return { error: "linha não-objeto" };
 	const p = parsed as Record<string, unknown>;
 	if (typeof p.lessonId !== "string" || p.lessonId.length === 0) return { error: "lessonId ausente" };
-	if (typeof p.trigger !== "string") return { error: "trigger ausente" };
-	if (typeof p.antiPattern !== "string") return { error: "antiPattern ausente" };
-	if (typeof p.preferred !== "string") return { error: "preferred ausente" };
+	const lessonId = p.lessonId;
+	if (typeof p.trigger !== "string") return { error: "trigger ausente", lessonId };
+	if (typeof p.antiPattern !== "string") return { error: "antiPattern ausente", lessonId };
+	if (typeof p.preferred !== "string") return { error: "preferred ausente", lessonId };
 	return {
 		lesson: {
-			lessonId: p.lessonId,
+			lessonId,
 			trigger: p.trigger,
 			antiPattern: p.antiPattern,
 			preferred: p.preferred,
@@ -166,6 +189,10 @@ export function importLessonsFromLines(
 		if (parsed === null) continue; // linha vazia
 		if (parsed.error !== undefined || parsed.lesson === undefined) {
 			malformed++;
+			// F2 fix: a linha está quebrada, mas se o lessonId foi identificado
+			// (objeto válido, só outro campo faltando), ele ainda conta como
+			// presente na fonte — não deixa a rule 2 revogar essa lesson.
+			if (parsed.lessonId !== undefined) seenLessonIds.add(parsed.lessonId);
 			continue;
 		}
 		const lesson = parsed.lesson;
@@ -239,19 +266,18 @@ export function importLessonsFromLines(
 	}
 
 	// Rule 2 — source lesson disappeared: revoke bridge-owned rows whose
-	// lessonId was not seen in this batch. Guarded on seenLessonIds.size > 0
-	// so a transiently empty/unreadable read never mass-revokes everything
-	// (missing/empty file stays the documented no-op above this function).
+	// lessonId was not seen in this batch (F1 fix: unconditional — this
+	// function is only ever called with lines from a file that was already
+	// confirmed to exist/read, so "zero lessons seen" means the source
+	// really has none right now, not an unreadable/missing file).
 	let revoked = 0;
-	if (seenLessonIds.size > 0) {
-		const active = repo.listActiveImportedMemories(projectId, LESSON_IMPORT_MARKER);
-		for (const row of active) {
-			if (!row.where_ref?.startsWith(LESSON_WHERE_REF_PREFIX)) continue;
-			const lessonId = row.where_ref.slice(LESSON_WHERE_REF_PREFIX.length);
-			if (seenLessonIds.has(lessonId)) continue;
-			if (!opts.dryRun) repo.softDeleteMemory(row.id, projectId);
-			revoked++;
-		}
+	const active = repo.listActiveImportedMemories(projectId, LESSON_IMPORT_MARKER);
+	for (const row of active) {
+		if (!row.where_ref?.startsWith(LESSON_WHERE_REF_PREFIX)) continue;
+		const lessonId = row.where_ref.slice(LESSON_WHERE_REF_PREFIX.length);
+		if (seenLessonIds.has(lessonId)) continue;
+		if (!opts.dryRun) repo.softDeleteMemory(row.id, projectId);
+		revoked++;
 	}
 
 	return { imported, skipped, updated, revoked, total: imported + skipped + updated, malformed, truncated };
