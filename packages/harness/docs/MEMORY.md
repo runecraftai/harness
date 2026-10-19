@@ -235,7 +235,8 @@ equals the table's (so an index edited without changing the count is reported
 as drift). What it does **not** verify: that the stored memory text is correct
 or unaltered (the table is the source it compares against), SQLite page
 integrity (`PRAGMA integrity_check` is not run and does not catch an altered
-table byte), or soft-deleted rows. A clean verdict means "index matches
+table byte), or the content of soft-deleted rows (an index row left behind
+for one is still counted as drift). A clean verdict means "index matches
 table", not "content is intact". The text and `--json` output both carry this
 scope statement (`scope`).
 

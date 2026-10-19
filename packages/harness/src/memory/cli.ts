@@ -142,7 +142,7 @@ export function runDoctor(repo: DoctorRepo, purge: boolean): DoctorView {
 
 export const DOCTOR_SCOPE_NOTE =
 	"checked: live row count vs index, and indexed text vs table text for each live row. " +
-	"not checked: whether the stored memory text itself is correct or unaltered, SQLite page integrity (PRAGMA integrity_check), soft-deleted rows.";
+	"not checked: whether the stored memory text itself is correct or unaltered, SQLite page integrity (PRAGMA integrity_check), the content of soft-deleted rows (an index row left behind for one still counts as drift).";
 
 export function renderDoctor(view: DoctorView): string {
 	const lines = [`memories (live): ${view.memories}`, `memories_fts:    ${view.fts}`];
