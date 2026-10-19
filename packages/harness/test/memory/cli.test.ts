@@ -177,9 +177,14 @@ describe("render helpers (unit puro)", () => {
 	});
 
 	test("runDoctor com stub (unit)", () => {
-		const stub = { memoriesRowCount: () => 3, ftsRowCount: () => 1, ftsContentMismatchCount: () => 0, softDeletedCount: () => 0, rebuildFts: () => {}, purgeSoftDeleted: () => 1 };
+		const stub = {
+			indexCounts: () => ({ memories: 3, fts: 1, mismatches: 0 }),
+			purgeAndRebuild: () => ({ purged: 1, notRemoved: 0, liveRetained: 3, ftsAfter: 3, mismatchesAfter: 0 }),
+		};
 		expect(runDoctor(stub, false).drift).toBe(true);
-		expect(runDoctor(stub, true).rebuildResult?.purged).toBe(1);
+		const purged = runDoctor(stub, true);
+		expect(purged.rebuildResult?.purged).toBe(1);
+		expect(purged.drift).toBe(false);
 	});
 });
 

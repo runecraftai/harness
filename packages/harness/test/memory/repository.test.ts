@@ -293,6 +293,29 @@ describe("purge receipt and index content check", () => {
 		expect(repo.purgeSoftDeleted()).toBe(0);
 	});
 
+	test("rebuildFts re-indexes live rows only: soft-deleted rows leave no orphan index row", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
+		repo.softDeleteMemory(a.id, projectId);
+		repo.rebuildFts();
+		expect(repo.ftsRowCount()).toBe(repo.memoriesRowCount());
+		expect(repo.ftsContentMismatchCount()).toBe(0);
+	});
+
+	test("purgeAndRebuild measures the receipt and leaves no drift", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
+		repo.softDeleteMemory(a.id, projectId);
+		db.prepare("DELETE FROM memories_fts WHERE rowid = (SELECT rowid FROM memories WHERE id = ?)").run(b.id);
+		expect(repo.purgeAndRebuild()).toEqual({
+			purged: 1,
+			notRemoved: 0,
+			liveRetained: 1,
+			ftsAfter: 1,
+			mismatchesAfter: 0,
+		});
+	});
+
 	test("ftsContentMismatchCount: 0 when in sync (incl. NULL columns); counts altered, missing and orphan rows", () => {
 		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
 		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y", why: "because" });

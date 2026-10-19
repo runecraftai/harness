@@ -8,6 +8,7 @@
 //
 // Exit codes (port do bin): 0 ok · 1 erro/drift sem --purge · 2 uso errado.
 import { getDriver } from "./client.ts";
+import type { IndexCounts, MaintenanceReceipt } from "./repository.ts";
 
 /** FTS5 disponível? (probe — port do probeSqlite do bin; F35: driver ativo). */
 export function probeSqlite(): { ok: boolean; driver?: "bun" | "node"; error?: string } {
@@ -112,12 +113,10 @@ export interface DoctorView {
 }
 
 export interface DoctorRepo {
-	memoriesRowCount(): number;
-	ftsRowCount(): number;
-	ftsContentMismatchCount(): number;
-	softDeletedCount(): number;
-	rebuildFts(): void;
-	purgeSoftDeleted(): number;
+	/** memories/fts/mismatch counts from one snapshot. */
+	indexCounts(): IndexCounts;
+	/** Purge + rebuild + re-measure atomically (one write transaction). */
+	purgeAndRebuild(): MaintenanceReceipt;
 }
 
 /**
@@ -126,22 +125,16 @@ export interface DoctorRepo {
  * integrity (a flipped byte in `memories` passes) — see renderDoctor.
  */
 export function runDoctor(repo: DoctorRepo, purge: boolean): DoctorView {
-	const memories = repo.memoriesRowCount();
-	const fts = repo.ftsRowCount();
-	const contentMismatches = repo.ftsContentMismatchCount();
+	const { memories, fts, mismatches: contentMismatches } = repo.indexCounts();
 	const drift = memories !== fts || contentMismatches > 0;
 	if (purge) {
-		const purged = repo.purgeSoftDeleted();
-		repo.rebuildFts();
-		const liveRetained = repo.memoriesRowCount();
-		const ftsAfter = repo.ftsRowCount();
-		const mismatchesAfter = repo.ftsContentMismatchCount();
+		const receipt = repo.purgeAndRebuild();
 		return {
 			memories,
 			fts,
-			drift: liveRetained !== ftsAfter || mismatchesAfter > 0,
+			drift: receipt.liveRetained !== receipt.ftsAfter || receipt.mismatchesAfter > 0,
 			contentMismatches,
-			rebuildResult: { ftsAfter, purged, notRemoved: repo.softDeletedCount(), liveRetained, mismatchesAfter },
+			rebuildResult: receipt,
 		};
 	}
 	return { memories, fts, drift, contentMismatches };
