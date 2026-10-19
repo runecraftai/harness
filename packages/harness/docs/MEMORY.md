@@ -246,7 +246,9 @@ projects**, not only the current one) · `notRemoved` = soft-deleted rows still
 present afterwards · `liveRetained` = live rows kept · `ftsAfter`. Without
 `--purge`, `purged`/`notRemoved`/`liveRetained` are `null` (no purge ran), not
 `0`. `contentMismatches` = index rows differing from the table, counted before
-any rebuild.
+any rebuild. With `--purge`, `memories`/`memories_fts`/`contentMismatches` are
+the pre-purge snapshot while `drift` and `ftsAfter` describe the state after
+the rebuild — an exit 1 there means drift survived the rebuild.
 
 ## Determinism
 

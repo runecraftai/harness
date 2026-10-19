@@ -94,7 +94,9 @@ export function renderStats(view: StatsView): string {
 export interface DoctorView {
 	memories: number;
 	fts: number;
-	/** Index disagrees with the table: row counts differ OR indexed content differs. */
+	/** Index disagrees with the table: row counts differ OR indexed content differs.
+	 * On the `--purge` path it is measured after the rebuild (post-purge drift is
+	 * what makes the run exit 1). */
 	drift: boolean;
 	/** Live rows whose FTS row is missing/different, plus FTS rows with no live row — independent of counts. */
 	contentMismatches: number;
