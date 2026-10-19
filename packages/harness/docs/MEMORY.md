@@ -48,7 +48,7 @@ FTS5:
 
 | Tool | What it does |
 | --- | --- |
-| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal; an optional `session_id` must belong to this project (SESSION_NOT_FOUND otherwise) |
+| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal; an optional `session_id` must belong to this project (SESSION_NOT_FOUND otherwise); a compaction failure after the insert returns `ok:false, saved:true` (see the failure contract under **Compaction**) |
 | `rune_search` | FTS5 over titles/content, ordered by rank; category + **project** filter; soft-deleted excluded |
 | `rune_get` | fetch by id, scoped to this project (NOT_FOUND when soft-deleted, missing, or owned by another project) |
 | `rune_update` | field patch scoped to this project (importance clamp [1,10]; NOT_FOUND when missing or foreign) |
@@ -71,7 +71,8 @@ validation in `src/memory/validate.ts` with the SAME error codes of the
 source (INVALID_CATEGORY, EMPTY_TITLE, TITLE_TOO_LONG, EMPTY_WHAT,
 WHAT_TOO_LONG, INVALID_TITLE, INVALID_WHAT); the hardcoded agent `"opencode"`
 (rune_context/rune_session_start) → `RUNECRAFT_AGENT_ID` ?? `"pi"`; returns =
-the same JSON strings of the source.
+the same JSON strings of the source, except `rune_save`'s compaction-failure
+shape below (the source had no failure contract).
 
 ## Categories (8)
 
