@@ -6,7 +6,7 @@
 // caller (commands/memory.ts), com RUNECRAFT_MEMORY_DATA_DIR como override
 // de path (evals/CLI testável).
 //
-// Exit codes (port do bin): 0 ok · 1 erro/drift sem --purge · 2 uso errado.
+// Exit codes (port do bin): 0 ok · 1 erro/drift (também drift restante após --purge) · 2 uso errado.
 import { getDriver } from "./client.ts";
 import type { IndexCounts, MaintenanceReceipt } from "./repository.ts";
 
