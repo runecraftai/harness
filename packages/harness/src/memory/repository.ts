@@ -115,6 +115,27 @@ function rowToProject(row: Record<string, unknown>): Project {
 	};
 }
 
+export interface IndexCounts {
+	memories: number;
+	fts: number;
+	mismatches: number;
+}
+
+/** What a purge + index rebuild left in the store, measured inside the same
+ * write transaction that did the work. */
+export interface MaintenanceReceipt {
+	/** Soft-deleted rows actually removed (DB-wide, all projects). */
+	purged: number;
+	/** Soft-deleted rows still present after the purge (not removed). */
+	notRemoved: number;
+	/** Live rows kept — a purge never touches these. */
+	liveRetained: number;
+	/** Index rows after the rebuild. */
+	ftsAfter: number;
+	/** Index/table disagreements left after the rebuild. */
+	mismatchesAfter: number;
+}
+
 export class Repository {
 	private readonly db: DatabaseLike;
 	private readonly clock: () => number;
@@ -543,47 +564,133 @@ export class Repository {
 	}
 
 	rebuildFts(): void {
-		this.db.exec("BEGIN");
+		this.writeTransaction(() => this.reindexFts());
+	}
+
+	/** Re-indexes the live rows only, matching the trigger-maintained index
+	 * (a soft delete removes its FTS row). */
+	private reindexFts(): void {
+		this.db.exec("DELETE FROM memories_fts");
+		const rows = this.db
+			.prepare(
+				"SELECT rowid, id, project_id, title, what, why, where_ref, learned FROM memories WHERE soft_deleted = 0",
+			)
+			.all() as {
+			rowid: number;
+			id: string;
+			project_id: number;
+			title: string;
+			what: string;
+			why: string | null;
+			where_ref: string | null;
+			learned: string | null;
+		}[];
+		const insert = this.db.prepare(
+			"INSERT INTO memories_fts (rowid, id, project_id, title, what, why, where_ref, learned) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		);
+		for (const r of rows) {
+			insert.run(r.rowid, r.id, r.project_id, r.title, r.what, r.why, r.where_ref, r.learned);
+		}
+	}
+
+	/** Hard-deletes every soft-deleted row (DB-wide, all projects). Returns the
+	 * number of rows actually gone — measured as before − after, never assumed
+	 * from the DELETE having run. */
+	purgeSoftDeleted(): number {
+		return this.writeTransaction(() => this.deleteSoftDeleted());
+	}
+
+	/** Purge, rebuild the index and re-measure in ONE write transaction: the
+	 * store is shared (WAL), so measuring across statements lets a concurrent
+	 * writer inflate/deflate the receipt and fake post-rebuild drift. */
+	purgeAndRebuild(): MaintenanceReceipt {
+		return this.writeTransaction(() => {
+			const purged = this.deleteSoftDeleted();
+			this.reindexFts();
+			return {
+				purged,
+				notRemoved: this.softDeletedCount(),
+				liveRetained: this.memoriesRowCount(),
+				ftsAfter: this.ftsRowCount(),
+				mismatchesAfter: this.ftsContentMismatchCount(),
+			};
+		});
+	}
+
+	private deleteSoftDeleted(): number {
+		const before = this.softDeletedCount();
+		this.db.prepare("DELETE FROM memories WHERE soft_deleted = 1").run();
+		return before - this.softDeletedCount();
+	}
+
+	private writeTransaction<T>(fn: () => T): T {
+		this.db.exec("BEGIN IMMEDIATE");
 		try {
-			this.db.exec("DELETE FROM memories_fts");
-			const rows = this.db
-				.prepare(
-					"SELECT rowid, id, project_id, title, what, why, where_ref, learned FROM memories",
-				)
-				.all() as {
-				rowid: number;
-				id: string;
-				project_id: number;
-				title: string;
-				what: string;
-				why: string | null;
-				where_ref: string | null;
-				learned: string | null;
-			}[];
-			const insert = this.db.prepare(
-				"INSERT INTO memories_fts (rowid, id, project_id, title, what, why, where_ref, learned) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-			);
-			for (const r of rows) {
-				insert.run(r.rowid, r.id, r.project_id, r.title, r.what, r.why, r.where_ref, r.learned);
-			}
+			const result = fn();
 			this.db.exec("COMMIT");
+			return result;
 		} catch (err) {
 			this.db.exec("ROLLBACK");
 			throw err;
 		}
 	}
 
-	purgeSoftDeleted(): number {
-		const before = this.db
+	/** Soft-deleted rows still present in the base table (all projects). */
+	softDeletedCount(): number {
+		const row = this.db
 			.prepare("SELECT COUNT(*) AS c FROM memories WHERE soft_deleted = 1")
 			.get() as { c: number };
-		this.db.prepare("DELETE FROM memories WHERE soft_deleted = 1").run();
-		return before.c;
+		return row.c;
+	}
+
+	/**
+	 * Index rows that disagree with the base table, regardless of row counts:
+	 * live memories whose FTS row is missing or differs in any indexed column,
+	 * plus FTS rows with no live memory behind them. Compares the index against
+	 * the table only — says nothing about whether the table content is right.
+	 */
+	ftsContentMismatchCount(): number {
+		const stale = this.db
+			.prepare(
+				`SELECT COUNT(*) AS c FROM memories m
+				 LEFT JOIN memories_fts f ON f.rowid = m.rowid
+				 WHERE m.soft_deleted = 0 AND (
+					f.rowid IS NULL OR f.id IS NOT m.id OR f.project_id IS NOT m.project_id
+					OR f.title IS NOT m.title OR f.what IS NOT m.what OR f.why IS NOT m.why
+					OR f.where_ref IS NOT m.where_ref OR f.learned IS NOT m.learned)`,
+			)
+			.get() as { c: number };
+		const orphans = this.db
+			.prepare(
+				`SELECT COUNT(*) AS c FROM memories_fts f
+				 LEFT JOIN memories m ON m.rowid = f.rowid AND m.soft_deleted = 0
+				 WHERE m.rowid IS NULL`,
+			)
+			.get() as { c: number };
+		return stale.c + orphans.c;
 	}
 
 	ftsRowCount(): number {
 		const row = this.db.prepare("SELECT COUNT(*) AS c FROM memories_fts").get() as { c: number };
 		return row.c;
+	}
+
+	/** The three counts the diagnosis compares, read in one snapshot so a
+	 * concurrent writer cannot make them disagree with each other. */
+	indexCounts(): IndexCounts {
+		this.db.exec("BEGIN");
+		try {
+			const counts = {
+				memories: this.memoriesRowCount(),
+				fts: this.ftsRowCount(),
+				mismatches: this.ftsContentMismatchCount(),
+			};
+			this.db.exec("COMMIT");
+			return counts;
+		} catch (err) {
+			this.db.exec("ROLLBACK");
+			throw err;
+		}
 	}
 
 	memoriesRowCount(): number {

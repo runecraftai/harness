@@ -104,6 +104,37 @@ describe("dispatchMemoryCli — doctor", () => {
 	});
 });
 
+describe("doctor — content integrity (equal counts, different content)", () => {
+	test("FTS text altered without changing the count → drift, exit 1; --purge rebuild restores search", () => {
+		const m = repo.saveMemory({ projectId, category: "decisions", title: "unique needle", what: "valid" });
+		db.prepare("UPDATE memories_fts SET title = ?, what = ? WHERE id = ?").run("false content", "nonsense", m.id);
+		expect(repo.ftsRowCount()).toBe(repo.memoriesRowCount());
+		expect(repo.searchMemories({ projectId, query: "needle" }).total).toBe(0);
+
+		const drift = dispatchMemoryCli(memRepo(), opts(), "doctor", []);
+		expect(drift.code).toBe(1);
+		expect(drift.text).toContain("Drift detected");
+		expect(drift.text).toContain("index rows differing from table: 1");
+
+		const fixed = dispatchMemoryCli(memRepo(), opts(), "doctor", ["--purge"]);
+		expect(fixed.code).toBe(0);
+		expect(repo.searchMemories({ projectId, query: "needle" }).total).toBe(1);
+		expect(dispatchMemoryCli(memRepo(), opts(), "doctor", []).code).toBe(0);
+	});
+
+	test("a clean verdict states what it verifies and what it does not (table content is not checked)", () => {
+		const m = repo.saveMemory({ projectId, category: "decisions", title: "t", what: "original" });
+		// Table content changed through the normal trigger path: index follows, so the
+		// doctor cannot (and does not claim to) know the text was altered.
+		db.prepare("UPDATE memories SET what = ? WHERE id = ?").run("altered", m.id);
+		const healthy = dispatchMemoryCli(memRepo(), opts(), "doctor", []);
+		expect(healthy.code).toBe(0);
+		expect(healthy.text).toContain("memory: healthy (index matches table)");
+		expect(healthy.text).toContain("not checked: whether the stored memory text itself is correct or unaltered");
+		expect(healthy.text).toContain("PRAGMA integrity_check");
+	});
+});
+
 describe("dispatchMemoryCli — import-lessons", () => {
 	test("import idempotente via CLI (2º run → 0 novas)", () => {
 		const file = join(sandbox, "promoted.jsonl");
@@ -125,8 +156,16 @@ describe("render helpers (unit puro)", () => {
 	});
 
 	test("renderDoctor com rebuildResult e drift", () => {
-		expect(renderDoctor({ memories: 1, fts: 0, drift: true })).toContain("Drift detected");
-		expect(renderDoctor({ memories: 1, fts: 1, drift: false, rebuildResult: { ftsAfter: 1, purged: 2 } })).toContain("purged soft-deleted rows: 2");
+		expect(renderDoctor({ memories: 1, fts: 0, drift: true, contentMismatches: 1 })).toContain("Drift detected");
+		const purged = renderDoctor({
+			memories: 1,
+			fts: 1,
+			drift: false,
+			contentMismatches: 0,
+			rebuildResult: { ftsAfter: 1, purged: 2, notRemoved: 1, liveRetained: 1, mismatchesAfter: 0 },
+		});
+		expect(purged).toContain("purged soft-deleted rows: 2");
+		expect(purged).toContain("soft-deleted rows not removed: 1");
 	});
 
 	test("renderStats vazio → 'no projects yet'", () => {
@@ -138,9 +177,14 @@ describe("render helpers (unit puro)", () => {
 	});
 
 	test("runDoctor com stub (unit)", () => {
-		const stub = { memoriesRowCount: () => 3, ftsRowCount: () => 1, rebuildFts: () => {}, purgeSoftDeleted: () => 1 };
+		const stub = {
+			indexCounts: () => ({ memories: 3, fts: 1, mismatches: 0 }),
+			purgeAndRebuild: () => ({ purged: 1, notRemoved: 0, liveRetained: 3, ftsAfter: 3, mismatchesAfter: 0 }),
+		};
 		expect(runDoctor(stub, false).drift).toBe(true);
-		expect(runDoctor(stub, true).rebuildResult?.purged).toBe(1);
+		const purged = runDoctor(stub, true);
+		expect(purged.rebuildResult?.purged).toBe(1);
+		expect(purged.drift).toBe(false);
 	});
 });
 
@@ -221,6 +265,37 @@ describe("flags globais (parseArgs) — --purge/--dry-run", () => {
 		expect(code).toBe(0);
 		expect(out).toContain("rebuilt memories_fts");
 		expect(repo.ftsRowCount()).toBe(repo.memoriesRowCount());
+	});
+
+	test("doctor --purge --json (flag global) reports the rows actually removed, not a false zero", async () => {
+		const { dispatch } = await import("../../src/cli.ts");
+		const gone = repo.saveMemory({ projectId, category: "decisions", title: "gone", what: "x" });
+		repo.saveMemory({ projectId, category: "decisions", title: "kept", what: "y" });
+		repo.softDeleteMemory(gone.id, projectId);
+		const cwd = join(sandbox, "jsonwork");
+		mkdirSync(cwd, { recursive: true });
+		let out = "";
+		const code = await dispatch(["memory", "doctor", "--purge", "--json"], { cwd, env, stdout: { write: (s: string) => (out += s) }, stderr: { write: () => {} }, isTTY: false });
+		expect(code).toBe(0);
+		const receipt = JSON.parse(out);
+		expect(receipt.purged).toBe(1);
+		expect(receipt.notRemoved).toBe(0);
+		expect(receipt.liveRetained).toBe(1);
+		expect(receipt.drift).toBe(false);
+		expect(repo.softDeletedCount()).toBe(0);
+		expect(receipt.scope).toContain("not checked");
+	});
+
+	test("doctor --json without --purge reports purged:null (no purge ran), not 0", async () => {
+		const { dispatch } = await import("../../src/cli.ts");
+		repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		const cwd = join(sandbox, "jsonwork2");
+		mkdirSync(cwd, { recursive: true });
+		let out = "";
+		await dispatch(["memory", "doctor", "--json"], { cwd, env, stdout: { write: (s: string) => (out += s) }, stderr: { write: () => {} }, isTTY: false });
+		const receipt = JSON.parse(out);
+		expect(receipt.purged).toBeNull();
+		expect(receipt.contentMismatches).toBe(0);
 	});
 
 	test("harness memory import-lessons --dry-run (flag global) → relatório sem escrever", async () => {

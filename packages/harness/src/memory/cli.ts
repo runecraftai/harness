@@ -6,8 +6,9 @@
 // caller (commands/memory.ts), com RUNECRAFT_MEMORY_DATA_DIR como override
 // de path (evals/CLI testável).
 //
-// Exit codes (port do bin): 0 ok · 1 erro/drift sem --purge · 2 uso errado.
+// Exit codes (port do bin): 0 ok · 1 erro/drift (também drift restante após --purge) · 2 uso errado.
 import { getDriver } from "./client.ts";
+import type { IndexCounts, MaintenanceReceipt } from "./repository.ts";
 
 /** FTS5 disponível? (probe — port do probeSqlite do bin; F35: driver ativo). */
 export function probeSqlite(): { ok: boolean; driver?: "bun" | "node"; error?: string } {
@@ -93,41 +94,65 @@ export function renderStats(view: StatsView): string {
 export interface DoctorView {
 	memories: number;
 	fts: number;
+	/** Index disagrees with the table: row counts differ OR indexed content differs.
+	 * On the `--purge` path it is measured after the rebuild (post-purge drift is
+	 * what makes the run exit 1). */
 	drift: boolean;
-	rebuildResult?: { ftsAfter: number; purged: number };
+	/** Live rows whose FTS row is missing/different, plus FTS rows with no live row — independent of counts. */
+	contentMismatches: number;
+	/** Present only when --purge ran; measured from the store, not from the request. */
+	rebuildResult?: MaintenanceReceipt;
 }
 
-/** Drift memories vs memories_fts (port reportDriftAndRebuild do bin). */
-export function runDoctor(
-	repo: {
-		memoriesRowCount(): number;
-		ftsRowCount(): number;
-		rebuildFts(): void;
-		purgeSoftDeleted(): number;
-	},
-	purge: boolean,
-): DoctorView {
-	const memories = repo.memoriesRowCount();
-	const fts = repo.ftsRowCount();
-	const drift = memories !== fts;
-	if (purge) {
-		const purged = repo.purgeSoftDeleted();
-		repo.rebuildFts();
-		return { memories, fts, drift: false, rebuildResult: { ftsAfter: repo.ftsRowCount(), purged } };
-	}
-	return { memories, fts, drift };
+export interface DoctorRepo {
+	/** memories/fts/mismatch counts from one snapshot. */
+	indexCounts(): IndexCounts;
+	/** Purge + rebuild + re-measure atomically (one write transaction). */
+	purgeAndRebuild(): MaintenanceReceipt;
 }
+
+/**
+ * Checks the FTS index against the base table: row counts AND per-row indexed
+ * content. It does NOT verify base-table content, source truth, or SQLite page
+ * integrity (a flipped byte in `memories` passes) — see renderDoctor.
+ */
+export function runDoctor(repo: DoctorRepo, purge: boolean): DoctorView {
+	const { memories, fts, mismatches: contentMismatches } = repo.indexCounts();
+	const drift = memories !== fts || contentMismatches > 0;
+	if (purge) {
+		const receipt = repo.purgeAndRebuild();
+		return {
+			memories,
+			fts,
+			drift: receipt.liveRetained !== receipt.ftsAfter || receipt.mismatchesAfter > 0,
+			contentMismatches,
+			rebuildResult: receipt,
+		};
+	}
+	return { memories, fts, drift, contentMismatches };
+}
+
+export const DOCTOR_SCOPE_NOTE =
+	"checked: live row count vs index, and indexed text vs table text for each live row. " +
+	"not checked: whether the stored memory text itself is correct or unaltered, SQLite page integrity (PRAGMA integrity_check), the content of soft-deleted rows (an index row left behind for one still counts as drift).";
 
 export function renderDoctor(view: DoctorView): string {
 	const lines = [`memories (live): ${view.memories}`, `memories_fts:    ${view.fts}`];
-	if (view.drift) {
-		lines.push("", "Drift detected. Run `harness memory doctor --purge` to rebuild.");
-	} else if (view.rebuildResult) {
-		lines.push(`rebuilt memories_fts: ${view.rebuildResult.ftsAfter}`);
-		lines.push(`purged soft-deleted rows: ${view.rebuildResult.purged}`);
+	if (view.contentMismatches > 0) lines.push(`index rows differing from table: ${view.contentMismatches}`);
+	if (view.rebuildResult) {
+		const r = view.rebuildResult;
+		lines.push(`rebuilt memories_fts: ${r.ftsAfter}`);
+		lines.push(`purged soft-deleted rows: ${r.purged} (all projects)`);
+		lines.push(`soft-deleted rows not removed: ${r.notRemoved}`);
+		lines.push(`live rows retained: ${r.liveRetained}`);
 		lines.push("fts index rebuilt");
+		if (view.drift) lines.push("", `Drift remains after rebuild (${r.mismatchesAfter} differing index row(s)).`);
+	} else if (view.drift) {
+		lines.push("", "Drift detected. Run `harness memory doctor --purge` to rebuild.");
+	} else {
+		lines.push("", "memory: healthy (index matches table)");
 	}
-	if (!view.drift && !view.rebuildResult) lines.push("", "memory: healthy");
+	lines.push("", DOCTOR_SCOPE_NOTE);
 	return `${lines.join("\n")}\n`;
 }
 
@@ -136,7 +161,8 @@ export const MEMORY_HELP = `harness memory — inspect the project's persistent 
 Usage:
   harness memory search <query>        Search memories (prints a markdown table)
   harness memory stats                 Show per-category counts
-  harness memory doctor [--purge]      Check the store; with --purge, hard-delete soft-deleted rows and rebuild the FTS index
+  harness memory doctor [--purge]      Check the FTS index against the table (counts + indexed text; not table content or SQLite integrity);
+                                        with --purge, hard-delete soft-deleted rows (all projects), rebuild the index, report removed/not removed
   harness memory import-lessons [--dry-run]  Import F28 promoted lessons (idempotent)
                                         A changed lesson refreshes its stored copy; a lesson
                                         removed from the source revokes (soft-deletes) its copy.
@@ -160,9 +186,9 @@ export interface ImportReportView {
 }
 
 export type MemoryCliResult =
-	| { code: 0; text: string; report?: ImportReportView }
-	| { code: 1; text: string; report?: ImportReportView }
-	| { code: 2; text: string; report?: ImportReportView };
+	| { code: 0; text: string; report?: ImportReportView; doctor?: DoctorView }
+	| { code: 1; text: string; report?: ImportReportView; doctor?: DoctorView }
+	| { code: 2; text: string; report?: ImportReportView; doctor?: DoctorView };
 
 /** Assinatura da bridge (importLessons do import-lessons.ts). */
 export interface ImportFn {
@@ -216,8 +242,8 @@ export function dispatchMemoryCli(
 		}
 		const view = runDoctor(repo, purge);
 		const text = renderDoctor(view);
-		if (view.drift && !purge) return { code: 1, text };
-		return { code: 0, text };
+		if (view.drift) return { code: 1, text, doctor: view };
+		return { code: 0, text, doctor: view };
 	}
 
 	if (subcommand === "import-lessons") {

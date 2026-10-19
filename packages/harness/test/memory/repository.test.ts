@@ -281,6 +281,57 @@ describe("purge e rebuild", () => {
 	});
 });
 
+describe("purge receipt and index content check", () => {
+	test("purgeSoftDeleted returns the rows actually removed; softDeletedCount drops to 0", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
+		repo.softDeleteMemory(a.id, projectId);
+		repo.softDeleteMemory(b.id, projectId);
+		expect(repo.softDeletedCount()).toBe(2);
+		expect(repo.purgeSoftDeleted()).toBe(2);
+		expect(repo.softDeletedCount()).toBe(0);
+		expect(repo.purgeSoftDeleted()).toBe(0);
+	});
+
+	test("rebuildFts re-indexes live rows only: soft-deleted rows leave no orphan index row", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
+		repo.softDeleteMemory(a.id, projectId);
+		repo.rebuildFts();
+		expect(repo.ftsRowCount()).toBe(repo.memoriesRowCount());
+		expect(repo.ftsContentMismatchCount()).toBe(0);
+	});
+
+	test("purgeAndRebuild measures the receipt and leaves no drift", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y" });
+		repo.softDeleteMemory(a.id, projectId);
+		db.prepare("DELETE FROM memories_fts WHERE rowid = (SELECT rowid FROM memories WHERE id = ?)").run(b.id);
+		expect(repo.purgeAndRebuild()).toEqual({
+			purged: 1,
+			notRemoved: 0,
+			liveRetained: 1,
+			ftsAfter: 1,
+			mismatchesAfter: 0,
+		});
+	});
+
+	test("ftsContentMismatchCount: 0 when in sync (incl. NULL columns); counts altered, missing and orphan rows", () => {
+		const a = repo.saveMemory({ projectId, category: "decisions", title: "a", what: "x" });
+		const b = repo.saveMemory({ projectId, category: "decisions", title: "b", what: "y", why: "because" });
+		expect(repo.ftsContentMismatchCount()).toBe(0);
+		db.prepare("UPDATE memories_fts SET what = 'other' WHERE id = ?").run(a.id);
+		expect(repo.ftsRowCount()).toBe(repo.memoriesRowCount());
+		expect(repo.ftsContentMismatchCount()).toBe(1);
+		db.prepare("DELETE FROM memories_fts WHERE id = ?").run(b.id);
+		expect(repo.ftsContentMismatchCount()).toBe(2);
+		db.prepare("INSERT INTO memories_fts (rowid, id, project_id, title, what) VALUES (9999, 'ghost', 1, 't', 'w')").run();
+		expect(repo.ftsContentMismatchCount()).toBe(3);
+		repo.rebuildFts();
+		expect(repo.ftsContentMismatchCount()).toBe(0);
+	});
+});
+
 describe("compaction (D6 — poda transacional + tie-break)", () => {
 	const softCap = 3;
 	const hardCap = 6;
