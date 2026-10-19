@@ -225,6 +225,7 @@ harness memory import-lessons [--dry-run] # observability bridge (idempotent)
 
 Exit codes (port of the bin): 0 ok · 1 error/drift (also drift remaining after
 `--purge`)/inaccessible store · 2 wrong usage. `--json` → stable shape per subcommand.
+Kill switch → fail-visible refusal (nothing created).
 
 ### `doctor` contract
 
@@ -245,7 +246,6 @@ present afterwards · `liveRetained` = live rows kept · `ftsAfter`. Without
 `--purge`, `purged`/`notRemoved`/`liveRetained` are `null` (no purge ran), not
 `0`. `contentMismatches` = index rows differing from the table, counted before
 any rebuild.
-Kill switch → fail-visible refusal (nothing created).
 
 ## Determinism
 
