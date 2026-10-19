@@ -2,13 +2,14 @@
 // e semântica; retorno JSON do source; agent = RUNECRAFT_AGENT_ID ?? "pi"
 // (rune_context/rune_session_start); disabledTools filtra; erros de
 // validação → {ok:false, error:{code}} sem crash.
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
 import { Repository } from "../../src/memory/repository.ts";
 import { createToolsRecord, filterToolsByDisabled, type ToolDeps } from "../../src/memory/tools.ts";
+import type { Memory } from "../../src/memory/types.ts";
 
 const TOOL_NAMES = [
 	"rune_save",
@@ -94,6 +95,90 @@ describe("rune_save → rune_search round-trip (EVAL-031 espelho)", () => {
 
 		const search = await run("rune_search", { query: "Domain-Driven" });
 		expect((search.results as unknown[]).length).toBe(1);
+	});
+
+	for (const existingCount of [20, 21]) {
+		test(`prune failure with ${existingCount} existing rows reports committed save and rolls back pruning on disk`, async () => {
+			const existing = Array.from({ length: existingCount }, (_, i) => repo.saveMemory({
+				projectId, category: "decisions", title: `Rule ${i}`, what: "durable", importance: 10,
+			}));
+			// Fail after an UPDATE (and, for two victims, after the first victim).
+			const victim = existing[existingCount - 20]!;
+			db.exec(`CREATE TRIGGER fail_prune AFTER UPDATE OF soft_deleted ON memories
+				WHEN NEW.soft_deleted = 1 AND NEW.id = '${victim.id}'
+				BEGIN SELECT RAISE(ABORT, 'injected prune failure'); END`);
+
+			const result = await run("rune_save", {
+				category: "decisions", title: "New rule", what: "committed", importance: 10,
+			});
+			const memory = result.memory as Memory;
+			expect(result).toEqual({
+				ok: false,
+				saved: true,
+				memory: expect.objectContaining({ id: expect.any(String), title: "New rule" }),
+				error: {
+					code: "COMPACTION_FAILED",
+					message: "Memory saved, but compaction failed. Do not retry rune_save; use the returned memory id.",
+				},
+			});
+
+			db.close();
+			db = openDatabase(sandbox);
+			repo = new Repository(db);
+			expect(repo.getMemory(memory.id, projectId)).toEqual(memory);
+			expect(repo.countMemoriesByCategory(projectId, "decisions")).toBe(existingCount + 1);
+			for (const row of existing) expect(repo.getMemory(row.id, projectId)).toEqual(row);
+			expect(repo.searchMemories({ projectId, query: "durable", limit: 100 }).total).toBe(existingCount);
+			expect(repo.searchMemories({ projectId, query: "committed" }).results[0]?.id).toBe(memory.id);
+			expect(db.prepare("SELECT COUNT(*) AS n FROM memories WHERE soft_deleted = 1").get()).toEqual({ n: 0 });
+
+			// Retry only compaction, not the insert; no duplicate memory is created.
+			db.exec("DROP TRIGGER fail_prune");
+			const signal = repo.checkAndEnforceCompaction(projectId, "decisions", { softCap: 10, hardCap: 20 });
+			expect(signal?.pruned_count).toBe(existingCount + 1 - 20);
+			expect(repo.countMemoriesByCategory(projectId, "decisions")).toBe(20);
+			expect(repo.getMemory(memory.id, projectId)).toEqual(memory);
+			expect(db.prepare("SELECT COUNT(*) AS n FROM memories").get()).toEqual({ n: existingCount + 1 });
+		});
+	}
+
+	test("failure after pruning commits does not claim that pruning rolled back", async () => {
+		const existing = Array.from({ length: 20 }, (_, i) => repo.saveMemory({
+			projectId, category: "decisions", title: `Rule ${i}`, what: "durable", importance: 10,
+		}));
+		const enforce = repo.checkAndEnforceCompaction.bind(repo);
+		const fault = spyOn(repo, "checkAndEnforceCompaction").mockImplementation((...args) => {
+			enforce(...args);
+			throw new Error("injected signal failure");
+		});
+		let result: Record<string, unknown>;
+		try {
+			result = await run("rune_save", { category: "decisions", title: "New rule", what: "committed", importance: 10 });
+		} finally {
+			fault.mockRestore();
+		}
+		expect(result.ok).toBe(false);
+		expect(result.saved).toBe(true);
+		expect((result.error as { code: string }).code).toBe("COMPACTION_FAILED");
+		expect(result.compaction).toBeUndefined();
+		db.close();
+		db = openDatabase(sandbox);
+		repo = new Repository(db);
+		expect(repo.getMemory((result.memory as Memory).id, projectId)).toEqual(result.memory as Memory);
+		expect(repo.getMemory(existing[0]!.id, projectId)).toBeNull();
+		expect(repo.countMemoriesByCategory(projectId, "decisions")).toBe(20);
+	});
+
+	test("successful pruning keeps the existing receipt and evicts the oldest even at importance 10", async () => {
+		const existing = Array.from({ length: 20 }, (_, i) => repo.saveMemory({
+			projectId, category: "decisions", title: `Rule ${i}`, what: "durable", importance: 10,
+		}));
+		const result = await run("rune_save", { category: "decisions", title: "New rule", what: "committed", importance: 10 });
+		expect(Object.keys(result).sort()).toEqual(["compaction", "memory", "ok"]);
+		expect(result.ok).toBe(true);
+		expect(result.compaction).toEqual(expect.objectContaining({ count: 20, pruned_count: 1 }));
+		expect(repo.getMemory(existing[0]!.id, projectId)).toBeNull();
+		expect(repo.countMemoriesByCategory(projectId, "decisions")).toBe(20);
 	});
 
 	test("categoria inválida → {ok:false, error:{code:'INVALID_CATEGORY'}} (sem crash)", async () => {

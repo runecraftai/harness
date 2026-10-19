@@ -61,6 +61,8 @@ Each save needs a `title` (one line, ≤200 chars) and a `what` (the durable kno
 
 If you don't act in time, a hard cap (`categoryCap * 2`) triggers automatic pruning — `compaction.pruned_count > 0` means data was dropped uncurated. Soft-deleted rows stay in storage until `harness memory doctor --purge` hard-deletes them.
 
+A save can also come back `{ok:false, saved:true, error:{code:"COMPACTION_FAILED"}}`: the memory is committed, compaction did not complete. Do **not** retry `rune_save` (no deduplication — you would insert a duplicate); use the returned `memory.id`. Full contract: `docs/MEMORY.md` → *Save and compaction failure contract*.
+
 - **Importance 1–10.** Default 5. Use 8–10 for hard rules, 3–4 for soft preferences, 1–2 for trivial facts.
 - **Soft delete > hard delete.** Always use `rune_delete` (soft). `harness memory doctor --purge` is the only path to hard-delete.
 

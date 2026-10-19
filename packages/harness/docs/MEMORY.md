@@ -48,7 +48,7 @@ FTS5:
 
 | Tool | What it does |
 | --- | --- |
-| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal; an optional `session_id` must belong to this project (SESSION_NOT_FOUND otherwise) |
+| `rune_save` | saves a memory (category/title/what/why/where_ref/learned/importance) + compaction signal; an optional `session_id` must belong to this project (SESSION_NOT_FOUND otherwise); a compaction failure after the insert returns `ok:false, saved:true` (see the failure contract under **Compaction**) |
 | `rune_search` | FTS5 over titles/content, ordered by rank; category + **project** filter; soft-deleted excluded |
 | `rune_get` | fetch by id, scoped to this project (NOT_FOUND when soft-deleted, missing, or owned by another project) |
 | `rune_update` | field patch scoped to this project (importance clamp [1,10]; NOT_FOUND when missing or foreign) |
@@ -71,7 +71,8 @@ validation in `src/memory/validate.ts` with the SAME error codes of the
 source (INVALID_CATEGORY, EMPTY_TITLE, TITLE_TOO_LONG, EMPTY_WHAT,
 WHAT_TOO_LONG, INVALID_TITLE, INVALID_WHAT); the hardcoded agent `"opencode"`
 (rune_context/rune_session_start) → `RUNECRAFT_AGENT_ID` ?? `"pi"`; returns =
-the same JSON strings of the source.
+the same JSON strings of the source, except `rune_save`'s compaction-failure
+shape below (the source had no failure contract).
 
 ## Categories (8)
 
@@ -85,8 +86,52 @@ in each) lives in the skill `skills/using-runes/SKILL.md`.
 `memory` of the state). Above the softCap → signal with candidates (≤5) for
 curation; above the hardCap (2×) → transactional pruning
 (`importance ASC, created_at ASC, rowid ASC` tie-break) of the oldest
-lowest-importance memories. Signal `compaction.pruned_count > 0` = data
-pruned without curation.
+lowest-importance memories. Even importance 10 does not protect a row from
+pruning. Signal `compaction.pruned_count > 0` = data pruned without curation.
+
+### Save and compaction failure contract
+
+`rune_save` commits the insert **before** checking and enforcing the limit.
+Save plus compaction is **not atomic**. Pruning's soft-deletes and FTS removals
+use a separate transaction: an error during that transaction rolls them back,
+not the already committed insert. The category can remain above its hard cap.
+
+- **Success**: the existing `{ok:true, memory, compaction}` response is
+  unchanged (`compaction:null` when no signal is needed).
+- **Validation failure before saving**: `{ok:false, error:{code, message}}`;
+  no memory is inserted. Correct the input before trying again.
+- **Compaction failure after saving**: the tool returns JSON, not a thrown
+  database exception, with this explicit partial-failure shape:
+
+  ```jsonc
+  {
+    "ok": false,
+    "saved": true,
+    "memory": { /* complete saved memory, including id */ },
+    "error": {
+      "code": "COMPACTION_FAILED",
+      "message": "Memory saved, but compaction failed. Do not retry rune_save; use the returned memory id."
+    }
+  }
+  ```
+
+  `saved:true` confirms the insert committed; `ok:false` means the full
+  save-and-apply-limit operation did not complete. `memory` is the insert
+  receipt, not a fresh read of its current live/deleted state. `compaction`
+  is omitted because no reliable signal is available. No `pruned_count:0`
+  is implied: a failure while constructing the signal **after** the pruning
+  transaction committed does not undo those deletions. Raw database exception
+  messages are not returned.
+
+**Do not retry the original `rune_save` after `COMPACTION_FAILED`**: saves
+have no deduplication key, so retrying inserts another row. Use `memory.id`
+with `rune_get` to inspect the current state, or `rune_update`/`rune_delete`
+to act on that specific memory. Read-only calls are safe to retry. Repository
+callers can retry `checkAndEnforceCompaction` with the same project, category,
+and caps after resolving the fault; it recomputes overflow without inserting
+another memory. There is no standalone compaction tool; subsequent independent
+saves also check the limit. Unexpected insert/storage errors before an insert
+receipt exists still throw and carry no safe-to-retry guarantee.
 
 ## Config
 

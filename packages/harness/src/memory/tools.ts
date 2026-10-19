@@ -55,7 +55,7 @@ function createSaveTool(deps: ToolDeps): RuneTool {
 		name: "rune_save",
 		label: "Save memory",
 		description:
-			"Save a memory to the project's persistent memory store. Use this when you make or learn something durable — a decision, a correction, a convention, a config value, a name rule, an architecture note, a constraint, or a learning. The `category` field controls how the memory is grouped. Memories persist across sessions and are recalled on demand via rune_context or rune_search. When the category exceeds its configured cap, the response includes a `compaction` field with candidates to summarize or prune. If `session_id` is provided it must belong to this project; a foreign or unknown session_id is refused with a SESSION_NOT_FOUND error.",
+			"Save a memory to the project's persistent memory store. Use this when you make or learn something durable — a decision, a correction, a convention, a config value, a name rule, an architecture note, a constraint, or a learning. The `category` field controls how the memory is grouped. Memories persist across sessions and are recalled on demand via rune_context or rune_search. When the category exceeds its configured cap, the response includes a `compaction` field with candidates to summarize or prune. If `session_id` is provided it must belong to this project; a foreign or unknown session_id is refused with a SESSION_NOT_FOUND error. If compaction fails after saving, returns ok:false, saved:true, memory, and error.code COMPACTION_FAILED. The save is committed: do not retry rune_save; use the returned memory id.",
 		parameters: Type.Object({
 			category: CATEGORY_SCHEMA,
 			title: Type.String({ minLength: 1, maxLength: 200 }),
@@ -90,12 +90,25 @@ function createSaveTool(deps: ToolDeps): RuneTool {
 					importance: input.importance,
 				});
 				const softCap = deps.categoryCap ?? DEFAULT_CATEGORY_CAP;
-				const compaction = deps.repository.checkAndEnforceCompaction(
-					deps.projectId,
-					input.category,
-					{ softCap, hardCap: softCap * HARD_CAP_MULTIPLIER },
-				);
-				return textResult(JSON.stringify({ ok: true, memory, compaction }));
+				// The insert is already committed; compaction is a separate operation.
+				try {
+					const compaction = deps.repository.checkAndEnforceCompaction(
+						deps.projectId,
+						input.category,
+						{ softCap, hardCap: softCap * HARD_CAP_MULTIPLIER },
+					);
+					return textResult(JSON.stringify({ ok: true, memory, compaction }));
+				} catch {
+					return textResult(JSON.stringify({
+						ok: false,
+						saved: true,
+						memory,
+						error: {
+							code: "COMPACTION_FAILED",
+							message: "Memory saved, but compaction failed. Do not retry rune_save; use the returned memory id.",
+						},
+					}));
+				}
 			} catch (err) {
 				if (err instanceof ValidationError) {
 					const e = err as ValidationError;
