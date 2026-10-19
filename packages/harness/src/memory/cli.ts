@@ -99,17 +99,7 @@ export interface DoctorView {
 	/** Live rows whose FTS row is missing/different, plus FTS rows with no live row — independent of counts. */
 	contentMismatches: number;
 	/** Present only when --purge ran; measured from the store, not from the request. */
-	rebuildResult?: {
-		ftsAfter: number;
-		/** Soft-deleted rows actually removed (DB-wide, all projects). */
-		purged: number;
-		/** Soft-deleted rows still present after the purge (not removed). */
-		notRemoved: number;
-		/** Live rows kept — a purge never touches these. */
-		liveRetained: number;
-		/** Index/table disagreements left after the rebuild. */
-		mismatchesAfter: number;
-	};
+	rebuildResult?: MaintenanceReceipt;
 }
 
 export interface DoctorRepo {
