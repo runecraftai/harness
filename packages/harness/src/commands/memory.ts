@@ -15,8 +15,8 @@ import { importLessons } from "../memory/import-lessons.ts";
 import { memoryKillSwitch, promotedLessonsPath } from "../memory/config.ts";
 import {
 	buildStatsView,
+	DOCTOR_SCOPE_NOTE,
 	dispatchMemoryCli,
-	runDoctor,
 	SEARCH_LIMIT,
 	type DoctorView,
 	type ImportReportView,
@@ -108,7 +108,7 @@ export async function runMemoryCommand(opts: MemoryCommandOptions): Promise<numb
 function jsonPayload(
 	subcommand: string,
 	repo: Repository,
-	result: { code: number; report?: ImportReportView },
+	result: { code: number; report?: ImportReportView; doctor?: DoctorView },
 	args: string[],
 ): Record<string, unknown> {
 	const base: Record<string, unknown> = { exitCode: result.code };
@@ -132,9 +132,11 @@ function jsonPayload(
 			return { ...base, ...statsJson(buildStatsView(repo)) };
 		}
 		case "doctor": {
-			const purge = args.includes("--purge");
-			const view = runDoctor(repo, purge);
-			return { ...base, ...doctorJson(view) };
+			// Receipt comes from the dispatch's single doctor run. Re-running
+			// runDoctor here with the caller's raw args (without the --purge the
+			// global flag added) would observe the already-purged store and
+			// report a false purged:0.
+			return result.doctor ? { ...base, ...doctorJson(result.doctor) } : base;
 		}
 		case "import-lessons": {
 			// result.report comes straight from dispatchMemoryCli's single call
@@ -152,11 +154,17 @@ function statsJson(view: StatsView): Record<string, unknown> {
 }
 
 function doctorJson(view: DoctorView): Record<string, unknown> {
+	const r = view.rebuildResult;
 	return {
 		memories: view.memories,
 		memories_fts: view.fts,
 		drift: view.drift,
-		purged: view.rebuildResult?.purged ?? 0,
-		ftsAfter: view.rebuildResult?.ftsAfter ?? view.fts,
+		contentMismatches: view.contentMismatches,
+		// null = no purge ran (not a measured zero).
+		purged: r ? r.purged : null,
+		notRemoved: r ? r.notRemoved : null,
+		liveRetained: r ? r.liveRetained : null,
+		ftsAfter: r ? r.ftsAfter : view.fts,
+		scope: DOCTOR_SCOPE_NOTE,
 	};
 }

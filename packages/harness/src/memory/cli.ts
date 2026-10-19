@@ -93,41 +93,81 @@ export function renderStats(view: StatsView): string {
 export interface DoctorView {
 	memories: number;
 	fts: number;
+	/** Index disagrees with the table: row counts differ OR indexed content differs. */
 	drift: boolean;
-	rebuildResult?: { ftsAfter: number; purged: number };
+	/** Live rows whose FTS row is missing/different, plus FTS rows with no live row — independent of counts. */
+	contentMismatches: number;
+	/** Present only when --purge ran; measured from the store, not from the request. */
+	rebuildResult?: {
+		ftsAfter: number;
+		/** Soft-deleted rows actually removed (DB-wide, all projects). */
+		purged: number;
+		/** Soft-deleted rows still present after the purge (not removed). */
+		notRemoved: number;
+		/** Live rows kept — a purge never touches these. */
+		liveRetained: number;
+		/** Index/table disagreements left after the rebuild. */
+		mismatchesAfter: number;
+	};
 }
 
-/** Drift memories vs memories_fts (port reportDriftAndRebuild do bin). */
-export function runDoctor(
-	repo: {
-		memoriesRowCount(): number;
-		ftsRowCount(): number;
-		rebuildFts(): void;
-		purgeSoftDeleted(): number;
-	},
-	purge: boolean,
-): DoctorView {
+export interface DoctorRepo {
+	memoriesRowCount(): number;
+	ftsRowCount(): number;
+	ftsContentMismatchCount(): number;
+	softDeletedCount(): number;
+	rebuildFts(): void;
+	purgeSoftDeleted(): number;
+}
+
+/**
+ * Checks the FTS index against the base table: row counts AND per-row indexed
+ * content. It does NOT verify base-table content, source truth, or SQLite page
+ * integrity (a flipped byte in `memories` passes) — see renderDoctor.
+ */
+export function runDoctor(repo: DoctorRepo, purge: boolean): DoctorView {
 	const memories = repo.memoriesRowCount();
 	const fts = repo.ftsRowCount();
-	const drift = memories !== fts;
+	const contentMismatches = repo.ftsContentMismatchCount();
+	const drift = memories !== fts || contentMismatches > 0;
 	if (purge) {
 		const purged = repo.purgeSoftDeleted();
 		repo.rebuildFts();
-		return { memories, fts, drift: false, rebuildResult: { ftsAfter: repo.ftsRowCount(), purged } };
+		const liveRetained = repo.memoriesRowCount();
+		const ftsAfter = repo.ftsRowCount();
+		const mismatchesAfter = repo.ftsContentMismatchCount();
+		return {
+			memories,
+			fts,
+			drift: liveRetained !== ftsAfter || mismatchesAfter > 0,
+			contentMismatches,
+			rebuildResult: { ftsAfter, purged, notRemoved: repo.softDeletedCount(), liveRetained, mismatchesAfter },
+		};
 	}
-	return { memories, fts, drift };
+	return { memories, fts, drift, contentMismatches };
 }
+
+export const DOCTOR_SCOPE_NOTE =
+	"checked: live row count vs index, and indexed text vs table text for each live row. " +
+	"not checked: whether the stored memory text itself is correct or unaltered, SQLite page integrity (PRAGMA integrity_check), soft-deleted rows.";
 
 export function renderDoctor(view: DoctorView): string {
 	const lines = [`memories (live): ${view.memories}`, `memories_fts:    ${view.fts}`];
-	if (view.drift) {
-		lines.push("", "Drift detected. Run `harness memory doctor --purge` to rebuild.");
-	} else if (view.rebuildResult) {
-		lines.push(`rebuilt memories_fts: ${view.rebuildResult.ftsAfter}`);
-		lines.push(`purged soft-deleted rows: ${view.rebuildResult.purged}`);
+	if (view.contentMismatches > 0) lines.push(`index rows differing from table: ${view.contentMismatches}`);
+	if (view.rebuildResult) {
+		const r = view.rebuildResult;
+		lines.push(`rebuilt memories_fts: ${r.ftsAfter}`);
+		lines.push(`purged soft-deleted rows: ${r.purged} (all projects)`);
+		lines.push(`soft-deleted rows not removed: ${r.notRemoved}`);
+		lines.push(`live rows retained: ${r.liveRetained}`);
 		lines.push("fts index rebuilt");
+		if (view.drift) lines.push("", `Drift remains after rebuild (${r.mismatchesAfter} differing index row(s)).`);
+	} else if (view.drift) {
+		lines.push("", "Drift detected. Run `harness memory doctor --purge` to rebuild.");
+	} else {
+		lines.push("", "memory: healthy (index matches table)");
 	}
-	if (!view.drift && !view.rebuildResult) lines.push("", "memory: healthy");
+	lines.push("", DOCTOR_SCOPE_NOTE);
 	return `${lines.join("\n")}\n`;
 }
 
@@ -136,7 +176,8 @@ export const MEMORY_HELP = `harness memory — inspect the project's persistent 
 Usage:
   harness memory search <query>        Search memories (prints a markdown table)
   harness memory stats                 Show per-category counts
-  harness memory doctor [--purge]      Check the store; with --purge, hard-delete soft-deleted rows and rebuild the FTS index
+  harness memory doctor [--purge]      Check the FTS index against the table (counts + indexed text; not table content or SQLite integrity);
+                                        with --purge, hard-delete soft-deleted rows (all projects), rebuild the index, report removed/not removed
   harness memory import-lessons [--dry-run]  Import F28 promoted lessons (idempotent)
                                         A changed lesson refreshes its stored copy; a lesson
                                         removed from the source revokes (soft-deletes) its copy.
@@ -160,9 +201,9 @@ export interface ImportReportView {
 }
 
 export type MemoryCliResult =
-	| { code: 0; text: string; report?: ImportReportView }
-	| { code: 1; text: string; report?: ImportReportView }
-	| { code: 2; text: string; report?: ImportReportView };
+	| { code: 0; text: string; report?: ImportReportView; doctor?: DoctorView }
+	| { code: 1; text: string; report?: ImportReportView; doctor?: DoctorView }
+	| { code: 2; text: string; report?: ImportReportView; doctor?: DoctorView };
 
 /** Assinatura da bridge (importLessons do import-lessons.ts). */
 export interface ImportFn {
@@ -216,8 +257,8 @@ export function dispatchMemoryCli(
 		}
 		const view = runDoctor(repo, purge);
 		const text = renderDoctor(view);
-		if (view.drift && !purge) return { code: 1, text };
-		return { code: 0, text };
+		if (view.drift) return { code: 1, text, doctor: view };
+		return { code: 0, text, doctor: view };
 	}
 
 	if (subcommand === "import-lessons") {

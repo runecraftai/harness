@@ -573,12 +573,48 @@ export class Repository {
 		}
 	}
 
+	/** Hard-deletes every soft-deleted row (DB-wide, all projects). Returns the
+	 * number of rows actually gone — measured as before − after, never assumed
+	 * from the DELETE having run. */
 	purgeSoftDeleted(): number {
-		const before = this.db
+		const before = this.softDeletedCount();
+		this.db.prepare("DELETE FROM memories WHERE soft_deleted = 1").run();
+		return before - this.softDeletedCount();
+	}
+
+	/** Soft-deleted rows still present in the base table (all projects). */
+	softDeletedCount(): number {
+		const row = this.db
 			.prepare("SELECT COUNT(*) AS c FROM memories WHERE soft_deleted = 1")
 			.get() as { c: number };
-		this.db.prepare("DELETE FROM memories WHERE soft_deleted = 1").run();
-		return before.c;
+		return row.c;
+	}
+
+	/**
+	 * Index rows that disagree with the base table, regardless of row counts:
+	 * live memories whose FTS row is missing or differs in any indexed column,
+	 * plus FTS rows with no live memory behind them. Compares the index against
+	 * the table only — says nothing about whether the table content is right.
+	 */
+	ftsContentMismatchCount(): number {
+		const stale = this.db
+			.prepare(
+				`SELECT COUNT(*) AS c FROM memories m
+				 LEFT JOIN memories_fts f ON f.rowid = m.rowid
+				 WHERE m.soft_deleted = 0 AND (
+					f.rowid IS NULL OR f.id IS NOT m.id OR f.project_id IS NOT m.project_id
+					OR f.title IS NOT m.title OR f.what IS NOT m.what OR f.why IS NOT m.why
+					OR f.where_ref IS NOT m.where_ref OR f.learned IS NOT m.learned)`,
+			)
+			.get() as { c: number };
+		const orphans = this.db
+			.prepare(
+				`SELECT COUNT(*) AS c FROM memories_fts f
+				 LEFT JOIN memories m ON m.rowid = f.rowid AND m.soft_deleted = 0
+				 WHERE m.rowid IS NULL`,
+			)
+			.get() as { c: number };
+		return stale.c + orphans.c;
 	}
 
 	ftsRowCount(): number {

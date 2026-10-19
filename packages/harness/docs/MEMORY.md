@@ -219,12 +219,32 @@ importing silently truncated guidance.
 ```
 harness memory search <query>            # markdown table (FTS, all projects)
 harness memory stats                     # counts per category + last activity
-harness memory doctor [--purge]          # drift memories vs memories_fts; --purge hard-deletes + rebuild
+harness memory doctor [--purge]          # FTS index vs table (counts + indexed text); --purge hard-deletes soft-deleted rows + rebuild
 harness memory import-lessons [--dry-run] # observability bridge (idempotent)
 ```
 
-Exit codes (port of the bin): 0 ok · 1 error/drift without `--purge`/
-inaccessible store · 2 wrong usage. `--json` → stable shape per subcommand.
+Exit codes (port of the bin): 0 ok · 1 error/drift (also drift remaining after
+`--purge`)/inaccessible store · 2 wrong usage. `--json` → stable shape per subcommand.
+
+### `doctor` contract
+
+What it verifies: the live row count against `memories_fts`, **and** for each
+live row that the indexed `id/project_id/title/what/why/where_ref/learned`
+equals the table's (so an index edited without changing the count is reported
+as drift). What it does **not** verify: that the stored memory text is correct
+or unaltered (the table is the source it compares against), SQLite page
+integrity (`PRAGMA integrity_check` is not run and does not catch an altered
+table byte), or soft-deleted rows. A clean verdict means "index matches
+table", not "content is intact". The text and `--json` output both carry this
+scope statement (`scope`).
+
+`--purge` receipt (text and `--json`), measured from the store, not from the
+request: `purged` = soft-deleted rows actually removed (DB-wide, **all
+projects**, not only the current one) · `notRemoved` = soft-deleted rows still
+present afterwards · `liveRetained` = live rows kept · `ftsAfter`. Without
+`--purge`, `purged`/`notRemoved`/`liveRetained` are `null` (no purge ran), not
+`0`. `contentMismatches` = index rows differing from the table, counted before
+any rebuild.
 Kill switch → fail-visible refusal (nothing created).
 
 ## Determinism
