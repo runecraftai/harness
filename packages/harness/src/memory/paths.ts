@@ -1,13 +1,16 @@
 // memory/paths.ts — resolução do diretório da memória (D1, MEM-04).
 //
 // `RUNECRAFT_MEMORY_DATA_DIR` (env — override usado pelos evals/CLI) ??
-// `<gitRoot | cwd>/.runecraft/memory` (QA-1a: DB por repo; worktrees do
-// mesmo git root compartilham `.runecraft`). `.runecraft/memory/` é
-// gitignored (padrão dos demais sinks de runtime: events/ F28, continuation
-// F27, verify-verdicts F25).
+// `<sharedGitRoot | cwd>/.runecraft/memory` (QA-1a: DB por repo). O shared git
+// root é o checkout PRINCIPAL: uma linked worktree resolve para o
+// `.runecraft/memory` do checkout principal (resolveSharedGitRootSync — o
+// `.git` de um worktree é um arquivo e não deve receber o DB, que sumiria com
+// `git worktree remove`). Nada no código adiciona `.runecraft/memory/` ao
+// `.gitignore` (só `receipts/`+`config.json` via gates e `events/`+`lessons.jsonl`
+// via observability): o DB é runtime-local e `git add -A` pode staged-lo.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { findGitRoot } from "./project.ts";
+import { resolveSharedGitRootSync } from "./project.ts";
 
 /** Dir da memória para um cwd (override por env vence — evals). */
 export function resolveMemoryDir(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -15,7 +18,7 @@ export function resolveMemoryDir(cwd: string, env: NodeJS.ProcessEnv = process.e
 	if (override && override.length > 0) {
 		return override;
 	}
-	const gitRoot = findGitRoot(cwd);
+	const gitRoot = resolveSharedGitRootSync(cwd);
 	const base = gitRoot ?? cwd;
 	return join(base, ".runecraft", "memory");
 }

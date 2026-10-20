@@ -13,18 +13,129 @@ content.
 
 ## Storage & concurrency
 
-- **Location**: `<gitRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
-  override `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI).
-- **Per-repo scope**: the slug comes from the normalized git remote
-  (`remote.origin.url`, SSH/HTTPS regex, strip `.git`); no remote → absolute
-  cwd path; no git root → absolute cwd path. Worktrees of the same repo share
-  the same `.runecraft` → the same memory. Deterministic override:
-  `RUNECRAFT_MEMORY_PROJECT_SLUG`.
+- **Location**: `<repoRoot | cwd>/.runecraft/memory/runes.db` — override
+  `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI). `<repoRoot>` is the MAIN
+  checkout, not "wherever the current `.git` is": a linked worktree
+  (`git worktree add`) resolves through the git common directory to the main
+  checkout's `.runecraft/memory` (`resolveSharedGitRootSync` in
+  `src/memory/project.ts`). Submodules keep their own root: their `.git` is
+  also a file, but their git dir equals their common dir (the inner repo's main
+  worktree is a bare dir inside the superproject), so the submodule checkout
+  itself stays the memory root instead of anything under the superproject.
+  The resolved root is never a git directory: the main-worktree candidate must
+  pass `git rev-parse --show-toplevel` on itself and differ from the git common
+  dir. When git reports a git dir instead of a checkout — a main repo that is
+  bare (`git clone --bare` + `git worktree add`) or that uses
+  `--separate-git-dir` — there is no shared checkout to point at, so the linked
+  worktree keeps its own `.runecraft/memory` (see the table below). The same
+  fallback applies when the main checkout was deleted/moved or git cannot be
+  read.
+- **Per-repo scope — two separate roles**: the BASE SLUG comes from
+  `normalizeRemoteUrl` (`remote.origin.url`, SSH/HTTPS path after the host,
+  strip `.git`) — its last path segment; no remote → absolute cwd path; no git
+  root → absolute cwd path. That derivation is **frozen**: it is byte-compatible
+  with the released behavior (e.g. `https://host/o/r.git/` keeps the historical
+  slug `r.git`), because renaming it would hide the memories of every existing
+  project. REPO EQUIVALENCE uses `canonicalRemoteKey` instead
+  (`host/path`, with scheme, `user@`, port, trailing `/` and `.git` ignored) —
+  used only for `sameRemote` and for the disambiguation hash, never for the
+  slug. Deterministic override: `RUNECRAFT_MEMORY_PROJECT_SLUG` (pins the base
+  slug).
+- **Collision-free identity** (`getOrCreateProject`): the last segment alone
+  is not unique (`one.example/team/shared` vs `two.example/other/shared`). A
+  remote that finds its base slug already owned by a DIFFERENT remote gets
+  `<slug>-<sha256(canonicalRemoteKey)[:8]>` instead, so two projects with
+  distinct remotes never share rows. Rules that keep this stable:
+  - **Continuity tiebreaker (root_path):** before disambiguating, an existing
+    row whose `root_path` IS this repository root keeps the project even though
+    its canonical remote differs. A remote rename/transfer/mirror switch on the
+    same checkout (e.g. a GitHub org rename `oldorg/app` → `neworg/app`, same
+    trailing segment) therefore keeps the same project id, slug and memories
+    instead of stranding them behind a fresh row. The check is canonical,
+    symlink-resolved path equality on the main checkout (`root_path` is the
+    main checkout, so every worktree of the repo and a symlinked respelling of
+    the same directory match it), needs no row rewrite, and is the one
+    accepted cost of the heuristic: **a DIFFERENT repository cloned into the
+    EXACT same directory path, with the same trailing segment, inherits that
+    row's memories.** Pick a different clone directory or a distinct slug
+    (`RUNECRAFT_MEMORY_PROJECT_SLUG`) if that ever matters.
+  - The first project to claim a base slug keeps it. **Existing rows are never
+    rewritten — the change requires no migration**: an existing project
+    (single remote) keeps its exact slug, its project id and its memories.
+  - The same repo is ONE project when the respelling derives the same base
+    slug: remotes are compared by canonical key (`git@host:o/r.git`,
+    `host:o/r.git`, `git@host:/o/r.git`, `ssh://git@host/o/r.git`,
+    `git://host/o/r.git` and `https://host/o/r.git` all become `host/o/r`), and
+    the disambiguated suffix also hashes that key, so switching protocol or
+    spelling inside that set keeps one identity. A respelling that changes the
+    base slug starts a NEW project row: `https://host/o/r.git/` keys as
+    `host/o/r` but still derives the frozen historical slug `r.git`, so it is
+    not adopted by an existing `r` project created from
+    `https://host/o/r.git` — the frozen derivation for the slug is never
+    relaxed. The host is part of the key: same path on two different hosts
+    stays two projects.
+  - A row with no `remote_url` is never displaced, and it is the ONE documented
+    exception to "never share rows": a legacy project, or a slug pinned by
+    `RUNECRAFT_MEMORY_PROJECT_SLUG` in a checkout that had no remote when the
+    row was created, keeps owning its slug even when a remote appears in the
+    checkout — and because the row's `remote_url` stays `NULL` (no row
+    rewrites), the next DIFFERENT remote deriving the same base slug is adopted
+    into that same row as well. With a shared `RUNECRAFT_MEMORY_DATA_DIR` that
+    mixes their memories; the fix is a distinct slug (rename via
+    `RUNECRAFT_MEMORY_PROJECT_SLUG`), never an automatic migration. The pin by
+    itself does NOT produce a `NULL` row: `resolveProjectSlugSync` still records
+    the checkout's `remote.origin.url`, so a pin applied where a remote already
+    exists stores that remote, and another remote deriving the same base slug
+    gets the hash-disambiguated slug instead of the pinned row.
+  - Consequence for a store that already collapsed two remotes into one
+    project (only reachable with a shared `RUNECRAFT_MEMORY_DATA_DIR`): the
+    historical rows stay attached to the first project; the second remote
+    starts a fresh project — unless the two checkouts resolve the same
+    `root_path`, in which case the continuity tiebreaker above keeps them on
+    the one row. Nothing is split, moved or deleted automatically.
 - **WAL** (`PRAGMA journal_mode = WAL`) + `foreign_keys = ON` +
   `busy_timeout = 5000`: concurrent readers + serialized writer
   (multi-session in the same repo). Open with a 1×/100ms retry; persistent
   failure → tools absent + warning (fail-closed — the session continues
   without memory; `harness memory doctor` diagnoses).
+
+### Worktrees: what is shared, what is per-worktree, what is discarded
+
+| | Where it lives |
+| --- | --- |
+| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout (only when that main checkout is a real checkout). `.runecraft/receipts/`, `.runecraft/config.json` and the workspace `state.json` written by `harness gates enable` are shared too: receipt capture and workspace-scoped gates state resolve through `repoRoot()` = `dirname(git rev-parse --git-common-dir)` to the MAIN checkout, so they survive `git worktree remove` |
+| **Per-worktree, cwd-scoped** (written to the worktree's own cwd) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/plans/` — observability, resilience, verification and SDD sinks |
+| **User-level by default** | `state.json` other than `gates enable`'s: `$RUNECRAFT_HOME ?? ~/.runecraft`/`state.json` (`runecraftDir`), or `<cwd>/.runecraft/state.json` when a command is given `--scope workspace` — `runecraftDir` joins the INVOCATION cwd, so from a linked worktree that file is per-worktree and disappears with it. `gates enable` has NO `--scope` flag: it always resolves its root through `repoRoot()` and writes the workspace `state.json` at the MAIN checkout, which is why that one is shared and the general `--scope workspace` file is not |
+| **Per-worktree but VERSIONED** | `.runecraft/lessons/promoted.jsonl` — it is a tracked team-memory file, so `git worktree remove` only drops the worktree's unchecked-out copy; committed lessons come back from the branch |
+| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its uncommitted per-worktree sinks above; the shared memory DB, `.runecraft/receipts/`, `.runecraft/config.json` and the workspace `state.json` that `gates enable` wrote at the main checkout survive (a `<worktree>/.runecraft/state.json` written by any other command run with `--scope workspace` inside that worktree does not). Because `continuation.json`, `resilience-events.jsonl`, `verify-verdicts.jsonl` and `plans/` are untracked but not gitignored, a plain `git worktree remove` refuses that worktree without `--force`. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+
+`.gitignore` is NOT comprehensive: the only lines the harness ever adds are `.runecraft/receipts/` and `.runecraft/config.json` (`gates enable`) plus `.runecraft/events/` and `.runecraft/lessons.jsonl` (observability). **`.runecraft/memory/` is never added** — in a user repo the DB is untracked-but-not-ignored and `git add -A` can stage it (this repo ignores it only for `packages/harness/`, via that package's own `.gitignore`).
+
+Honest consequences, all measured behavior:
+
+- **A memory saved from a scratch/task worktree is NOT isolated.** It is
+  written to the shared durable repo DB and stays there after
+  `git worktree remove`. There is no scratch-memory mode; do not treat a
+  throwaway worktree as a throwaway memory scope.
+- **A linked worktree of a bare main repo or of a `--separate-git-dir` main
+  gets its OWN memory DB.** Git reports a git directory (not a checkout) as the
+  main worktree in those layouts, and the memory root never resolves into a git
+  dir, so the worktree falls back to `<worktree>/.runecraft/memory`: that DB is
+  per-worktree and is discarded by `git worktree remove`. To share memory with
+  such a repo, give its worktrees a normal main checkout or pin
+  `RUNECRAFT_MEMORY_DATA_DIR`.
+- **A DB written by an older version inside a linked worktree is no longer
+  read and is not migrated** (normal-checkout case). Before this relocation the
+  memory root was the worktree itself (`<worktree>/.runecraft/memory/runes.db`);
+  that file is now ignored in favour of the main checkout's DB and is deleted
+  by the next `git worktree remove`. Nothing is copied automatically — copy it
+  into the main checkout's `.runecraft/memory/runes.db` if those memories
+  matter. (Bare/`--separate-git-dir` mains are unaffected: their worktrees still
+  use their own DB, see the entry above.)
+- `projects.root_path` records the main checkout, so for a repo WITH a remote
+  two worktrees resolve the same slug and never create two project rows. A repo
+  without a remote has no shared slug (the fallback is the absolute cwd), so
+  each worktree gets its own project row in the shared DB.
 
 ## Schema (runes port; additive v2)
 
@@ -266,7 +377,7 @@ the rebuild — an exit 1 there means drift survived the rebuild.
 ## Privacy
 
 - Memory content (title/what/why/…) lives **ONLY in the DB**
-  (`.runecraft/memory/runes.db` — gitignored). It is never written raw into
+  (`.runecraft/memory/runes.db`). It is never written raw into
   events/ (the recorder uses `argsHash` — normalized sha256), state.json,
   continuation.json, lessons.jsonl or logs (the memory layer logs only
   metadata: ids/counts).

@@ -3,10 +3,11 @@
 // clock/idGen (D6) + tie-breaks determinísticos + soft-delete fora de
 // search/get + compaction transacional.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
+import { openDatabase, type DatabaseLike, type StatementLike } from "../../src/memory/client.ts";
+import { deriveSlugFromRemote } from "../../src/memory/project.ts";
 import {
 	Repository,
 	ValidationError,
@@ -18,6 +19,30 @@ let sandbox = "";
 let db: DatabaseLike;
 let repo: Repository;
 let projectId: number;
+
+/** Envolve o DB para inserir uma linha "concorrente" imediatamente antes do
+ *  INSERT de projects — modela o SELECT-then-INSERT de outra sessão/worktree
+ *  no mesmo DB compartilhado. */
+function racingDb(inner: DatabaseLike, beforeInsert: () => void): DatabaseLike {
+	let raced = false;
+	return {
+		exec: (sql) => inner.exec(sql),
+		close: () => inner.close(),
+		prepare(sql: string): StatementLike {
+			const stmt = inner.prepare(sql);
+			if (raced || !sql.includes("INSERT INTO projects")) return stmt;
+			return {
+				get: (...params: unknown[]) => stmt.get(...params),
+				all: (...params: unknown[]) => stmt.all(...params),
+				run: (...params: unknown[]) => {
+					raced = true;
+					beforeInsert();
+					return stmt.run(...params);
+				},
+			};
+		},
+	};
+}
 
 beforeEach(() => {
 	sandbox = join(tmpdir(), `f29-repo-${process.pid}-${Math.random().toString(36).slice(2)}`);
@@ -47,6 +72,188 @@ describe("getOrCreateProject", () => {
 	test("getProjectBySlug encontra", () => {
 		expect(repo.getProjectBySlug("test-slug")?.id).toBe(projectId);
 		expect(repo.getProjectBySlug("missing")).toBeNull();
+	});
+
+	test("remotes distintos com o mesmo último segmento → identidades distintas", () => {
+		const remoteA = "https://one.example/team/shared.git";
+		const remoteB = "https://two.example/other/shared.git";
+		const a = repo.getOrCreateProject("shared", "/tmp/a", remoteA);
+		const b = repo.getOrCreateProject("shared", "/tmp/b", remoteB);
+		expect(a.slug).toBe("shared");
+		expect(b.slug).not.toBe("shared");
+		expect(b.slug.startsWith("shared-")).toBe(true);
+		expect(b.id).not.toBe(a.id);
+		expect(b.remote_url).toBe(remoteB);
+		// Idempotente: o mesmo remote volta ao mesmo projeto (nunca ao de outro).
+		expect(repo.getOrCreateProject("shared", "/tmp/b", remoteB).id).toBe(b.id);
+		expect(repo.getOrCreateProject("shared", "/tmp/a", remoteA).id).toBe(a.id);
+	});
+
+	test("memórias de remotes colidentes ficam separadas", () => {
+		const a = repo.getOrCreateProject("shared", "/tmp/a", "https://one.example/team/shared.git");
+		const b = repo.getOrCreateProject("shared", "/tmp/b", "https://two.example/other/shared.git");
+		repo.saveMemory({ projectId: a.id, category: "decisions", title: "from A", what: "A only" });
+		expect(repo.searchMemories({ projectId: b.id, query: "from" }).results).toHaveLength(0);
+		expect(repo.searchMemories({ projectId: a.id, query: "from" }).results).toHaveLength(1);
+	});
+
+	test("projeto existente de remote único mantém a identidade (sem migração)", () => {
+		// Linha legada: slug = último segmento, criada antes da desambiguação.
+		const legacy = repo.getOrCreateProject("shared", "/tmp/legacy", "git@one.example:team/shared.git");
+		expect(legacy.slug).toBe("shared");
+		expect(repo.getOrCreateProject("shared", "/tmp/legacy", "git@one.example:team/shared.git").id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("shared")?.id).toBe(legacy.id);
+	});
+
+	test("mesmo repo via SSH e HTTPS → um projeto (remote normalizado)", () => {
+		const ssh = repo.getOrCreateProject("harness", "/tmp/h", "git@github.com:runecraft-ai/harness.git");
+		const https = repo.getOrCreateProject("harness", "/tmp/h", "https://github.com/runecraft-ai/harness.git");
+		expect(https.id).toBe(ssh.id);
+	});
+
+	test("alias ssh de UMA letra ≡ https do mesmo host → um projeto", () => {
+		// Slug derivável dos dois spellings (o caminho precisa ter 2 segmentos:
+		// `x:repo.git` derivaria `x:repo`, um slug que o resolver nunca produz).
+		const first = repo.getOrCreateProject("r", "/tmp/r", "git@x:o/r.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "alias", what: "one identity" });
+		for (const remote of ["x:o/r.git", "git@x:/o/r.git", "https://x/o/r.git"]) {
+			const again = repo.getOrCreateProject("r", "/tmp/r", remote);
+			expect(again.id).toBe(first.id);
+			expect(repo.searchMemories({ projectId: again.id, query: "alias" }).results).toHaveLength(1);
+		}
+	});
+
+	test("remote colidente via SSH e HTTPS → uma identidade desambiguada só", () => {
+		repo.getOrCreateProject("shared", "/tmp/a", "https://one.example/team/shared.git");
+		const https = repo.getOrCreateProject("shared", "/tmp/b", "https://two.example/other/shared.git");
+		const ssh = repo.getOrCreateProject("shared", "/tmp/b", "git@two.example:other/shared.git");
+		expect(https.slug.startsWith("shared-")).toBe(true);
+		expect(ssh.id).toBe(https.id);
+		expect(ssh.slug).toBe(https.slug);
+	});
+
+	test("spellings equivalentes do mesmo remote não orfanam as memórias", () => {
+		const first = repo.getOrCreateProject("r", "/tmp/r", "git@host:o/r.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "kept", what: "same repo" });
+		for (const remote of [
+			"host:o/r.git",
+			"git@host:/o/r.git",
+			"ssh://git@host/o/r.git",
+			"ssh://git@host:2222/o/r.git",
+			"https://host/o/r/",
+		]) {
+			const again = repo.getOrCreateProject("r", "/tmp/r", remote);
+			expect(again.id).toBe(first.id);
+			expect(repo.searchMemories({ projectId: again.id, query: "kept" }).results).toHaveLength(1);
+		}
+	});
+
+	test("corrida pelo mesmo slug: INSERT concorrente devolve a linha vencedora", () => {
+		// Duas sessões/worktrees no MESMO DB: a segunda faz o SELECT antes da
+		// primeira inserir; o INSERT conflita e não pode falhar fechado.
+		const winnerDb = openDatabase(sandbox);
+		const winner = new Repository(winnerDb);
+		try {
+			const racing = new Repository(
+				racingDb(db, () => {
+					winner.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git");
+				}),
+			);
+			const project = racing.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git");
+			expect(project.id).toBe(winner.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git").id);
+			expect(repo.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git").id).toBe(project.id);
+		} finally {
+			winnerDb.close();
+		}
+	});
+
+	test("corrida no mesmo slug com OUTRO remote não adota a linha alheia", () => {
+		const winnerDb = openDatabase(sandbox);
+		const winner = new Repository(winnerDb);
+		try {
+			const racing = new Repository(
+				racingDb(db, () => {
+					winner.getOrCreateProject("raced", "/tmp/other", "https://two.example/other/raced.git");
+				}),
+			);
+			const mine = racing.getOrCreateProject("raced", "/tmp/mine", "https://one.example/team/raced.git");
+			const theirs = winner.getOrCreateProject("raced", "/tmp/other", "https://two.example/other/raced.git");
+			expect(theirs.slug).toBe("raced");
+			expect(mine.id).not.toBe(theirs.id);
+			expect(mine.slug.startsWith("raced-")).toBe(true);
+			expect(mine.remote_url).toBe("https://one.example/team/raced.git");
+		} finally {
+			winnerDb.close();
+		}
+	});
+
+	test("slug legado de remote `.git/` mantém a identidade (nenhum projeto renomeado)", () => {
+		// O spelling `https://host/o/r.git/` sempre derivou o slug `r.git`; a
+		// normalização usada para COMPARAR remotes não pode renomear esse
+		// projeto (senão as memórias dele somem da vista).
+		const legacy = repo.getOrCreateProject("r.git", "/tmp/r", "https://host/o/r.git/");
+		repo.saveMemory({ projectId: legacy.id, category: "decisions", title: "legacy", what: "still visible" });
+		expect(deriveSlugFromRemote("https://host/o/r.git/")).toBe("r.git");
+		const again = repo.getOrCreateProject("r.git", "/tmp/r", "https://host/o/r.git/");
+		expect(again.id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("r.git")?.id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("r")).toBeNull();
+		expect(repo.searchMemories({ projectId: again.id, query: "visible" }).results).toHaveLength(1);
+	});
+
+	test("remote renomeado (org transfer) no MESMO checkout mantém o projeto e as memórias", () => {
+		const before = repo.getOrCreateProject("app", "/repo/app", "git@github.com:oldorg/app.git");
+		repo.saveMemory({ projectId: before.id, category: "decisions", title: "before rename", what: "kept" });
+		const after = repo.getOrCreateProject("app", "/repo/app", "git@github.com:neworg/app.git");
+		expect(after.id).toBe(before.id);
+		expect(after.slug).toBe("app");
+		expect(repo.getProjectBySlug("app")?.id).toBe(before.id);
+		expect(repo.searchMemories({ projectId: after.id, query: "rename" }).results).toHaveLength(1);
+		// Nenhuma linha reescrita: o remote gravado continua o antigo.
+		expect(after.remote_url).toBe("git@github.com:oldorg/app.git");
+	});
+
+	test("root symlinkado (MESMO diretório) mantém o projeto na troca de remote", () => {
+		const base = join(tmpdir(), `f29-link-${process.pid}-${Math.random().toString(36).slice(2)}`);
+		const real = join(base, "real");
+		const link = join(base, "link");
+		mkdirSync(real, { recursive: true });
+		symlinkSync(real, link, "dir");
+		try {
+			const before = repo.getOrCreateProject("app", link, "git@github.com:oldorg/app.git");
+			repo.saveMemory({ projectId: before.id, category: "decisions", title: "symlinked", what: "kept" });
+			const after = repo.getOrCreateProject("app", real, "git@github.com:neworg/app.git");
+			expect(after.id).toBe(before.id);
+			expect(after.slug).toBe("app");
+			expect(repo.searchMemories({ projectId: after.id, query: "symlinked" }).results).toHaveLength(1);
+		} finally {
+			rmSync(base, { recursive: true, force: true });
+		}
+	});
+
+	test("caso aceito do desempate: repo DIFERENTE no MESMO path herda a linha", () => {
+		// Documentado em docs/MEMORY.md: a igualdade de root_path é a heurística
+		// de continuidade, então outro repo clonado no exato mesmo diretório,
+		// com o mesmo último segmento, herda as memórias daquela linha.
+		const first = repo.getOrCreateProject("app", "/work/app", "https://one.example/team/app.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "inherited", what: "documented" });
+		const other = repo.getOrCreateProject("app", "/work/app", "https://two.example/other/app.git");
+		expect(other.id).toBe(first.id);
+	});
+
+	test("repo diferente em OUTRO path com o mesmo último segmento → linha desambiguada", () => {
+		const first = repo.getOrCreateProject("app", "/w/one", "git@github.com:oldorg/app.git");
+		const second = repo.getOrCreateProject("app", "/w/two", "git@github.com:neworg/app.git");
+		expect(second.id).not.toBe(first.id);
+		expect(second.slug.startsWith("app-")).toBe(true);
+		expect(repo.getProjectBySlug("app")?.id).toBe(first.id);
+	});
+
+	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {
+		const pinned = repo.getOrCreateProject("pinned", "/tmp/pinned", null);
+		const same = repo.getOrCreateProject("pinned", "/tmp/pinned", "https://one.example/team/pinned.git");
+		expect(same.id).toBe(pinned.id);
+		expect(same.slug).toBe("pinned");
 	});
 });
 
