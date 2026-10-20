@@ -173,13 +173,16 @@ export class Repository {
 	 */
 	getOrCreateProject(slug: string, rootPath: string, remoteUrl: string | null = null): Project {
 		const existing = this.getProjectBySlug(slug);
-		if (!existing) return this.insertProject(slug, rootPath, remoteUrl);
-		if (sameRemote(existing.remote_url, remoteUrl)) return existing;
-		// `sameRemote` só é false com AMBOS os remotes não-nulos (sem remote
-		// nunca é conflito), então aqui o remote existe por invariante.
-		if (remoteUrl === null) {
-			throw new Error(`memory: slug ${slug} está tomado por outro remote e não há remote para desambiguar`);
+		if (existing) {
+			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
+			// `sameRemote` só é false com AMBOS os remotes não-nulos (sem remote
+			// nunca é conflito), então aqui o remote existe por invariante.
+			return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
 		}
+		// O INSERT é conflito-seguro: outra sessão/worktree pode ter criado a
+		// linha entre o SELECT acima e este INSERT (um DB compartilhado).
+		const inserted = this.insertProject(slug, rootPath, remoteUrl);
+		if (sameRemote(inserted.remote_url, remoteUrl)) return inserted;
 		return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
 	}
 
@@ -189,12 +192,19 @@ export class Repository {
 	private getOrCreateDisambiguatedProject(
 		slug: string,
 		rootPath: string,
-		remoteUrl: string,
+		remoteUrl: string | null,
 	): Project {
+		if (remoteUrl === null) {
+			throw new Error(`memory: slug ${slug} está tomado por outro remote e não há remote para desambiguar`);
+		}
 		for (const length of [8, 64]) {
 			const candidate = disambiguatedSlugForRemote(slug, remoteUrl, length);
 			const existing = this.getProjectBySlug(candidate);
-			if (!existing) return this.insertProject(candidate, rootPath, remoteUrl);
+			if (!existing) {
+				const inserted = this.insertProject(candidate, rootPath, remoteUrl);
+				if (sameRemote(inserted.remote_url, remoteUrl)) return inserted;
+				continue;
+			}
 			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
 		}
 		// Inalcançável (dois remotes distintos com o mesmo sha256 completo).
@@ -205,9 +215,16 @@ export class Repository {
 		const createdAt = this.clock();
 		const result = this.db
 			.prepare(
-				"INSERT INTO projects (slug, root_path, remote_url, created_at) VALUES (?, ?, ?, ?)",
+				"INSERT INTO projects (slug, root_path, remote_url, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO NOTHING",
 			)
 			.run(slug, rootPath, remoteUrl, createdAt);
+		if (Number(result.changes) === 0) {
+			const existing = this.getProjectBySlug(slug);
+			if (!existing) {
+				throw new Error(`memory: projeto ${slug} já existia mas não pôde ser lido`);
+			}
+			return existing;
+		}
 		const id = Number(result.lastInsertRowid);
 		return { id, slug, root_path: rootPath, remote_url: remoteUrl, created_at: createdAt };
 	}

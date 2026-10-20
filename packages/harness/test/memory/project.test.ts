@@ -70,6 +70,8 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 	test("formas equivalentes do mesmo repo → mesma CHAVE canônica", () => {
 		for (const remote of [
 			"git@host:o/r.git",
+			"host:o/r.git",
+			"git@host:/o/r.git",
 			"ssh://git@host/o/r.git",
 			"ssh://git@host:2222/o/r.git",
 			"git://host/o/r.git",
@@ -79,6 +81,8 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 		]) {
 			expect(canonicalRemoteKey(remote)).toBe("host/o/r");
 		}
+		// Drive letter do Windows é path LOCAL, não scp host:path.
+		expect(canonicalRemoteKey("C:/repos/repo.git")).toBe("C:/repos/repo");
 		// Hosts distintos NÃO são o mesmo repo (o normalizeRemoteUrl congelado
 		// descarta o host — é o que colidia slugs entre hosts).
 		expect(canonicalRemoteKey("https://one.example/team/shared.git")).toBe("one.example/team/shared");

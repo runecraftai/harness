@@ -20,7 +20,7 @@ export interface ProjectIdentity {
 	remoteUrl: string | null;
 }
 
-const SCP_REMOTE_RE = /^(?:[^@/]+@)([^:/]+):(?!\/\/)(.+)$/;
+const SCP_REMOTE_RE = /^(?:([^@/]+)@)?([^:/]+):(?!\/\/)(.+)$/;
 const URL_REMOTE_RE = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?([^/]+)\/(.*)$/;
 const SSH_REMOTE_RE = /^git@[^:]+:(.+?)(?:\.git)?$/;
 const HTTPS_REMOTE_RE = /^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/;
@@ -44,11 +44,19 @@ export function normalizeRemoteUrl(url: string): string {
  *  desambiguado) — NUNCA usada para derivar slug. `git@host:o/r.git`,
  *  `ssh://git@host/o/r.git`, `git://host/o/r.git` e `https://host/o/r/` são o
  *  mesmo repo → `host/o/r`. O HOST faz parte da chave (o `normalizeRemoteUrl`
- *  congelado o descarta, é o que colidia slugs entre hosts distintos). */
+ *  congelado o descarta, é o que colidia slugs entre hosts distintos).
+ *
+ *  A forma scp aceita `user@` OPCIONAL e caminho absoluto (`host:o/r.git` ≡
+ *  `git@host:o/r.git` ≡ `git@host:/o/r.git`) — são spellings válidos do mesmo
+ *  remote. Um host de uma letra SEM `user@` é drive letter do Windows
+ *  (`C:/repos/repo.git`), então continua no fallback de path local. */
 export function canonicalRemoteKey(url: string): string {
 	const trimmed = url.trim();
 	const scp = trimmed.match(SCP_REMOTE_RE);
-	if (scp) return `${(scp[1] ?? "").toLowerCase()}/${cleanRemotePath(scp[2] ?? "")}`;
+	if (scp && (scp[1] !== undefined || (scp[2] ?? "").length > 1)) {
+		const host = (scp[2] ?? "").toLowerCase();
+		return `${host}/${cleanRemotePath((scp[3] ?? "").replace(/^\/+/, ""))}`;
+	}
 	const urlMatch = trimmed.match(URL_REMOTE_RE);
 	if (urlMatch) {
 		const host = (urlMatch[1] ?? "").replace(/:\d+$/, "").toLowerCase();

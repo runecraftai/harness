@@ -49,13 +49,18 @@ content.
   - The first project to claim a base slug keeps it. **Existing rows are never
     rewritten — the change requires no migration**: an existing project
     (single remote) keeps its exact slug, its project id and its memories.
-  - The same repo over SSH and HTTPS is ONE project: remotes are compared by
-    canonical key (`git@host:o/r.git`, `ssh://git@host/o/r.git`,
-    `git://host/o/r.git` and `https://host/o/r/` all become `host/o/r`), and
-    the disambiguated suffix also hashes that key, so the same repo gets one
-    identity regardless of the protocol or spelling it was cloned with. The
-    host is part of the key: same path on two different hosts stays two
-    projects.
+  - The same repo is ONE project when the respelling derives the same base
+    slug: remotes are compared by canonical key (`git@host:o/r.git`,
+    `host:o/r.git`, `git@host:/o/r.git`, `ssh://git@host/o/r.git`,
+    `git://host/o/r.git` and `https://host/o/r.git` all become `host/o/r`), and
+    the disambiguated suffix also hashes that key, so switching protocol or
+    spelling inside that set keeps one identity. A respelling that changes the
+    base slug starts a NEW project row: `https://host/o/r.git/` keys as
+    `host/o/r` but still derives the frozen historical slug `r.git`, so it is
+    not adopted by an existing `r` project created from
+    `https://host/o/r.git` — the frozen derivation for the slug is never
+    relaxed. The host is part of the key: same path on two different hosts
+    stays two projects.
   - A row with no `remote_url` is never displaced, and it is the ONE documented
     exception to "never share rows": a legacy project, or a slug pinned by
     `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when a remote
@@ -79,12 +84,13 @@ content.
 
 | | Where it lives |
 | --- | --- |
-| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout (only when that main checkout is a real checkout) |
-| **Per-worktree, cwd-scoped** (written to the worktree's own cwd, not by memory) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/receipts/`, `.runecraft/plans/`, `.runecraft/config.json`, `.runecraft/state.json` — observability, resilience, verification, receipts, SDD and gates state, all gitignored/untracked |
+| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout (only when that main checkout is a real checkout). `.runecraft/receipts/` and `.runecraft/config.json` are shared too: receipt capture and workspace-scoped gates config resolve through `repoRoot()` = `dirname(git rev-parse --git-common-dir)` to the MAIN checkout, so they survive `git worktree remove` |
+| **Per-worktree, cwd-scoped** (written to the worktree's own cwd) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/plans/` — observability, resilience, verification and SDD sinks; only `events/` and `lessons.jsonl` get a `.gitignore` line (plus `receipts/` and `config.json` via the gates setup), the rest stay untracked-but-not-ignored |
+| **User-level by default** | `.runecraft/state.json` is `~/.runecraft/state.json` (`runecraftDir`); it lands in `<cwd>/.runecraft/state.json` only when a command uses `--scope workspace` |
 | **Per-worktree but VERSIONED** | `.runecraft/lessons/promoted.jsonl` — it is a tracked team-memory file, so `git worktree remove` only drops the worktree's unchecked-out copy; committed lessons come back from the branch |
-| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its per-worktree, uncommitted sinks above; the shared memory DB survives. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its uncommitted per-worktree sinks above; the shared memory DB, `.runecraft/receipts/` and `.runecraft/config.json` survive. Because `continuation.json`, `resilience-events.jsonl`, `verify-verdicts.jsonl` and `plans/` are untracked but not gitignored, a plain `git worktree remove` refuses that worktree without `--force`. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
 
-Three honest consequences, all measured behavior:
+Honest consequences, all measured behavior:
 
 - **A memory saved from a scratch/task worktree is NOT isolated.** It is
   written to the shared durable repo DB and stays there after

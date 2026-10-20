@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
+import { openDatabase, type DatabaseLike, type StatementLike } from "../../src/memory/client.ts";
 import { deriveSlugFromRemote } from "../../src/memory/project.ts";
 import {
 	Repository,
@@ -19,6 +19,30 @@ let sandbox = "";
 let db: DatabaseLike;
 let repo: Repository;
 let projectId: number;
+
+/** Envolve o DB para inserir uma linha "concorrente" imediatamente antes do
+ *  INSERT de projects — modela o SELECT-then-INSERT de outra sessão/worktree
+ *  no mesmo DB compartilhado. */
+function racingDb(inner: DatabaseLike, beforeInsert: () => void): DatabaseLike {
+	let raced = false;
+	return {
+		exec: (sql) => inner.exec(sql),
+		close: () => inner.close(),
+		prepare(sql: string): StatementLike {
+			const stmt = inner.prepare(sql);
+			if (raced || !sql.includes("INSERT INTO projects")) return stmt;
+			return {
+				get: (...params: unknown[]) => stmt.get(...params),
+				all: (...params: unknown[]) => stmt.all(...params),
+				run: (...params: unknown[]) => {
+					raced = true;
+					beforeInsert();
+					return stmt.run(...params);
+				},
+			};
+		},
+	};
+}
 
 beforeEach(() => {
 	sandbox = join(tmpdir(), `f29-repo-${process.pid}-${Math.random().toString(36).slice(2)}`);
@@ -99,10 +123,55 @@ describe("getOrCreateProject", () => {
 	test("spellings equivalentes do mesmo remote não orfanam as memórias", () => {
 		const first = repo.getOrCreateProject("r", "/tmp/r", "git@host:o/r.git");
 		repo.saveMemory({ projectId: first.id, category: "decisions", title: "kept", what: "same repo" });
-		for (const remote of ["ssh://git@host/o/r.git", "ssh://git@host:2222/o/r.git", "https://host/o/r/"]) {
+		for (const remote of [
+			"host:o/r.git",
+			"git@host:/o/r.git",
+			"ssh://git@host/o/r.git",
+			"ssh://git@host:2222/o/r.git",
+			"https://host/o/r/",
+		]) {
 			const again = repo.getOrCreateProject("r", "/tmp/r", remote);
 			expect(again.id).toBe(first.id);
 			expect(repo.searchMemories({ projectId: again.id, query: "kept" }).results).toHaveLength(1);
+		}
+	});
+
+	test("corrida pelo mesmo slug: INSERT concorrente devolve a linha vencedora", () => {
+		// Duas sessões/worktrees no MESMO DB: a segunda faz o SELECT antes da
+		// primeira inserir; o INSERT conflita e não pode falhar fechado.
+		const winnerDb = openDatabase(sandbox);
+		const winner = new Repository(winnerDb);
+		try {
+			const racing = new Repository(
+				racingDb(db, () => {
+					winner.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git");
+				}),
+			);
+			const project = racing.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git");
+			expect(project.id).toBe(winner.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git").id);
+			expect(repo.getOrCreateProject("raced", "/tmp/main", "https://one.example/team/raced.git").id).toBe(project.id);
+		} finally {
+			winnerDb.close();
+		}
+	});
+
+	test("corrida no mesmo slug com OUTRO remote não adota a linha alheia", () => {
+		const winnerDb = openDatabase(sandbox);
+		const winner = new Repository(winnerDb);
+		try {
+			const racing = new Repository(
+				racingDb(db, () => {
+					winner.getOrCreateProject("raced", "/tmp/other", "https://two.example/other/raced.git");
+				}),
+			);
+			const mine = racing.getOrCreateProject("raced", "/tmp/mine", "https://one.example/team/raced.git");
+			const theirs = winner.getOrCreateProject("raced", "/tmp/other", "https://two.example/other/raced.git");
+			expect(theirs.slug).toBe("raced");
+			expect(mine.id).not.toBe(theirs.id);
+			expect(mine.slug.startsWith("raced-")).toBe(true);
+			expect(mine.remote_url).toBe("https://one.example/team/raced.git");
+		} finally {
+			winnerDb.close();
 		}
 	});
 
