@@ -120,8 +120,9 @@ function rowToProject(row: Record<string, unknown>): Project {
  *  `ssh://host/o/r.git` ≡ `https://host/o/r/`) — nunca o
  *  `normalizeRemoteUrl` congelado, cujo resultado descarta o host e alimenta o
  *  slug. `null` = desconhecido → nunca é conflito: uma linha sem remote
- *  (projeto legado, ou slug fixado por RUNECRAFT_MEMORY_PROJECT_SLUG) continua
- *  dona do seu slug. */
+ *  (projeto legado, ou criada quando o checkout ainda não tinha remote — o pin
+ *  de RUNECRAFT_MEMORY_PROJECT_SLUG sozinho NÃO zera o remote gravado)
+ *  continua dona do seu slug. */
 function sameRemote(a: string | null, b: string | null): boolean {
 	if (a === null || b === null) return true;
 	return canonicalRemoteKey(a) === canonicalRemoteKey(b);

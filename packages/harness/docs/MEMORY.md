@@ -63,13 +63,17 @@ content.
     stays two projects.
   - A row with no `remote_url` is never displaced, and it is the ONE documented
     exception to "never share rows": a legacy project, or a slug pinned by
-    `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when a remote
-    appears in the checkout — and since the row's `remote_url` stays `NULL`
-    (no row rewrites), the next DIFFERENT remote deriving the same base slug is
-    adopted into that same row as well. With a shared
-    `RUNECRAFT_MEMORY_DATA_DIR` that mixes their memories; the fix is a
-    distinct slug (rename via `RUNECRAFT_MEMORY_PROJECT_SLUG`), never an
-    automatic migration.
+    `RUNECRAFT_MEMORY_PROJECT_SLUG` in a checkout that had no remote when the
+    row was created, keeps owning its slug even when a remote appears in the
+    checkout — and because the row's `remote_url` stays `NULL` (no row
+    rewrites), the next DIFFERENT remote deriving the same base slug is adopted
+    into that same row as well. With a shared `RUNECRAFT_MEMORY_DATA_DIR` that
+    mixes their memories; the fix is a distinct slug (rename via
+    `RUNECRAFT_MEMORY_PROJECT_SLUG`), never an automatic migration. The pin by
+    itself does NOT produce a `NULL` row: `resolveProjectSlugSync` still records
+    the checkout's `remote.origin.url`, so a pin applied where a remote already
+    exists stores that remote, and another remote deriving the same base slug
+    gets the hash-disambiguated slug instead of the pinned row.
   - Consequence for a store that already collapsed two remotes into one
     project (only reachable with a shared `RUNECRAFT_MEMORY_DATA_DIR`): the
     historical rows stay attached to the first project; the second remote
