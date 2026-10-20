@@ -95,6 +95,16 @@ describe("getOrCreateProject", () => {
 		expect(ssh.slug).toBe(https.slug);
 	});
 
+	test("spellings equivalentes do mesmo remote não orfanam as memórias", () => {
+		const first = repo.getOrCreateProject("r", "/tmp/r", "git@host:o/r.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "kept", what: "same repo" });
+		for (const remote of ["ssh://git@host/o/r.git", "ssh://git@host:2222/o/r.git", "https://host/o/r/"]) {
+			const again = repo.getOrCreateProject("r", "/tmp/r", remote);
+			expect(again.id).toBe(first.id);
+			expect(repo.searchMemories({ projectId: again.id, query: "kept" }).results).toHaveLength(1);
+		}
+	});
+
 	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {
 		const pinned = repo.getOrCreateProject("pinned", "/tmp/pinned", null);
 		const same = repo.getOrCreateProject("pinned", "/tmp/pinned", "https://one.example/team/pinned.git");

@@ -20,17 +20,19 @@ export interface ProjectIdentity {
 	remoteUrl: string | null;
 }
 
-const SSH_REMOTE_RE = /^git@[^:]+:(.+?)(?:\.git)?$/;
-const HTTPS_REMOTE_RE = /^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/;
+const SCP_REMOTE_RE = /^(?:[^@/]+@)[^:/]+:(?!\/\/)(.+?)(?:\.git)?$/;
+const URL_REMOTE_RE = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?[^/]+\/(.*)$/;
 
-/** Normaliza a URL do remote: SSH/HTTPS → caminho após o host; strip .git. */
+/** Normaliza a URL do remote para o caminho após o host: `git@host:o/r.git`,
+ *  `ssh://git@host/o/r.git`, `git://host/o/r.git` e `https://host/o/r/` viram
+ *  todos `o/r` — o mesmo repo clonado de formas equivalentes tem UMA
+ *  identidade (a comparação de `sameRemote` e o hash do slug desambiguado
+ *  dependem disto). */
 export function normalizeRemoteUrl(url: string): string {
 	const trimmed = url.trim();
-	const ssh = trimmed.match(SSH_REMOTE_RE);
-	if (ssh) return ssh[1] ?? "";
-	const https = trimmed.match(HTTPS_REMOTE_RE);
-	if (https) return https[1] ?? "";
-	return trimmed.replace(/\.git$/, "");
+	const scp = trimmed.match(SCP_REMOTE_RE);
+	const path = scp?.[1] ?? trimmed.match(URL_REMOTE_RE)?.[1] ?? trimmed;
+	return path.replace(/\/+$/, "").replace(/\.git$/, "");
 }
 
 /** Slug = último segmento do remote normalizado (same semantics do source). */

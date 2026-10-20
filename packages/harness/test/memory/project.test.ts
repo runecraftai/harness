@@ -63,6 +63,22 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 	test("path puro → normalize inalterado", () => {
 		expect(normalizeRemoteUrl("/abs/path/repo.git")).toBe("/abs/path/repo");
 		expect(normalizeRemoteUrl("relative/path")).toBe("relative/path");
+		expect(normalizeRemoteUrl("C:/repos/repo.git")).toBe("C:/repos/repo");
+	});
+
+	test("formas equivalentes do mesmo repo → mesma normalização e mesmo slug", () => {
+		for (const remote of [
+			"git@host:o/r.git",
+			"ssh://git@host/o/r.git",
+			"ssh://git@host:2222/o/r.git",
+			"git://host/o/r.git",
+			"https://host/o/r.git",
+			"https://host/o/r/",
+			"https://host/o/r.git/",
+		]) {
+			expect(normalizeRemoteUrl(remote)).toBe("o/r");
+			expect(deriveSlugFromRemote(remote)).toBe("r");
+		}
 	});
 });
 

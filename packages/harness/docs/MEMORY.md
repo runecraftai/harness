@@ -25,24 +25,31 @@ content.
   If git cannot resolve the main worktree (deleted/moved main checkout), the
   worktree falls back to its own directory.
 - **Per-repo scope**: the base slug comes from the normalized git remote
-  (`remote.origin.url`, SSH/HTTPS regex, strip `.git`) — its last path
+  (`remote.origin.url`, SSH/scp/URL schemes, strip `.git` and trailing `/`) — its last path
   segment; no remote → absolute cwd path; no git root → absolute cwd path.
   Deterministic override: `RUNECRAFT_MEMORY_PROJECT_SLUG` (pins the base slug).
 - **Collision-free identity** (`getOrCreateProject`): the last segment alone
   is not unique (`one.example/team/shared` vs `two.example/other/shared`). A
   remote that finds its base slug already owned by a DIFFERENT remote gets
-  `<slug>-<sha256(remoteUrl)[:8]>` instead, so the two projects never share
-  rows. Rules that keep this stable:
+  `<slug>-<sha256(remoteUrl normalizado)[:8]>` instead, so two projects with
+  distinct remotes never share rows. Rules that keep this stable:
   - The first project to claim a base slug keeps it. **Existing rows are never
     rewritten — the change requires no migration**: an existing project
     (single remote) keeps its exact slug, its project id and its memories.
   - The same repo over SSH and HTTPS is ONE project: remotes are compared
-    normalized (`git@host:o/r.git` ≡ `https://host/o/r.git`), and the
-    disambiguated suffix also hashes the NORMALIZED remote, so the same repo
-    gets one identity regardless of the protocol it was cloned with.
-  - A row with no `remote_url` is never displaced: a legacy project, or a slug
-    pinned by `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when
-    a remote now appears in the checkout.
+    normalized (`git@host:o/r.git`, `ssh://git@host/o/r.git`, `git://host/o/r.git`
+    and `https://host/o/r/` all become `o/r`), and the disambiguated suffix
+    also hashes the NORMALIZED remote, so the same repo gets one identity
+    regardless of the protocol or spelling it was cloned with.
+  - A row with no `remote_url` is never displaced, and it is the ONE documented
+    exception to "never share rows": a legacy project, or a slug pinned by
+    `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when a remote
+    appears in the checkout — and since the row's `remote_url` stays `NULL`
+    (no row rewrites), the next DIFFERENT remote deriving the same base slug is
+    adopted into that same row as well. With a shared
+    `RUNECRAFT_MEMORY_DATA_DIR` that mixes their memories; the fix is a
+    distinct slug (rename via `RUNECRAFT_MEMORY_PROJECT_SLUG`), never an
+    automatic migration.
   - Consequence for a store that already collapsed two remotes into one
     project (only reachable with a shared `RUNECRAFT_MEMORY_DATA_DIR`): the
     historical rows stay attached to the first project; the second remote
@@ -58,7 +65,7 @@ content.
 | | Where it lives |
 | --- | --- |
 | **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout |
-| **Per-worktree, cwd-scoped** (written to the worktree's own cwd, not by memory) | `.runecraft/events/` (observability), `.runecraft/continuation.json` (resilience), `.runecraft/verify-verdicts.jsonl` (verification), `.runecraft/plans/` (SDD archive), `.runecraft/state.json` (harness config/state) |
+| **Per-worktree, cwd-scoped** (written to the worktree's own cwd, not by memory) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/receipts/`, `.runecraft/plans/`, `.runecraft/config.json`, `.runecraft/state.json` — observability, resilience, verification, receipts, SDD and gates state, all gitignored/untracked |
 | **Per-worktree but VERSIONED** | `.runecraft/lessons/promoted.jsonl` — it is a tracked team-memory file, so `git worktree remove` only drops the worktree's unchecked-out copy; committed lessons come back from the branch |
 | **Discarded** | `git worktree remove <path>` deletes the worktree directory and its per-worktree, uncommitted sinks above; the shared memory DB survives. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
 
