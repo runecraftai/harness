@@ -134,10 +134,18 @@ describe("resolveMemoryDir (D1/QA-1a)", () => {
 
 	test("main BARE + worktree → nunca dentro do git dir (worktree mantém o próprio root)", () => {
 		const base = makeDir("baremain");
+		const seed = join(base, "seed");
 		const bare = join(base, "bare.git");
 		const worktree = join(base, "task-worktree");
 		try {
-			git(base, ["init", "-q", "--bare", bare]);
+			// Um bare repo sem commit só aceita `worktree add` nos gits que criam a
+			// branch unborn — semear um commit mantém o teste independente da versão.
+			mkdirSync(seed, { recursive: true });
+			git(seed, ["init", "-q"]);
+			writeFileSync(join(seed, "seed.txt"), "s\n");
+			git(seed, ["add", "."]);
+			git(seed, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]);
+			git(base, ["clone", "-q", "--bare", seed, bare]);
 			git(bare, ["worktree", "add", "-q", worktree]);
 			// `git worktree list` reporta o bare repo como primeiro "worktree".
 			const worktreeRoot = resolveMemoryDir(worktree, process.env);
