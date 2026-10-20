@@ -48,14 +48,17 @@ export function normalizeRemoteUrl(url: string): string {
  *
  *  A forma scp aceita `user@` OPCIONAL e caminho absoluto (`host:o/r.git` ≡
  *  `git@host:o/r.git` ≡ `git@host:/o/r.git`) — são spellings válidos do mesmo
- *  remote. Um host de uma letra SEM `user@` é drive letter do Windows
- *  (`C:/repos/repo.git`), então continua no fallback de path local. */
+ *  remote. Host de uma letra SEM `user@` cujo resto começa com separador é
+ *  drive letter do Windows (`C:/repos/repo.git`, `C:\\repos`), então fica no
+ *  fallback de path local; `x:repo.git` continua scp (alias ssh de uma letra). */
 export function canonicalRemoteKey(url: string): string {
 	const trimmed = url.trim();
 	const scp = trimmed.match(SCP_REMOTE_RE);
-	if (scp && (scp[1] !== undefined || (scp[2] ?? "").length > 1)) {
+	if (scp) {
 		const host = (scp[2] ?? "").toLowerCase();
-		return `${host}/${cleanRemotePath((scp[3] ?? "").replace(/^\/+/, ""))}`;
+		const path = scp[3] ?? "";
+		const windowsDrivePath = scp[1] === undefined && host.length === 1 && /^[\\/]/.test(path);
+		if (!windowsDrivePath) return `${host}/${cleanRemotePath(path.replace(/^\/+/, ""))}`;
 	}
 	const urlMatch = trimmed.match(URL_REMOTE_RE);
 	if (urlMatch) {

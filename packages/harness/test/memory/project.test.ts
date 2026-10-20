@@ -83,6 +83,14 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 		}
 		// Drive letter do Windows é path LOCAL, não scp host:path.
 		expect(canonicalRemoteKey("C:/repos/repo.git")).toBe("C:/repos/repo");
+		expect(canonicalRemoteKey("C:\\repos\\repo.git")).toBe("C:\\repos\\repo");
+		// Alias ssh de UMA letra continua sendo host scp (com ou sem login).
+		expect(canonicalRemoteKey("x:repo.git")).toBe("x/repo");
+		expect(canonicalRemoteKey("git@x:repo.git")).toBe("x/repo");
+		expect(canonicalRemoteKey("https://x/repo.git")).toBe("x/repo");
+		// Um caminho absoluto após host de uma letra é indistinguível de drive
+		// letter (`C:/...`): permanece path local.
+		expect(canonicalRemoteKey("x:/repo.git")).toBe("x:/repo");
 		// Hosts distintos NÃO são o mesmo repo (o normalizeRemoteUrl congelado
 		// descarta o host — é o que colidia slugs entre hosts).
 		expect(canonicalRemoteKey("https://one.example/team/shared.git")).toBe("one.example/team/shared");

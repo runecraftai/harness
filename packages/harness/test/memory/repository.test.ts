@@ -111,6 +111,16 @@ describe("getOrCreateProject", () => {
 		expect(https.id).toBe(ssh.id);
 	});
 
+	test("alias ssh de UMA letra ≡ https do mesmo host → um projeto", () => {
+		const first = repo.getOrCreateProject("repo", "/tmp/repo", "git@x:repo.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "alias", what: "one identity" });
+		for (const remote of ["x:repo.git", "https://x/repo.git"]) {
+			const again = repo.getOrCreateProject("repo", "/tmp/repo", remote);
+			expect(again.id).toBe(first.id);
+			expect(repo.searchMemories({ projectId: again.id, query: "alias" }).results).toHaveLength(1);
+		}
+	});
+
 	test("remote colidente via SSH e HTTPS → uma identidade desambiguada só", () => {
 		repo.getOrCreateProject("shared", "/tmp/a", "https://one.example/team/shared.git");
 		const https = repo.getOrCreateProject("shared", "/tmp/b", "https://two.example/other/shared.git");
