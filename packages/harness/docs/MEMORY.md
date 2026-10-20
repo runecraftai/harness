@@ -46,6 +46,18 @@ content.
   remote that finds its base slug already owned by a DIFFERENT remote gets
   `<slug>-<sha256(canonicalRemoteKey)[:8]>` instead, so two projects with
   distinct remotes never share rows. Rules that keep this stable:
+  - **Continuity tiebreaker (root_path):** before disambiguating, an existing
+    row whose `root_path` IS this repository root keeps the project even though
+    its canonical remote differs. A remote rename/transfer/mirror switch on the
+    same checkout (e.g. a GitHub org rename `oldorg/app` → `neworg/app`, same
+    trailing segment) therefore keeps the same project id, slug and memories
+    instead of stranding them behind a fresh row. The check is plain path
+    equality on the resolved root (`root_path` is the main checkout, so every
+    worktree of the repo matches it), needs no row rewrite, and is the one
+    accepted cost of the heuristic: **a DIFFERENT repository cloned into the
+    EXACT same directory path, with the same trailing segment, inherits that
+    row's memories.** Pick a different clone directory or a distinct slug
+    (`RUNECRAFT_MEMORY_PROJECT_SLUG`) if that ever matters.
   - The first project to claim a base slug keeps it. **Existing rows are never
     rewritten — the change requires no migration**: an existing project
     (single remote) keeps its exact slug, its project id and its memories.
@@ -77,7 +89,9 @@ content.
   - Consequence for a store that already collapsed two remotes into one
     project (only reachable with a shared `RUNECRAFT_MEMORY_DATA_DIR`): the
     historical rows stay attached to the first project; the second remote
-    starts a fresh project. Nothing is split, moved or deleted automatically.
+    starts a fresh project — unless the two checkouts resolve the same
+    `root_path`, in which case the continuity tiebreaker above keeps them on
+    the one row. Nothing is split, moved or deleted automatically.
 - **WAL** (`PRAGMA journal_mode = WAL`) + `foreign_keys = ON` +
   `busy_timeout = 5000`: concurrent readers + serialized writer
   (multi-session in the same repo). Open with a 1×/100ms retry; persistent

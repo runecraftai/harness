@@ -19,6 +19,7 @@
 // sessions/stats/recent/rebuild/purge — evals comparam contra fixtures do
 // source (EVAL-030/033/034/037).
 import { randomUUID } from "node:crypto";
+import { resolve as resolvePath } from "node:path";
 import type { DatabaseLike } from "./client.ts";
 import { canonicalRemoteKey, disambiguatedSlugForRemote } from "./project.ts";
 import { clampImportance, validateSave, validateUpdate, ValidationError } from "./validate.ts";
@@ -128,6 +129,13 @@ function sameRemote(a: string | null, b: string | null): boolean {
 	return canonicalRemoteKey(a) === canonicalRemoteKey(b);
 }
 
+/** Mesmo CHECKOUT? Compara os paths resolvidos — `root_path` é o checkout
+ *  principal (`resolveSharedGitRootSync`), então toda worktree do repo tem o
+ *  mesmo root. É o desempate de continuidade abaixo. */
+function sameRoot(a: string, b: string): boolean {
+	return resolvePath(a) === resolvePath(b);
+}
+
 export interface IndexCounts {
 	memories: number;
 	fts: number;
@@ -171,6 +179,13 @@ export class Repository {
 	 * o projeto novo recebe `disambiguatedSlugForRemote` (slug base + hash do
 	 * remote): a linha existente NUNCA é reescrita (sem migração, identidade
 	 * preservada), e o par (slug, remote) fica estável nas próximas chamadas.
+	 *
+	 *  DESEMPATE DE CONTINUIDADE: se a linha do slug pertence a outro remote MAS
+	 *  o `root_path` dela é ESTE checkout (remote renomeado/transferido/
+	 *  espelhado — ex.: org renomeada no GitHub), a linha é adotada. Sem isso as
+	 *  memórias do checkout ficariam presas a um projeto invisível — pior
+	 *  defeito que o caso que a desambiguação resolve. Nenhuma linha é
+	 *  reescrita (o `remote_url` antigo permanece e continua comparável).
 	 */
 	getOrCreateProject(slug: string, rootPath: string, remoteUrl: string | null = null): Project {
 		const existing = this.getProjectBySlug(slug);
@@ -178,12 +193,15 @@ export class Repository {
 			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
 			// `sameRemote` só é false com AMBOS os remotes não-nulos (sem remote
 			// nunca é conflito), então aqui o remote existe por invariante.
+			if (sameRoot(existing.root_path, rootPath)) return existing;
 			return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
 		}
 		// O INSERT é conflito-seguro: outra sessão/worktree pode ter criado a
 		// linha entre o SELECT acima e este INSERT (um DB compartilhado).
 		const inserted = this.insertProject(slug, rootPath, remoteUrl);
-		if (sameRemote(inserted.remote_url, remoteUrl)) return inserted;
+		if (sameRemote(inserted.remote_url, remoteUrl) || sameRoot(inserted.root_path, rootPath)) {
+			return inserted;
+		}
 		return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
 	}
 

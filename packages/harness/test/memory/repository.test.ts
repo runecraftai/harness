@@ -201,6 +201,36 @@ describe("getOrCreateProject", () => {
 		expect(repo.searchMemories({ projectId: again.id, query: "visible" }).results).toHaveLength(1);
 	});
 
+	test("remote renomeado (org transfer) no MESMO checkout mantém o projeto e as memórias", () => {
+		const before = repo.getOrCreateProject("app", "/repo/app", "git@github.com:oldorg/app.git");
+		repo.saveMemory({ projectId: before.id, category: "decisions", title: "before rename", what: "kept" });
+		const after = repo.getOrCreateProject("app", "/repo/app", "git@github.com:neworg/app.git");
+		expect(after.id).toBe(before.id);
+		expect(after.slug).toBe("app");
+		expect(repo.getProjectBySlug("app")?.id).toBe(before.id);
+		expect(repo.searchMemories({ projectId: after.id, query: "rename" }).results).toHaveLength(1);
+		// Nenhuma linha reescrita: o remote gravado continua o antigo.
+		expect(after.remote_url).toBe("git@github.com:oldorg/app.git");
+	});
+
+	test("caso aceito do desempate: repo DIFERENTE no MESMO path herda a linha", () => {
+		// Documentado em docs/MEMORY.md: a igualdade de root_path é a heurística
+		// de continuidade, então outro repo clonado no exato mesmo diretório,
+		// com o mesmo último segmento, herda as memórias daquela linha.
+		const first = repo.getOrCreateProject("app", "/work/app", "https://one.example/team/app.git");
+		repo.saveMemory({ projectId: first.id, category: "decisions", title: "inherited", what: "documented" });
+		const other = repo.getOrCreateProject("app", "/work/app", "https://two.example/other/app.git");
+		expect(other.id).toBe(first.id);
+	});
+
+	test("repo diferente em OUTRO path com o mesmo último segmento → linha desambiguada", () => {
+		const first = repo.getOrCreateProject("app", "/w/one", "git@github.com:oldorg/app.git");
+		const second = repo.getOrCreateProject("app", "/w/two", "git@github.com:neworg/app.git");
+		expect(second.id).not.toBe(first.id);
+		expect(second.slug.startsWith("app-")).toBe(true);
+		expect(repo.getProjectBySlug("app")?.id).toBe(first.id);
+	});
+
 	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {
 		const pinned = repo.getOrCreateProject("pinned", "/tmp/pinned", null);
 		const same = repo.getOrCreateProject("pinned", "/tmp/pinned", "https://one.example/team/pinned.git");
