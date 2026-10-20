@@ -48,6 +48,50 @@ describe("getOrCreateProject", () => {
 		expect(repo.getProjectBySlug("test-slug")?.id).toBe(projectId);
 		expect(repo.getProjectBySlug("missing")).toBeNull();
 	});
+
+	test("remotes distintos com o mesmo último segmento → identidades distintas", () => {
+		const remoteA = "https://one.example/team/shared.git";
+		const remoteB = "https://two.example/other/shared.git";
+		const a = repo.getOrCreateProject("shared", "/tmp/a", remoteA);
+		const b = repo.getOrCreateProject("shared", "/tmp/b", remoteB);
+		expect(a.slug).toBe("shared");
+		expect(b.slug).not.toBe("shared");
+		expect(b.slug.startsWith("shared-")).toBe(true);
+		expect(b.id).not.toBe(a.id);
+		expect(b.remote_url).toBe(remoteB);
+		// Idempotente: o mesmo remote volta ao mesmo projeto (nunca ao de outro).
+		expect(repo.getOrCreateProject("shared", "/tmp/b", remoteB).id).toBe(b.id);
+		expect(repo.getOrCreateProject("shared", "/tmp/a", remoteA).id).toBe(a.id);
+	});
+
+	test("memórias de remotes colidentes ficam separadas", () => {
+		const a = repo.getOrCreateProject("shared", "/tmp/a", "https://one.example/team/shared.git");
+		const b = repo.getOrCreateProject("shared", "/tmp/b", "https://two.example/other/shared.git");
+		repo.saveMemory({ projectId: a.id, category: "decisions", title: "from A", what: "A only" });
+		expect(repo.searchMemories({ projectId: b.id, query: "from" }).results).toHaveLength(0);
+		expect(repo.searchMemories({ projectId: a.id, query: "from" }).results).toHaveLength(1);
+	});
+
+	test("projeto existente de remote único mantém a identidade (sem migração)", () => {
+		// Linha legada: slug = último segmento, criada antes da desambiguação.
+		const legacy = repo.getOrCreateProject("shared", "/tmp/legacy", "git@one.example:team/shared.git");
+		expect(legacy.slug).toBe("shared");
+		expect(repo.getOrCreateProject("shared", "/tmp/legacy", "git@one.example:team/shared.git").id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("shared")?.id).toBe(legacy.id);
+	});
+
+	test("mesmo repo via SSH e HTTPS → um projeto (remote normalizado)", () => {
+		const ssh = repo.getOrCreateProject("harness", "/tmp/h", "git@github.com:runecraft-ai/harness.git");
+		const https = repo.getOrCreateProject("harness", "/tmp/h", "https://github.com/runecraft-ai/harness.git");
+		expect(https.id).toBe(ssh.id);
+	});
+
+	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {
+		const pinned = repo.getOrCreateProject("pinned", "/tmp/pinned", null);
+		const same = repo.getOrCreateProject("pinned", "/tmp/pinned", "https://one.example/team/pinned.git");
+		expect(same.id).toBe(pinned.id);
+		expect(same.slug).toBe("pinned");
+	});
 });
 
 describe("saveMemory", () => {

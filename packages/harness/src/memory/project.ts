@@ -1,13 +1,14 @@
 // memory/project.ts — identidade do projeto (port de lib/project.ts do
 // runes): slug derivado do remote git normalizado
 // (regex SSH/HTTPS, strip .git), fallback para o path absoluto quando não há
-// remote; worktrees do mesmo repo compartilham o mesmo git root → mesma
-// memória (D1).
+// remote; worktrees linkadas do mesmo repo resolvem para o checkout PRINCIPAL
+// (resolveSharedGitRootSync) → mesma memória (D1).
 //
 // Env: RUNECRAFT_MEMORY_PROJECT_SLUG (rename do RUNES_PROJECT_SLUG — override
 // determinístico para testes/evals).
 import { execFile, execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -40,7 +41,9 @@ export function deriveSlugFromRemote(remoteUrl: string): string {
 	return segments[segments.length - 1] ?? normalized;
 }
 
-/** Sobe a árvore de diretórios até achar `.git` (fallback: null). */
+/** Sobe a árvore de diretórios até achar `.git` (fallback: null). Para uma
+ *  linked worktree o `.git` é um ARQUIVO no próprio worktree → o retorno é o
+ *  worktree, não o checkout principal (ver resolveSharedGitRootSync). */
 export function findGitRoot(start: string): string | null {
 	let current = isAbsolute(start) ? start : resolve(start);
 	const { root } = { root: "/" };
@@ -54,6 +57,95 @@ export function findGitRoot(start: string): string | null {
 
 function joinPath(dir: string, child: string): string {
 	return dir.endsWith(sep) ? `${dir}${child}` : `${dir}${sep}${child}`;
+}
+
+/** `.git` é arquivo? Linked worktree e submodule usam `gitdir: <path>`. */
+function isGitFile(gitPath: string): boolean {
+	try {
+		return statSync(gitPath).isFile();
+	} catch {
+		return false;
+	}
+}
+
+/** Primeiro `worktree <path>` de `git worktree list --porcelain` — o MAIN
+ *  worktree é sempre listado primeiro (verificado em worktree real). */
+function readMainWorktreeSync(gitRoot: string): string | null {
+	try {
+		const stdout = execFileSync("git", ["-C", gitRoot, "worktree", "list", "--porcelain"], {
+			timeout: 1000,
+			windowsHide: true,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		const line = stdout.split("\n").find((l) => l.startsWith("worktree "));
+		const path = line?.slice("worktree ".length).trim() ?? "";
+		return path.length > 0 ? path : null;
+	} catch {
+		return null;
+	}
+}
+
+/** `git rev-parse --git-dir --git-common-dir --show-toplevel` absolutos, numa
+ *  chamada. `gitDir !== commonDir` ⇔ linked worktree de um repo com working
+ *  tree (o main NÃO é um worktree do próprio repo). */
+function readGitPathsSync(gitRoot: string): { gitDir: string; commonDir: string; toplevel: string | null } | null {
+	try {
+		const stdout = execFileSync(
+			"git",
+			["-C", gitRoot, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel"],
+			{ timeout: 1000, windowsHide: true, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] },
+		);
+		const [gitDir = "", commonDir = "", toplevel = ""] = stdout.split("\n").map((l) => l.trim());
+		if (gitDir === "" || commonDir === "") return null;
+		return { gitDir, commonDir, toplevel: toplevel.length > 0 ? toplevel : null };
+	} catch {
+		return null;
+	}
+}
+
+/** Root COMPARTILHADO do repo — o checkout principal, não o worktree atual.
+ *
+ *  `findGitRoot` para no primeiro `.git`, que numa linked worktree é um arquivo
+ *  do próprio worktree: o DB cairia em `<worktree>/.runecraft/memory` e
+ *  desapareceria com `git worktree remove` (o contrato documentado é memória
+ *  compartilhada). O caso só é tratado quando `.git` é ARQUIVO (submodule,
+ *  `--separate-git-dir`, linked worktree) — checkout normal: zero chamadas
+ *  extras de git.
+ *
+ *  - git-dir == git-common-dir → NÃO é linked worktree: submodule (git dir =
+ *    `<super>/.git/modules/<n>`, main do repo interno é um "bare" lá dentro) ou
+ *    main com `--separate-git-dir`. Root = `--show-toplevel` (o próprio
+ *    checkout), o mesmo root de antes → submodules continuam isolados (testado
+ *    com submodule real).
+ *  - git-dir != git-common-dir → linked worktree: `git worktree list` lista o
+ *    main primeiro. (`dirname` do `--git-common-dir`, usado pelos gates F20,
+ *    erraria submodules e `--separate-git-dir`; este caminho acerta os dois.)
+ *
+ *  Git ilegível → o próprio gitRoot (comportamento anterior, nunca um path
+ *  inventado). */
+export function resolveSharedGitRootSync(start: string): string | null {
+	const gitRoot = findGitRoot(start);
+	if (!gitRoot) return null;
+	if (!isGitFile(joinPath(gitRoot, ".git"))) return gitRoot;
+	const paths = readGitPathsSync(gitRoot);
+	if (!paths) return gitRoot;
+	if (paths.gitDir === paths.commonDir) return paths.toplevel ?? gitRoot;
+	return readMainWorktreeSync(gitRoot) ?? gitRoot;
+}
+
+/** Slug desambiguado de um remote que já perdeu o slug base para OUTRO
+ *  remote no mesmo DB: `<slug>-<sha256(remoteUrl)[:len]>`. Determinístico e
+ *  estável — a derived base slug (último segmento) nunca muda, então o
+ *  primeiro projeto a reivindicar um slug mantém a identidade e nenhuma linha
+ *  existente é reescrita (sem migração). */
+export function disambiguatedSlugForRemote(
+	baseSlug: string,
+	remoteUrl: string,
+	length = 8,
+): string {
+	const digest = createHash("sha256").update(remoteUrl.trim()).digest("hex");
+	return `${baseSlug}-${digest.slice(0, length)}`;
 }
 
 /** remote.origin.url do git root (timeout 1s — port; sem remote → null). */
@@ -97,7 +189,7 @@ export function resolveProjectSlugSync(
 	const envOverride = env.RUNECRAFT_MEMORY_PROJECT_SLUG;
 	const absoluteCwd = isAbsolute(cwd) ? cwd : resolve(cwd);
 
-	const gitRoot = findGitRoot(absoluteCwd);
+	const gitRoot = resolveSharedGitRootSync(absoluteCwd);
 	if (gitRoot) {
 		const remoteUrl = readRemoteUrlSync(gitRoot);
 		if (remoteUrl) {

@@ -13,18 +13,60 @@ content.
 
 ## Storage & concurrency
 
-- **Location**: `<gitRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
-  override `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI).
-- **Per-repo scope**: the slug comes from the normalized git remote
-  (`remote.origin.url`, SSH/HTTPS regex, strip `.git`); no remote → absolute
-  cwd path; no git root → absolute cwd path. Worktrees of the same repo share
-  the same `.runecraft` → the same memory. Deterministic override:
-  `RUNECRAFT_MEMORY_PROJECT_SLUG`.
+- **Location**: `<repoRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
+  override `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI). `<repoRoot>` is the MAIN
+  checkout, not "wherever the current `.git` is": a linked worktree
+  (`git worktree add`) resolves through the git common directory to the main
+  checkout's `.runecraft/memory` (`resolveSharedGitRootSync` in
+  `src/memory/project.ts`). Submodules keep their own root: their `.git` is
+  also a file, but their git dir equals their common dir (the inner repo's main
+  worktree is a bare dir inside the superproject), so the submodule checkout
+  itself stays the memory root instead of anything under the superproject.
+  If git cannot resolve the main worktree (deleted/moved main checkout), the
+  worktree falls back to its own directory.
+- **Per-repo scope**: the base slug comes from the normalized git remote
+  (`remote.origin.url`, SSH/HTTPS regex, strip `.git`) — its last path
+  segment; no remote → absolute cwd path; no git root → absolute cwd path.
+  Deterministic override: `RUNECRAFT_MEMORY_PROJECT_SLUG` (pins the base slug).
+- **Collision-free identity** (`getOrCreateProject`): the last segment alone
+  is not unique (`one.example/team/shared` vs `two.example/other/shared`). A
+  remote that finds its base slug already owned by a DIFFERENT remote gets
+  `<slug>-<sha256(remoteUrl)[:8]>` instead, so the two projects never share
+  rows. Rules that keep this stable:
+  - The first project to claim a base slug keeps it. **Existing rows are never
+    rewritten — the change requires no migration**: an existing project
+    (single remote) keeps its exact slug, its project id and its memories.
+  - The same repo over SSH and HTTPS is ONE project: remotes are compared
+    normalized (`git@host:o/r.git` ≡ `https://host/o/r.git`).
+  - A row with no `remote_url` is never displaced: a legacy project, or a slug
+    pinned by `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when
+    a remote now appears in the checkout.
+  - Consequence for a store that already collapsed two remotes into one
+    project (only reachable with a shared `RUNECRAFT_MEMORY_DATA_DIR`): the
+    historical rows stay attached to the first project; the second remote
+    starts a fresh project. Nothing is split, moved or deleted automatically.
 - **WAL** (`PRAGMA journal_mode = WAL`) + `foreign_keys = ON` +
   `busy_timeout = 5000`: concurrent readers + serialized writer
   (multi-session in the same repo). Open with a 1×/100ms retry; persistent
   failure → tools absent + warning (fail-closed — the session continues
   without memory; `harness memory doctor` diagnoses).
+
+### Worktrees: what is shared, what is per-worktree, what is discarded
+
+| | Where it lives |
+| --- | --- |
+| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout |
+| **Per-worktree** (written to the worktree's own cwd) | `events/`, `continuation.json`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/lessons/promoted.jsonl` — owned by the observability/resilience/verification layers, not by memory |
+| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its per-worktree sinks above; the shared memory DB survives. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+
+Two honest consequences, both measured behavior:
+
+- **A memory saved from a scratch/task worktree is NOT isolated.** It is
+  written to the shared durable repo DB and stays there after
+  `git worktree remove`. There is no scratch-memory mode; do not treat a
+  throwaway worktree as a throwaway memory scope.
+- `projects.root_path` records the main checkout for a repo, so two worktrees
+  of the same repo never create two project rows.
 
 ## Schema (runes port; additive v2)
 

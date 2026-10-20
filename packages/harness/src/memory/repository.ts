@@ -20,6 +20,7 @@
 // source (EVAL-030/033/034/037).
 import { randomUUID } from "node:crypto";
 import type { DatabaseLike } from "./client.ts";
+import { disambiguatedSlugForRemote, normalizeRemoteUrl } from "./project.ts";
 import { clampImportance, validateSave, validateUpdate, ValidationError } from "./validate.ts";
 import {
 	type CompactionCandidate,
@@ -115,6 +116,15 @@ function rowToProject(row: Record<string, unknown>): Project {
 	};
 }
 
+/** Mesmo repo? Compara remotes NORMALIZADOS (`git@host:o/r.git` ≡
+ *  `https://host/o/r.git`). `null` = desconhecido → nunca é conflito: uma linha
+ *  sem remote (projeto legado, ou slug fixado por
+ *  RUNECRAFT_MEMORY_PROJECT_SLUG) continua dona do seu slug. */
+function sameRemote(a: string | null, b: string | null): boolean {
+	if (a === null || b === null) return true;
+	return normalizeRemoteUrl(a) === normalizeRemoteUrl(b);
+}
+
 export interface IndexCounts {
 	memories: number;
 	fts: number;
@@ -150,11 +160,48 @@ export class Repository {
 		this.idGen = deps.idGen ?? (() => randomUUID());
 	}
 
+	/**
+	 * Idempotente por slug — EXCETO quando o slug já pertence a um remote
+	 * diferente. O slug base (último segmento do remote) colide entre repos
+	 * distintos (`one.example/team/shared` vs `two.example/other/shared`);
+	 * reusar a linha mandaria as memórias de um repo para o outro. Nesse caso
+	 * o projeto novo recebe `disambiguatedSlugForRemote` (slug base + hash do
+	 * remote): a linha existente NUNCA é reescrita (sem migração, identidade
+	 * preservada), e o par (slug, remote) fica estável nas próximas chamadas.
+	 */
 	getOrCreateProject(slug: string, rootPath: string, remoteUrl: string | null = null): Project {
-		const existing = this.db
-			.prepare("SELECT * FROM projects WHERE slug = ?")
-			.get(slug) as Record<string, unknown> | undefined;
-		if (existing) return rowToProject(existing);
+		const existing = this.getProjectBySlug(slug);
+		if (existing) {
+			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
+			return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
+		}
+		return this.insertProject(slug, rootPath, remoteUrl);
+	}
+
+	/** Projeto para um remote que colide no slug base: 8 hex de sha256 do remote
+	 *  (~4e9 — colisão real desprezível); se AINDA assim existir com outro
+	 *  remote, o digest completo. Nunca adota a linha de outro remote. */
+	private getOrCreateDisambiguatedProject(
+		slug: string,
+		rootPath: string,
+		remoteUrl: string | null,
+	): Project {
+		if (remoteUrl === null) {
+			// Sem remote não há como desambiguar; o slug base é o único nome
+			// estável disponível (comportamento anterior).
+			return this.insertProject(slug, rootPath, remoteUrl);
+		}
+		for (const length of [8, 64]) {
+			const candidate = disambiguatedSlugForRemote(slug, remoteUrl, length);
+			const existing = this.getProjectBySlug(candidate);
+			if (!existing) return this.insertProject(candidate, rootPath, remoteUrl);
+			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
+		}
+		// Inalcançável (dois remotes distintos com o mesmo sha256 completo).
+		throw new Error(`memory: slug ${slug} e sua forma desambiguada estão tomados por outros remotes`);
+	}
+
+	private insertProject(slug: string, rootPath: string, remoteUrl: string | null): Project {
 		const createdAt = this.clock();
 		const result = this.db
 			.prepare(
