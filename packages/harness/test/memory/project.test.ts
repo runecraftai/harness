@@ -3,7 +3,7 @@
 // sem git root + env override.
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -149,7 +149,7 @@ describe("resolveSharedGitRootSync", () => {
 			const fromWorktree = resolveProjectSlugSync(worktree, gitEnv());
 			expect(fromWorktree.slug).toBe(fromMain.slug);
 			expect(fromWorktree.slug).toBe("harness");
-			expect(fromWorktree.rootPath).toBe(main);
+			expect(realpathSync.native(fromWorktree.rootPath)).toBe(realpathSync.native(main));
 			expect(fromWorktree.remoteUrl).toBe(fromMain.remoteUrl);
 		} finally {
 			rmSync(base, { recursive: true, force: true });

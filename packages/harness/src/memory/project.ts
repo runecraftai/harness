@@ -8,7 +8,7 @@
 // determinístico para testes/evals).
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -98,6 +98,18 @@ function joinPath(dir: string, child: string): string {
 	return dir.endsWith(sep) ? `${dir}${child}` : `${dir}${sep}${child}`;
 }
 
+/** Path canônico para IDENTIDADE de diretório: `realpathSync.native` resolve
+ *  symlinks, então o spelling do caller e a saída canônica do git do MESMO
+ *  diretório comparam iguais (ex.: `/var` → `/private/var` no macOS). Path
+ *  inexistente → `resolve` (não há o que canonicalizar). */
+export function canonicalPathSync(path: string): string {
+	try {
+		return realpathSync.native(path);
+	} catch {
+		return resolve(path);
+	}
+}
+
 /** `.git` é arquivo? Linked worktree e submodule usam `gitdir: <path>`. */
 function isGitFile(gitPath: string): boolean {
 	try {
@@ -162,7 +174,7 @@ function isCheckoutSync(path: string): boolean {
 			stdio: ["ignore", "pipe", "ignore"],
 		});
 		const top = stdout.trim();
-		return top.length > 0 && resolve(top) === resolve(path);
+		return top.length > 0 && canonicalPathSync(top) === canonicalPathSync(path);
 	} catch {
 		return false;
 	}
@@ -198,9 +210,13 @@ export function resolveSharedGitRootSync(start: string): string | null {
 	if (!isGitFile(joinPath(gitRoot, ".git"))) return gitRoot;
 	const paths = readGitPathsSync(gitRoot);
 	if (!paths) return gitRoot;
-	if (paths.gitDir === paths.commonDir) return paths.toplevel ?? gitRoot;
+	if (canonicalPathSync(paths.gitDir) === canonicalPathSync(paths.commonDir)) return paths.toplevel ?? gitRoot;
 	const main = readMainWorktreeSync(gitRoot);
-	if (main !== null && resolve(main) !== resolve(paths.commonDir) && isCheckoutSync(main)) {
+	if (
+		main !== null &&
+		canonicalPathSync(main) !== canonicalPathSync(paths.commonDir) &&
+		isCheckoutSync(main)
+	) {
 		return main;
 	}
 	return gitRoot;

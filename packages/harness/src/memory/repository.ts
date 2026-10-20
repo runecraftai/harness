@@ -19,9 +19,8 @@
 // sessions/stats/recent/rebuild/purge — evals comparam contra fixtures do
 // source (EVAL-030/033/034/037).
 import { randomUUID } from "node:crypto";
-import { resolve as resolvePath } from "node:path";
 import type { DatabaseLike } from "./client.ts";
-import { canonicalRemoteKey, disambiguatedSlugForRemote } from "./project.ts";
+import { canonicalPathSync, canonicalRemoteKey, disambiguatedSlugForRemote } from "./project.ts";
 import { clampImportance, validateSave, validateUpdate, ValidationError } from "./validate.ts";
 import {
 	type CompactionCandidate,
@@ -129,11 +128,13 @@ function sameRemote(a: string | null, b: string | null): boolean {
 	return canonicalRemoteKey(a) === canonicalRemoteKey(b);
 }
 
-/** Mesmo CHECKOUT? Compara os paths resolvidos — `root_path` é o checkout
- *  principal (`resolveSharedGitRootSync`), então toda worktree do repo tem o
- *  mesmo root. É o desempate de continuidade abaixo. */
+/** Mesmo CHECKOUT? Compara os paths CANÔNICOS (symlinks resolvidos) —
+ *  `root_path` é o checkout principal (`resolveSharedGitRootSync`), que pode
+ *  vir no spelling do caller (main) ou no spelling do git (linked worktree);
+ *  só a comparação canônica garante que são o MESMO diretório. É o desempate
+ *  de continuidade abaixo. */
 function sameRoot(a: string, b: string): boolean {
-	return resolvePath(a) === resolvePath(b);
+	return canonicalPathSync(a) === canonicalPathSync(b);
 }
 
 export interface IndexCounts {

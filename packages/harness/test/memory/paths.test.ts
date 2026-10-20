@@ -4,9 +4,9 @@
 // checkout principal.
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { ensureMemoryDir, memoryDbPath, resolveMemoryDir } from "../../src/memory/paths.ts";
 
 function makeDir(prefix: string): string {
@@ -73,10 +73,10 @@ describe("resolveMemoryDir (D1/QA-1a)", () => {
 	test("linked worktree e checkout principal → UM memory root (worktree REAL)", () => {
 		const { base, main, worktree } = makeRepoWithWorktree();
 		try {
-			const mainDir = resolveMemoryDir(main, process.env);
-			expect(mainDir).toBe(join(main, ".runecraft", "memory"));
-			expect(resolveMemoryDir(worktree, process.env)).toBe(mainDir);
-			expect(resolveMemoryDir(join(worktree, "sub"), process.env)).toBe(mainDir);
+			const mainDir = realpathSync.native(ensureMemoryDir(main, process.env));
+			expect(mainDir).toBe(join(realpathSync.native(main), ".runecraft", "memory"));
+			expect(realpathSync.native(ensureMemoryDir(worktree, process.env))).toBe(mainDir);
+			expect(realpathSync.native(ensureMemoryDir(join(worktree, "sub"), process.env))).toBe(mainDir);
 		} finally {
 			rmSync(base, { recursive: true, force: true });
 		}
@@ -85,13 +85,15 @@ describe("resolveMemoryDir (D1/QA-1a)", () => {
 	test("linked worktree → o DB é o do principal (não some com o worktree)", () => {
 		const { base, main, worktree } = makeRepoWithWorktree();
 		try {
-			const dbPath = memoryDbPath(worktree, process.env);
-			expect(dbPath).toBe(join(main, ".runecraft", "memory", "runes.db"));
+			const mainDir = ensureMemoryDir(main, process.env);
+			const dbDir = realpathSync.native(dirname(memoryDbPath(worktree, process.env)));
+			expect(dbDir).toBe(realpathSync.native(mainDir));
+			expect(dbDir).toBe(join(realpathSync.native(main), ".runecraft", "memory"));
 			git(main, ["worktree", "remove", "--force", worktree]);
 			expect(existsSync(worktree)).toBe(false);
 			// O root resolvido antes da limpeza continua apontando para o principal.
-			expect(dbPath.startsWith(join(base, "main"))).toBe(true);
-			expect(resolveMemoryDir(main, process.env)).toBe(join(main, ".runecraft", "memory"));
+			expect(dbDir.startsWith(realpathSync.native(join(base, "main")))).toBe(true);
+			expect(realpathSync.native(ensureMemoryDir(main, process.env))).toBe(realpathSync.native(mainDir));
 		} finally {
 			rmSync(base, { recursive: true, force: true });
 		}

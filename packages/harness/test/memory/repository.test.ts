@@ -3,7 +3,7 @@
 // clock/idGen (D6) + tie-breaks determinísticos + soft-delete fora de
 // search/get + compaction transacional.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type DatabaseLike, type StatementLike } from "../../src/memory/client.ts";
@@ -211,6 +211,24 @@ describe("getOrCreateProject", () => {
 		expect(repo.searchMemories({ projectId: after.id, query: "rename" }).results).toHaveLength(1);
 		// Nenhuma linha reescrita: o remote gravado continua o antigo.
 		expect(after.remote_url).toBe("git@github.com:oldorg/app.git");
+	});
+
+	test("root symlinkado (MESMO diretório) mantém o projeto na troca de remote", () => {
+		const base = join(tmpdir(), `f29-link-${process.pid}-${Math.random().toString(36).slice(2)}`);
+		const real = join(base, "real");
+		const link = join(base, "link");
+		mkdirSync(real, { recursive: true });
+		symlinkSync(real, link, "dir");
+		try {
+			const before = repo.getOrCreateProject("app", link, "git@github.com:oldorg/app.git");
+			repo.saveMemory({ projectId: before.id, category: "decisions", title: "symlinked", what: "kept" });
+			const after = repo.getOrCreateProject("app", real, "git@github.com:neworg/app.git");
+			expect(after.id).toBe(before.id);
+			expect(after.slug).toBe("app");
+			expect(repo.searchMemories({ projectId: after.id, query: "symlinked" }).results).toHaveLength(1);
+		} finally {
+			rmSync(base, { recursive: true, force: true });
+		}
 	});
 
 	test("caso aceito do desempate: repo DIFERENTE no MESMO path herda a linha", () => {
