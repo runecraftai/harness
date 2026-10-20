@@ -14,7 +14,7 @@ metadata:
 
 # using-runes
 
-Always-on. The agent should consult and update the project's memory at well-defined moments. Memory is per-repo, scoped by `git remote.origin.url` (or path fallback), and persists across sessions. The store lives in `.runecraft/memory/runes.db` (SQLite, gitignored) — it is the cross-session memory of the harness (F29, port of the runes package of the arcanum).
+Always-on. The agent should consult and update the project's memory at well-defined moments. Memory is per-repo, scoped by `git remote.origin.url` (or path fallback), and persists across sessions. The store lives in `.runecraft/memory/runes.db` (SQLite) at the repository's MAIN checkout — linked worktrees of a normal checkout share it, and the harness never adds it to `.gitignore` (in a user repo it is untracked-but-not-ignored). It is the cross-session memory of the harness (F29, port of the runes package of the arcanum); what each git layout shares or discards, and how project identity is decided: `docs/MEMORY.md`.
 
 ## Session start — read context
 
