@@ -133,6 +133,15 @@ describe("disambiguatedSlugForRemote", () => {
 		expect(slugA).toBe(disambiguatedSlugForRemote("shared", a));
 		expect(slugB).toBe(disambiguatedSlugForRemote("shared", b));
 	});
+
+	test("o mesmo repo via SSH e via HTTPS → mesmo slug desambiguado", () => {
+		const https = "https://two.example/other/shared.git";
+		const ssh = "git@two.example:other/shared.git";
+		expect(disambiguatedSlugForRemote("shared", https)).toBe(disambiguatedSlugForRemote("shared", ssh));
+		expect(disambiguatedSlugForRemote("shared", https)).not.toBe(
+			disambiguatedSlugForRemote("shared", "https://one.example/team/shared.git"),
+		);
+	});
 });
 
 describe("resolveProjectSlugSync", () => {

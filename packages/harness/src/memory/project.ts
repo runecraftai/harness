@@ -86,19 +86,25 @@ function readMainWorktreeSync(gitRoot: string): string | null {
 	}
 }
 
-/** `git rev-parse --git-dir --git-common-dir --show-toplevel` absolutos, numa
- *  chamada. `gitDir !== commonDir` ⇔ linked worktree de um repo com working
- *  tree (o main NÃO é um worktree do próprio repo). */
+/** `git rev-parse --git-dir --git-common-dir --show-toplevel`, numa chamada.
+ *  `gitDir !== commonDir` ⇔ linked worktree de um repo com working tree (o
+ *  main NÃO é um worktree do próprio repo). Os paths são resolvidos contra
+ *  `gitRoot` em vez de pedir `--path-format=absolute`: esse flag exige git
+ *  ≥ 2.31 e o fallback silencioso degradaria para o DB por-worktree. */
 function readGitPathsSync(gitRoot: string): { gitDir: string; commonDir: string; toplevel: string | null } | null {
 	try {
 		const stdout = execFileSync(
 			"git",
-			["-C", gitRoot, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel"],
+			["-C", gitRoot, "rev-parse", "--git-dir", "--git-common-dir", "--show-toplevel"],
 			{ timeout: 1000, windowsHide: true, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] },
 		);
-		const [gitDir = "", commonDir = "", toplevel = ""] = stdout.split("\n").map((l) => l.trim());
-		if (gitDir === "" || commonDir === "") return null;
-		return { gitDir, commonDir, toplevel: toplevel.length > 0 ? toplevel : null };
+		const [gitDirRaw = "", commonDirRaw = "", toplevelRaw = ""] = stdout.split("\n").map((l) => l.trim());
+		if (gitDirRaw === "" || commonDirRaw === "") return null;
+		return {
+			gitDir: resolve(gitRoot, gitDirRaw),
+			commonDir: resolve(gitRoot, commonDirRaw),
+			toplevel: toplevelRaw.length > 0 ? resolve(gitRoot, toplevelRaw) : null,
+		};
 	} catch {
 		return null;
 	}
@@ -135,16 +141,18 @@ export function resolveSharedGitRootSync(start: string): string | null {
 }
 
 /** Slug desambiguado de um remote que já perdeu o slug base para OUTRO
- *  remote no mesmo DB: `<slug>-<sha256(remoteUrl)[:len]>`. Determinístico e
- *  estável — a derived base slug (último segmento) nunca muda, então o
- *  primeiro projeto a reivindicar um slug mantém a identidade e nenhuma linha
- *  existente é reescrita (sem migração). */
+ *  remote no mesmo DB: `<slug>-<sha256(remoteUrl normalizado)[:len]>`.
+ *  Determinístico e estável — a derived base slug (último segmento) nunca
+ *  muda, então o primeiro projeto a reivindicar um slug mantém a identidade e
+ *  nenhuma linha existente é reescrita (sem migração). O hash usa o remote
+ *  NORMALIZADO (mesma forma que `sameRemote` compara), senão o mesmo repo via
+ *  SSH e via HTTPS ganharia dois slugs desambiguados — e dois projetos. */
 export function disambiguatedSlugForRemote(
 	baseSlug: string,
 	remoteUrl: string,
 	length = 8,
 ): string {
-	const digest = createHash("sha256").update(remoteUrl.trim()).digest("hex");
+	const digest = createHash("sha256").update(normalizeRemoteUrl(remoteUrl)).digest("hex");
 	return `${baseSlug}-${digest.slice(0, length)}`;
 }
 

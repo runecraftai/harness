@@ -86,6 +86,15 @@ describe("getOrCreateProject", () => {
 		expect(https.id).toBe(ssh.id);
 	});
 
+	test("remote colidente via SSH e HTTPS → uma identidade desambiguada só", () => {
+		repo.getOrCreateProject("shared", "/tmp/a", "https://one.example/team/shared.git");
+		const https = repo.getOrCreateProject("shared", "/tmp/b", "https://two.example/other/shared.git");
+		const ssh = repo.getOrCreateProject("shared", "/tmp/b", "git@two.example:other/shared.git");
+		expect(https.slug.startsWith("shared-")).toBe(true);
+		expect(ssh.id).toBe(https.id);
+		expect(ssh.slug).toBe(https.slug);
+	});
+
 	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {
 		const pinned = repo.getOrCreateProject("pinned", "/tmp/pinned", null);
 		const same = repo.getOrCreateProject("pinned", "/tmp/pinned", "https://one.example/team/pinned.git");

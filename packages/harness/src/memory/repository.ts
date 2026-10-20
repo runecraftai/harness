@@ -171,11 +171,14 @@ export class Repository {
 	 */
 	getOrCreateProject(slug: string, rootPath: string, remoteUrl: string | null = null): Project {
 		const existing = this.getProjectBySlug(slug);
-		if (existing) {
-			if (sameRemote(existing.remote_url, remoteUrl)) return existing;
-			return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
+		if (!existing) return this.insertProject(slug, rootPath, remoteUrl);
+		if (sameRemote(existing.remote_url, remoteUrl)) return existing;
+		// `sameRemote` só é false com AMBOS os remotes não-nulos (sem remote
+		// nunca é conflito), então aqui o remote existe por invariante.
+		if (remoteUrl === null) {
+			throw new Error(`memory: slug ${slug} está tomado por outro remote e não há remote para desambiguar`);
 		}
-		return this.insertProject(slug, rootPath, remoteUrl);
+		return this.getOrCreateDisambiguatedProject(slug, rootPath, remoteUrl);
 	}
 
 	/** Projeto para um remote que colide no slug base: 8 hex de sha256 do remote
@@ -184,13 +187,8 @@ export class Repository {
 	private getOrCreateDisambiguatedProject(
 		slug: string,
 		rootPath: string,
-		remoteUrl: string | null,
+		remoteUrl: string,
 	): Project {
-		if (remoteUrl === null) {
-			// Sem remote não há como desambiguar; o slug base é o único nome
-			// estável disponível (comportamento anterior).
-			return this.insertProject(slug, rootPath, remoteUrl);
-		}
 		for (const length of [8, 64]) {
 			const candidate = disambiguatedSlugForRemote(slug, remoteUrl, length);
 			const existing = this.getProjectBySlug(candidate);

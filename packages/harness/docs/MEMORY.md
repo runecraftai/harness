@@ -37,7 +37,9 @@ content.
     rewritten — the change requires no migration**: an existing project
     (single remote) keeps its exact slug, its project id and its memories.
   - The same repo over SSH and HTTPS is ONE project: remotes are compared
-    normalized (`git@host:o/r.git` ≡ `https://host/o/r.git`).
+    normalized (`git@host:o/r.git` ≡ `https://host/o/r.git`), and the
+    disambiguated suffix also hashes the NORMALIZED remote, so the same repo
+    gets one identity regardless of the protocol it was cloned with.
   - A row with no `remote_url` is never displaced: a legacy project, or a slug
     pinned by `RUNECRAFT_MEMORY_PROJECT_SLUG`, keeps owning its slug even when
     a remote now appears in the checkout.
@@ -56,15 +58,22 @@ content.
 | | Where it lives |
 | --- | --- |
 | **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout |
-| **Per-worktree** (written to the worktree's own cwd) | `events/`, `continuation.json`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/lessons/promoted.jsonl` — owned by the observability/resilience/verification layers, not by memory |
-| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its per-worktree sinks above; the shared memory DB survives. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+| **Per-worktree, cwd-scoped** (written to the worktree's own cwd, not by memory) | `.runecraft/events/` (observability), `.runecraft/continuation.json` (resilience), `.runecraft/verify-verdicts.jsonl` (verification), `.runecraft/plans/` (SDD archive), `.runecraft/state.json` (harness config/state) |
+| **Per-worktree but VERSIONED** | `.runecraft/lessons/promoted.jsonl` — it is a tracked team-memory file, so `git worktree remove` only drops the worktree's unchecked-out copy; committed lessons come back from the branch |
+| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its per-worktree, uncommitted sinks above; the shared memory DB survives. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
 
-Two honest consequences, both measured behavior:
+Three honest consequences, all measured behavior:
 
 - **A memory saved from a scratch/task worktree is NOT isolated.** It is
   written to the shared durable repo DB and stays there after
   `git worktree remove`. There is no scratch-memory mode; do not treat a
   throwaway worktree as a throwaway memory scope.
+- **A DB written by an older version inside a linked worktree is no longer
+  read and is not migrated.** Before this relocation the memory root was the
+  worktree itself (`<worktree>/.runecraft/memory/runes.db`); that file is now
+  ignored in favour of the main checkout's DB and is deleted by the next
+  `git worktree remove`. Nothing is copied automatically — copy it into the
+  main checkout's `.runecraft/memory/runes.db` if those memories matter.
 - `projects.root_path` records the main checkout for a repo, so two worktrees
   of the same repo never create two project rows.
 
