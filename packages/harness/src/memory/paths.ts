@@ -5,8 +5,9 @@
 // root é o checkout PRINCIPAL: uma linked worktree resolve para o
 // `.runecraft/memory` do checkout principal (resolveSharedGitRootSync — o
 // `.git` de um worktree é um arquivo e não deve receber o DB, que sumiria com
-// `git worktree remove`). `.runecraft/memory/` é gitignored (padrão dos demais
-// sinks de runtime: events/ F28, continuation F27, verify-verdicts F25).
+// `git worktree remove`). Nada no código adiciona `.runecraft/memory/` ao
+// `.gitignore` (só `receipts/`+`config.json` via gates e `events/`+`lessons.jsonl`
+// via observability): o DB é runtime-local e `git add -A` pode staged-lo.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { resolveSharedGitRootSync } from "./project.ts";

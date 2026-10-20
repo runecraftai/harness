@@ -13,8 +13,8 @@ content.
 
 ## Storage & concurrency
 
-- **Location**: `<repoRoot | cwd>/.runecraft/memory/runes.db` (gitignored) —
-  override `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI). `<repoRoot>` is the MAIN
+- **Location**: `<repoRoot | cwd>/.runecraft/memory/runes.db` — override
+  `RUNECRAFT_MEMORY_DATA_DIR` (evals/CLI). `<repoRoot>` is the MAIN
   checkout, not "wherever the current `.git` is": a linked worktree
   (`git worktree add`) resolves through the git common directory to the main
   checkout's `.runecraft/memory` (`resolveSharedGitRootSync` in
@@ -84,11 +84,13 @@ content.
 
 | | Where it lives |
 | --- | --- |
-| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout (only when that main checkout is a real checkout). `.runecraft/receipts/` and `.runecraft/config.json` are shared too: receipt capture and workspace-scoped gates config resolve through `repoRoot()` = `dirname(git rev-parse --git-common-dir)` to the MAIN checkout, so they survive `git worktree remove` |
-| **Per-worktree, cwd-scoped** (written to the worktree's own cwd) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/plans/` — observability, resilience, verification and SDD sinks; only `events/` and `lessons.jsonl` get a `.gitignore` line (plus `receipts/` and `config.json` via the gates setup), the rest stay untracked-but-not-ignored |
-| **User-level by default** | `.runecraft/state.json` is `~/.runecraft/state.json` (`runecraftDir`); it lands in `<cwd>/.runecraft/state.json` only when a command uses `--scope workspace` |
+| **Shared** by every worktree of one repo | `.runecraft/memory/runes.db` — all projects/sessions/memories, in the main checkout (only when that main checkout is a real checkout). `.runecraft/receipts/`, `.runecraft/config.json` and the workspace `state.json` written by `harness gates enable` are shared too: receipt capture and workspace-scoped gates state resolve through `repoRoot()` = `dirname(git rev-parse --git-common-dir)` to the MAIN checkout, so they survive `git worktree remove` |
+| **Per-worktree, cwd-scoped** (written to the worktree's own cwd) | `.runecraft/events/`, `.runecraft/lessons.jsonl`, `.runecraft/continuation.json`, `.runecraft/resilience-events.jsonl`, `.runecraft/verify-verdicts.jsonl`, `.runecraft/plans/` — observability, resilience, verification and SDD sinks |
+| **User-level by default** | `state.json` other than `gates enable`'s: `$RUNECRAFT_HOME ?? ~/.runecraft`/`state.json` (`runecraftDir`), or `<repoRoot>/.runecraft/state.json` when a command is given `--scope workspace` (main checkout → shared) |
 | **Per-worktree but VERSIONED** | `.runecraft/lessons/promoted.jsonl` — it is a tracked team-memory file, so `git worktree remove` only drops the worktree's unchecked-out copy; committed lessons come back from the branch |
-| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its uncommitted per-worktree sinks above; the shared memory DB, `.runecraft/receipts/` and `.runecraft/config.json` survive. Because `continuation.json`, `resilience-events.jsonl`, `verify-verdicts.jsonl` and `plans/` are untracked but not gitignored, a plain `git worktree remove` refuses that worktree without `--force`. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+| **Discarded** | `git worktree remove <path>` deletes the worktree directory and its uncommitted per-worktree sinks above; the shared memory DB, `.runecraft/receipts/`, `.runecraft/config.json` and the workspace state survive. Because `continuation.json`, `resilience-events.jsonl`, `verify-verdicts.jsonl` and `plans/` are untracked but not gitignored, a plain `git worktree remove` refuses that worktree without `--force`. Deleting the MAIN checkout discards the DB. `harness memory doctor --purge` hard-deletes soft-deleted rows DB-wide (all projects) |
+
+`.gitignore` is NOT comprehensive: the only lines the harness ever adds are `.runecraft/receipts/` and `.runecraft/config.json` (`gates enable`) plus `.runecraft/events/` and `.runecraft/lessons.jsonl` (observability). **`.runecraft/memory/` is never added** — in a user repo the DB is untracked-but-not-ignored and `git add -A` can stage it (this repo ignores it only for `packages/harness/`, via that package's own `.gitignore`).
 
 Honest consequences, all measured behavior:
 
@@ -356,7 +358,7 @@ the rebuild — an exit 1 there means drift survived the rebuild.
 ## Privacy
 
 - Memory content (title/what/why/…) lives **ONLY in the DB**
-  (`.runecraft/memory/runes.db` — gitignored). It is never written raw into
+  (`.runecraft/memory/runes.db`). It is never written raw into
   events/ (the recorder uses `argsHash` — normalized sha256), state.json,
   continuation.json, lessons.jsonl or logs (the memory layer logs only
   metadata: ids/counts).

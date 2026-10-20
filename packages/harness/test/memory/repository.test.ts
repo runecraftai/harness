@@ -112,10 +112,12 @@ describe("getOrCreateProject", () => {
 	});
 
 	test("alias ssh de UMA letra ≡ https do mesmo host → um projeto", () => {
-		const first = repo.getOrCreateProject("repo", "/tmp/repo", "git@x:repo.git");
+		// Slug derivável dos dois spellings (o caminho precisa ter 2 segmentos:
+		// `x:repo.git` derivaria `x:repo`, um slug que o resolver nunca produz).
+		const first = repo.getOrCreateProject("r", "/tmp/r", "git@x:o/r.git");
 		repo.saveMemory({ projectId: first.id, category: "decisions", title: "alias", what: "one identity" });
-		for (const remote of ["x:repo.git", "https://x/repo.git"]) {
-			const again = repo.getOrCreateProject("repo", "/tmp/repo", remote);
+		for (const remote of ["x:o/r.git", "git@x:/o/r.git", "https://x/o/r.git"]) {
+			const again = repo.getOrCreateProject("r", "/tmp/r", remote);
 			expect(again.id).toBe(first.id);
 			expect(repo.searchMemories({ projectId: again.id, query: "alias" }).results).toHaveLength(1);
 		}
