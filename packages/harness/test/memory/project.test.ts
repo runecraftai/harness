@@ -7,6 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	canonicalRemoteKey,
 	deriveSlugFromRemote,
 	disambiguatedSlugForRemote,
 	findGitRoot,
@@ -66,7 +67,7 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 		expect(normalizeRemoteUrl("C:/repos/repo.git")).toBe("C:/repos/repo");
 	});
 
-	test("formas equivalentes do mesmo repo → mesma normalização e mesmo slug", () => {
+	test("formas equivalentes do mesmo repo → mesma CHAVE canônica", () => {
 		for (const remote of [
 			"git@host:o/r.git",
 			"ssh://git@host/o/r.git",
@@ -76,9 +77,27 @@ describe("normalizeRemoteUrl / deriveSlugFromRemote (port lib/project.ts)", () =
 			"https://host/o/r/",
 			"https://host/o/r.git/",
 		]) {
-			expect(normalizeRemoteUrl(remote)).toBe("o/r");
-			expect(deriveSlugFromRemote(remote)).toBe("r");
+			expect(canonicalRemoteKey(remote)).toBe("host/o/r");
 		}
+		// Hosts distintos NÃO são o mesmo repo (o normalizeRemoteUrl congelado
+		// descarta o host — é o que colidia slugs entre hosts).
+		expect(canonicalRemoteKey("https://one.example/team/shared.git")).toBe("one.example/team/shared");
+		expect(canonicalRemoteKey("https://two.example/team/shared.git")).not.toBe(
+			canonicalRemoteKey("https://one.example/team/shared.git"),
+		);
+		expect(canonicalRemoteKey("/abs/path/repo.git")).toBe("/abs/path/repo");
+	});
+
+	test("slug é CONGELADO (byte-compatível com o commit base — nenhum projeto existente é renomeado)", () => {
+		// Valores medidos no commit base: remotes com barra final depois de
+		// `.git` mantêm o slug histórico `r.git` (não `r`). Mudar isto renomeia
+		// um projeto existente e esconde as memórias dele.
+		expect(deriveSlugFromRemote("https://host/o/r.git/")).toBe("r.git");
+		expect(deriveSlugFromRemote("git@host:o/r.git/")).toBe("r.git");
+		expect(deriveSlugFromRemote("https://host/o/r/")).toBe("r");
+		expect(deriveSlugFromRemote("git@host:o/r.git")).toBe("r");
+		expect(deriveSlugFromRemote("ssh://git@host/o/r.git")).toBe("r");
+		expect(normalizeRemoteUrl("https://host/o/r.git/")).toBe("o/r.git/");
 	});
 });
 
@@ -154,9 +173,19 @@ describe("disambiguatedSlugForRemote", () => {
 		const https = "https://two.example/other/shared.git";
 		const ssh = "git@two.example:other/shared.git";
 		expect(disambiguatedSlugForRemote("shared", https)).toBe(disambiguatedSlugForRemote("shared", ssh));
+		expect(disambiguatedSlugForRemote("shared", https)).toBe(
+			disambiguatedSlugForRemote("shared", "ssh://git@two.example/other/shared"),
+		);
 		expect(disambiguatedSlugForRemote("shared", https)).not.toBe(
 			disambiguatedSlugForRemote("shared", "https://one.example/team/shared.git"),
 		);
+	});
+
+	test("remotes com o mesmo path em hosts distintos → slugs desambiguados distintos", () => {
+		const a = "https://one.example/team/shared.git";
+		const b = "https://two.example/team/shared.git";
+		expect(deriveSlugFromRemote(a)).toBe(deriveSlugFromRemote(b));
+		expect(disambiguatedSlugForRemote("shared", a)).not.toBe(disambiguatedSlugForRemote("shared", b));
 	});
 });
 

@@ -20,18 +20,44 @@ export interface ProjectIdentity {
 	remoteUrl: string | null;
 }
 
-const SCP_REMOTE_RE = /^(?:[^@/]+@)[^:/]+:(?!\/\/)(.+?)(?:\.git)?$/;
-const URL_REMOTE_RE = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?[^/]+\/(.*)$/;
+const SCP_REMOTE_RE = /^(?:[^@/]+@)([^:/]+):(?!\/\/)(.+)$/;
+const URL_REMOTE_RE = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?([^/]+)\/(.*)$/;
+const SSH_REMOTE_RE = /^git@[^:]+:(.+?)(?:\.git)?$/;
+const HTTPS_REMOTE_RE = /^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/;
 
-/** Normaliza a URL do remote para o caminho após o host: `git@host:o/r.git`,
- *  `ssh://git@host/o/r.git`, `git://host/o/r.git` e `https://host/o/r/` viram
- *  todos `o/r` — o mesmo repo clonado de formas equivalentes tem UMA
- *  identidade (a comparação de `sameRemote` e o hash do slug desambiguado
- *  dependem disto). */
+/** Normaliza a URL do remote: SSH/HTTPS → caminho após o host; strip `.git`.
+ *
+ *  SEMÂNTICA CONGELADA — é daqui que `deriveSlugFromRemote` deriva o slug do
+ *  projeto, então mudar estas regras RENOMEIA projetos existentes e esconde as
+ *  memórias deles (sem migração). Equivalentes de protocolo/escrita são
+ *  reconhecidos por `canonicalRemoteKey`, nunca aqui. */
 export function normalizeRemoteUrl(url: string): string {
 	const trimmed = url.trim();
+	const ssh = trimmed.match(SSH_REMOTE_RE);
+	if (ssh) return ssh[1] ?? "";
+	const https = trimmed.match(HTTPS_REMOTE_RE);
+	if (https) return https[1] ?? "";
+	return trimmed.replace(/\.git$/, "");
+}
+
+/** Chave CANÔNICA de comparação de remotes (`sameRemote` + hash do slug
+ *  desambiguado) — NUNCA usada para derivar slug. `git@host:o/r.git`,
+ *  `ssh://git@host/o/r.git`, `git://host/o/r.git` e `https://host/o/r/` são o
+ *  mesmo repo → `host/o/r`. O HOST faz parte da chave (o `normalizeRemoteUrl`
+ *  congelado o descarta, é o que colidia slugs entre hosts distintos). */
+export function canonicalRemoteKey(url: string): string {
+	const trimmed = url.trim();
 	const scp = trimmed.match(SCP_REMOTE_RE);
-	const path = scp?.[1] ?? trimmed.match(URL_REMOTE_RE)?.[1] ?? trimmed;
+	if (scp) return `${(scp[1] ?? "").toLowerCase()}/${cleanRemotePath(scp[2] ?? "")}`;
+	const urlMatch = trimmed.match(URL_REMOTE_RE);
+	if (urlMatch) {
+		const host = (urlMatch[1] ?? "").replace(/:\d+$/, "").toLowerCase();
+		return `${host}/${cleanRemotePath(urlMatch[2] ?? "")}`;
+	}
+	return cleanRemotePath(trimmed);
+}
+
+function cleanRemotePath(path: string): string {
 	return path.replace(/\/+$/, "").replace(/\.git$/, "");
 }
 
@@ -112,6 +138,25 @@ function readGitPathsSync(gitRoot: string): { gitDir: string; commonDir: string;
 	}
 }
 
+/** O path é um checkout REAL? `git rev-parse --show-toplevel` executado nele
+ *  devolve ele mesmo. Um main bare (`git clone --bare` + `git worktree add`) e
+ *  o diretório de `--separate-git-dir` aparecem em `git worktree list` como
+ *  "worktree" mas são GIT DIRS, não checkouts. */
+function isCheckoutSync(path: string): boolean {
+	try {
+		const stdout = execFileSync("git", ["-C", path, "rev-parse", "--show-toplevel"], {
+			timeout: 1000,
+			windowsHide: true,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		const top = stdout.trim();
+		return top.length > 0 && resolve(top) === resolve(path);
+	} catch {
+		return false;
+	}
+}
+
 /** Root COMPARTILHADO do repo — o checkout principal, não o worktree atual.
  *
  *  `findGitRoot` para no primeiro `.git`, que numa linked worktree é um arquivo
@@ -127,8 +172,12 @@ function readGitPathsSync(gitRoot: string): { gitDir: string; commonDir: string;
  *    checkout), o mesmo root de antes → submodules continuam isolados (testado
  *    com submodule real).
  *  - git-dir != git-common-dir → linked worktree: `git worktree list` lista o
- *    main primeiro. (`dirname` do `--git-common-dir`, usado pelos gates F20,
- *    erraria submodules e `--separate-git-dir`; este caminho acerta os dois.)
+ *    main primeiro, mas nem sempre é um checkout — main bare
+ *    (`git clone --bare` + `git worktree add`) e main com `--separate-git-dir`
+ *    são GIT DIRS. O candidato só é aceito se for checkout real
+ *    (`isCheckoutSync`) e diferente do git common dir; senão o worktree mantém
+ *    o próprio diretório. O root da memória NUNCA resolve para dentro de um
+ *    `.git`/git dir.
  *
  *  Git ilegível → o próprio gitRoot (comportamento anterior, nunca um path
  *  inventado). */
@@ -139,22 +188,26 @@ export function resolveSharedGitRootSync(start: string): string | null {
 	const paths = readGitPathsSync(gitRoot);
 	if (!paths) return gitRoot;
 	if (paths.gitDir === paths.commonDir) return paths.toplevel ?? gitRoot;
-	return readMainWorktreeSync(gitRoot) ?? gitRoot;
+	const main = readMainWorktreeSync(gitRoot);
+	if (main !== null && resolve(main) !== resolve(paths.commonDir) && isCheckoutSync(main)) {
+		return main;
+	}
+	return gitRoot;
 }
 
 /** Slug desambiguado de um remote que já perdeu o slug base para OUTRO
- *  remote no mesmo DB: `<slug>-<sha256(remoteUrl normalizado)[:len]>`.
+ *  remote no mesmo DB: `<slug>-<sha256(canonicalRemoteKey)[:len]>`.
  *  Determinístico e estável — a derived base slug (último segmento) nunca
  *  muda, então o primeiro projeto a reivindicar um slug mantém a identidade e
- *  nenhuma linha existente é reescrita (sem migração). O hash usa o remote
- *  NORMALIZADO (mesma forma que `sameRemote` compara), senão o mesmo repo via
- *  SSH e via HTTPS ganharia dois slugs desambiguados — e dois projetos. */
+ *  nenhuma linha existente é reescrita (sem migração). O hash usa a chave
+ *  CANÔNICA (mesma que `sameRemote` compara), senão o mesmo repo via SSH e via
+ *  HTTPS ganharia dois slugs desambiguados — e dois projetos. */
 export function disambiguatedSlugForRemote(
 	baseSlug: string,
 	remoteUrl: string,
 	length = 8,
 ): string {
-	const digest = createHash("sha256").update(normalizeRemoteUrl(remoteUrl)).digest("hex");
+	const digest = createHash("sha256").update(canonicalRemoteKey(remoteUrl)).digest("hex");
 	return `${baseSlug}-${digest.slice(0, length)}`;
 }
 

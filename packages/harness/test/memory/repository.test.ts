@@ -7,6 +7,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type DatabaseLike } from "../../src/memory/client.ts";
+import { deriveSlugFromRemote } from "../../src/memory/project.ts";
 import {
 	Repository,
 	ValidationError,
@@ -103,6 +104,20 @@ describe("getOrCreateProject", () => {
 			expect(again.id).toBe(first.id);
 			expect(repo.searchMemories({ projectId: again.id, query: "kept" }).results).toHaveLength(1);
 		}
+	});
+
+	test("slug legado de remote `.git/` mantém a identidade (nenhum projeto renomeado)", () => {
+		// O spelling `https://host/o/r.git/` sempre derivou o slug `r.git`; a
+		// normalização usada para COMPARAR remotes não pode renomear esse
+		// projeto (senão as memórias dele somem da vista).
+		const legacy = repo.getOrCreateProject("r.git", "/tmp/r", "https://host/o/r.git/");
+		repo.saveMemory({ projectId: legacy.id, category: "decisions", title: "legacy", what: "still visible" });
+		expect(deriveSlugFromRemote("https://host/o/r.git/")).toBe("r.git");
+		const again = repo.getOrCreateProject("r.git", "/tmp/r", "https://host/o/r.git/");
+		expect(again.id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("r.git")?.id).toBe(legacy.id);
+		expect(repo.getProjectBySlug("r")).toBeNull();
+		expect(repo.searchMemories({ projectId: again.id, query: "visible" }).results).toHaveLength(1);
 	});
 
 	test("linha sem remote (legado/override) nunca é deslocada por um remote", () => {

@@ -132,6 +132,44 @@ describe("resolveMemoryDir (D1/QA-1a)", () => {
 		}
 	});
 
+	test("main BARE + worktree → nunca dentro do git dir (worktree mantém o próprio root)", () => {
+		const base = makeDir("baremain");
+		const bare = join(base, "bare.git");
+		const worktree = join(base, "task-worktree");
+		try {
+			git(base, ["init", "-q", "--bare", bare]);
+			git(bare, ["worktree", "add", "-q", worktree]);
+			// `git worktree list` reporta o bare repo como primeiro "worktree".
+			const worktreeRoot = resolveMemoryDir(worktree, process.env);
+			expect(worktreeRoot).toBe(join(worktree, ".runecraft", "memory"));
+			expect(worktreeRoot).not.toContain("bare.git");
+			expect(memoryDbPath(worktree, process.env)).not.toContain("bare.git");
+		} finally {
+			rmSync(base, { recursive: true, force: true });
+		}
+	});
+
+	test("main com --separate-git-dir + worktree → main mantém seu root, worktree cai no próprio (nunca no git dir)", () => {
+		const base = makeDir("sepgitdir");
+		const main = join(base, "main");
+		const sepGitDir = join(base, "sep-gitdir");
+		const worktree = join(base, "task-worktree");
+		mkdirSync(main, { recursive: true });
+		try {
+			git(base, ["init", "-q", "--separate-git-dir", sepGitDir, main]);
+			writeFileSync(join(main, "f.txt"), "x\n");
+			git(main, ["add", "."]);
+			git(main, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]);
+			git(main, ["worktree", "add", "-q", worktree]);
+			expect(resolveMemoryDir(main, process.env)).toBe(join(main, ".runecraft", "memory"));
+			const worktreeRoot = resolveMemoryDir(worktree, process.env);
+			expect(worktreeRoot).toBe(join(worktree, ".runecraft", "memory"));
+			expect(worktreeRoot).not.toContain("sep-gitdir");
+		} finally {
+			rmSync(base, { recursive: true, force: true });
+		}
+	});
+
 	test("memoryDbPath → <memoryDir>/runes.db", () => {
 		const dir = makeDir("dbp");
 		try {

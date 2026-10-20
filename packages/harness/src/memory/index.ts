@@ -2,7 +2,7 @@
 export { openDatabase } from "./client.ts";
 export { runMigrations, SCHEMA_VERSION, readSchemaVersion } from "./migrations.ts";
 export { Repository, DEFAULT_CATEGORY_CAP, HARD_CAP_MULTIPLIER, SIGNAL_CANDIDATE_LIMIT, ValidationError } from "./repository.ts";
-export { resolveProjectSlug, resolveProjectSlugSync, deriveSlugFromRemote, normalizeRemoteUrl, findGitRoot, resolveSharedGitRootSync, disambiguatedSlugForRemote } from "./project.ts";
+export { resolveProjectSlug, resolveProjectSlugSync, deriveSlugFromRemote, normalizeRemoteUrl, canonicalRemoteKey, findGitRoot, resolveSharedGitRootSync, disambiguatedSlugForRemote } from "./project.ts";
 export { resolveMemoryDir, ensureMemoryDir, memoryDbPath } from "./paths.ts";
 export { createToolsRecord, filterToolsByDisabled } from "./tools.ts";
 export {

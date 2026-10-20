@@ -20,7 +20,7 @@
 // source (EVAL-030/033/034/037).
 import { randomUUID } from "node:crypto";
 import type { DatabaseLike } from "./client.ts";
-import { disambiguatedSlugForRemote, normalizeRemoteUrl } from "./project.ts";
+import { canonicalRemoteKey, disambiguatedSlugForRemote } from "./project.ts";
 import { clampImportance, validateSave, validateUpdate, ValidationError } from "./validate.ts";
 import {
 	type CompactionCandidate,
@@ -116,13 +116,15 @@ function rowToProject(row: Record<string, unknown>): Project {
 	};
 }
 
-/** Mesmo repo? Compara remotes NORMALIZADOS (`git@host:o/r.git` ≡
- *  `https://host/o/r.git`). `null` = desconhecido → nunca é conflito: uma linha
- *  sem remote (projeto legado, ou slug fixado por
- *  RUNECRAFT_MEMORY_PROJECT_SLUG) continua dona do seu slug. */
+/** Mesmo repo? Compara as chaves CANÔNICAS dos remotes (`git@host:o/r.git` ≡
+ *  `ssh://host/o/r.git` ≡ `https://host/o/r/`) — nunca o
+ *  `normalizeRemoteUrl` congelado, cujo resultado descarta o host e alimenta o
+ *  slug. `null` = desconhecido → nunca é conflito: uma linha sem remote
+ *  (projeto legado, ou slug fixado por RUNECRAFT_MEMORY_PROJECT_SLUG) continua
+ *  dona do seu slug. */
 function sameRemote(a: string | null, b: string | null): boolean {
 	if (a === null || b === null) return true;
-	return normalizeRemoteUrl(a) === normalizeRemoteUrl(b);
+	return canonicalRemoteKey(a) === canonicalRemoteKey(b);
 }
 
 export interface IndexCounts {
