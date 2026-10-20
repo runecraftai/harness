@@ -51,9 +51,10 @@ content.
     its canonical remote differs. A remote rename/transfer/mirror switch on the
     same checkout (e.g. a GitHub org rename `oldorg/app` → `neworg/app`, same
     trailing segment) therefore keeps the same project id, slug and memories
-    instead of stranding them behind a fresh row. The check is plain path
-    equality on the resolved root (`root_path` is the main checkout, so every
-    worktree of the repo matches it), needs no row rewrite, and is the one
+    instead of stranding them behind a fresh row. The check is canonical,
+    symlink-resolved path equality on the main checkout (`root_path` is the
+    main checkout, so every worktree of the repo and a symlinked respelling of
+    the same directory match it), needs no row rewrite, and is the one
     accepted cost of the heuristic: **a DIFFERENT repository cloned into the
     EXACT same directory path, with the same trailing segment, inherits that
     row's memories.** Pick a different clone directory or a distinct slug
